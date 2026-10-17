@@ -1900,8 +1900,8 @@ function renderSelect(){
   try{BGM.stop();}catch(e){} $('#app').innerHTML=`
     <h1>灵宠对决</h1>
     <div class="sub">选 <b>6 只</b> 上阵。卡面是<b>种族值</b>（下一步加点 + 选技能）。</div>
-    <div class="rankbar">${rankTierNow().icon} 排位 ${rankTierNow().name} · ${RANK.points} 分 · ${RANK.wins}胜${RANK.losses}负 · 最高 ${RANK.best} · ☁️ ${CLOUD.user?CLOUD.user:'未绑定'}</div>
-    <div class="row"><button id="rankBtn" class="bigbtn">🏆 排位模式（BP 上分）</button><span class="grow"></span><button id="cloudBtn">☁️ 账号</button><button id="rankSaveBtn">💾 排位存档</button><button id="rankLoadBtn">📂 读档</button><button id="loadPresetTop">📂 读取预设</button></div>
+    <div class="rankbar">${rankTierNow().icon} 排位 ${rankTierNow().name} · ${RANK.points} 分 · ${RANK.wins}胜${RANK.losses}负 · 最高 ${RANK.best}${apiBase()===null?'':' · ☁️ '+(CLOUD.user||'未绑定')}</div>
+    <div class="row"><button id="rankBtn" class="bigbtn">🏆 排位模式（BP 上分）</button><span class="grow"></span>${apiBase()===null?'':'<button id="cloudBtn">☁️ 账号</button>'}<button id="rankSaveBtn">💾 排位存档</button><button id="rankLoadBtn">📂 读档</button><button id="loadPresetTop">📂 读取预设</button></div>
     <div class="grid">${PETS.map(p=>`<div class="card${pick.some(x=>x.id===p.id)?' sel':''}" data-id="${p.id}"><div class="em">${petIcon(p,74)}</div>
       <div class="nm">${p.name} <span class="tag" style="background:${typeColor(p.type)}22;color:${typeColor(p.type)}">${typeName(p.type)}</span></div>
       <div class="stats">${STATS.map(k=>`<span>${SNAME[k]} ${p.base[k]}</span>`).join('')}</div>
@@ -1916,7 +1916,7 @@ function renderSelect(){
   document.querySelectorAll('.skview').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); e.preventDefault(); showPetSkills(b.dataset.sk); });
   $('#toBuild').onclick=renderBuild; $('#loadPresetTop').onclick=()=>$('#fileinput').click(); bindFileInput();
   $('#rankBtn').onclick=startRanked;
-  $('#cloudBtn').onclick=cloudAccountUI;
+  if($('#cloudBtn')) $('#cloudBtn').onclick=cloudAccountUI;
   $('#rankSaveBtn').onclick=rankSaveFile;
   $('#rankLoadBtn').onclick=()=>$('#rankfile').click();
   $('#rankfile').onchange=()=>{ const f=$('#rankfile').files[0]; rankImportSave(f); $('#rankfile').value=''; };
