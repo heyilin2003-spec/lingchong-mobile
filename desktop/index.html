@@ -680,7 +680,7 @@ PETS.push({id:'lvyi',name:'戒律仲裁者',type:['武','暗'],emoji:'⚖️',ar
     {name:'禁声',star:1,cat:'变化',power:0,pp:5,spd:9,type:'暗',debuffs:[{k:'atk',lv:-1},{k:'spe',lv:-1}],desc:'专属 · 先手+1 · 对手攻击、速度各-1级'},
     {name:'静心',star:1,cat:'变化',power:0,pp:4,type:'武',heal:0.22,cleanse:true,desc:'专属 · 回复自身22%生命，并净化自身负面'}
   ]});
-PETS.push({id:'zuiyan',name:'罪言巫师',type:['暗','毒'],emoji:'🕯️',art:'zuiyan',passive:{negTeamPow:10},base:{hp:88,atk:50,def:76,spa:104,spd:82,spe:84},own:[
+PETS.push({id:'zuiyan',name:'罪言巫师',type:['暗','毒'],emoji:'🕯️',art:'zuiyan',passive:{negTeamPow:8},base:{hp:88,atk:50,def:76,spa:104,spd:82,spe:84},own:[
     {name:'罪状宣告',star:1,cat:'魔法',power:70,pp:6,type:'暗',debuff:{k:'spd',lv:-1},desc:'专属 · 70威力暗系魔法；命中后对手魔抗-1级'},
     {name:'荆棘诅咒',star:1,cat:'变化',power:0,pp:5,type:'毒',debuffs:[{k:'atk',lv:-1},{k:'def',lv:-1}],desc:'专属 · 对手攻击、防御各-1级'},
     {name:'群鸦啄食',star:1,cat:'魔法',power:50,multi:[2,2],pp:6,type:'暗',drain:3,desc:'专属 · 二连击，每击50威力暗系魔法；吸取30%伤害回复自身'},
@@ -816,7 +816,7 @@ function passiveDesc(pet){ const pv=pet&&pet.passive; if(!pv) return ''; const a
   if(pv.onSelfFaintTeam) a.push('自身倒下时，全队回复 '+Math.round((pv.onSelfFaintTeam.heal||0.12)*100)+'% 生命，随机一名队友获得 '+((pv.onSelfFaintTeam.dodge)||1)+' 次闪避');
   if(pv.onEnterAbsorbTypes) a.push('上场时吸收换下/阵亡队友的属性，对应属性技能威力 +50%（每只宠物仅一次）');
   if(pv.vsPosBuffPow) a.push('对手每有 1 级正面能力等级，自身全技能威力 +'+pv.vsPosBuffPow);
-  if(pv.negTeamPow) a.push('敌方全体每有 1 级负面能力等级，自身全技能威力 +'+pv.negTeamPow);
+  if(pv.negTeamPow) a.push('双方全体（含阵亡/PP耗尽的宠物）每有 1 级负面能力等级，自身全技能威力 +'+pv.negTeamPow);
   if(pv.onHitFear) a.push('每累计受到 '+((pv.onHitFear.every)||7)+' 次伤害，使对手陷入恐惧（2回合）');
   if(pv.buffLockBelow) a.push('自身血量低于 '+Math.round(pv.buffLockBelow*100)+'% 时，双方能力等级被锁定（无法增减/消除）；死亡或回血解除');
   if(pv.onAllyFaintPow) a.push('队友倒下时，按其身上每 1 层强化（正面能力等级），自身全技能威力永久+'+((pv.onAllyFaintPow.per)||5));
@@ -950,10 +950,10 @@ function calcDamage(A,D,skill,dmgMul=1){
   if(A&&A.absorbTypes&&A.absorbTypes.indexOf(type)>=0) power=Math.round(power*1.5);   // 吸取属性：对应技能威力+50%
   if(A&&A.def&&A.def.passive&&A.def.passive.vsPosBuffPow&&D){ let _pb=0; for(const _k in (D.buffs||{})){ const _l=(D.buffs[_k]&&D.buffs[_k].lv)||0; if(_l>0) _pb+=_l; } if(_pb>0) power += _pb*A.def.passive.vsPosBuffPow; }   // 破仪：对手每级强化 +N 威力
   if(A&&A.def&&A.def.passive&&A.def.passive.negTeamPow&&S){ try{
-    const _side=(S.me.team.indexOf(A)>=0)?S.foe:S.me; let _neg=0;
-    _side.team.forEach(function(t){ if(!t||t.fainted) return; for(const _k in (t.buffs||{})){ const _l=(t.buffs[_k]&&t.buffs[_k].lv)||0; if(_l<0) _neg+=-_l; } });
+    let _neg=0;   // 【众罪】双方全体（含阵亡/PP耗尽的宠物）的负面等级都算
+    [S.me,S.foe].forEach(function(sd){ (sd.team||[]).forEach(function(t){ if(!t) return; for(const _k in (t.buffs||{})){ const _l=(t.buffs[_k]&&t.buffs[_k].lv)||0; if(_l<0) _neg+=-_l; } }); });
     if(_neg>0) power += _neg*A.def.passive.negTeamPow;
-  }catch(e){} }   // 众罪：敌方全体负面等级 +N 威力
+  }catch(e){} }
   if(skill.dotScale&&D&&D.dot) power += (D.dot.layers||1)*skill.dotScale.per;
   if(skill.armorScale) power += (A.armor||0)*skill.armorScale.per;
   if(skill.cat==='变化'||power<=0) return {dmg:0,e,adf:1,crit:false};
