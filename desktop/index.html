@@ -78,6 +78,7 @@
   .pet .art{font-size:80px;line-height:1;transition:transform .12s}
   .pet .art img{max-height:150px;max-width:32vw}
   .pet.me .art{transform:scaleX(-1)}     /* 我方朝右（面向对手） */
+  .pet.me[data-artkey="rongzhu"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
   .pet.me[data-artkey="bingzhu"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
   .pet.me[data-artkey="moying"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
   .pet.me[data-artkey="zhongyan"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
@@ -844,7 +845,7 @@ function passiveDesc(pet){ const pv=pet&&pet.passive; if(!pv) return ''; const a
   if(pv.onEnterVsDot) a.push('上场时若敌方带持续伤害则回'+pv.onEnterVsDot.heal+'血、恢复'+pv.onEnterVsDot.pp+'点次数');
   if(pv.onFirstLow) a.push('首次血量<'+Math.round(pv.onFirstLow.below*100)+'%时削去对手'+(pv.onFirstLow.skills||2)+'个技能各'+(pv.onFirstLow.each||1)+'点次数');
   if(pv.faintPP) a.push('倒下时，把剩余技能次数的 '+Math.round(pv.faintPP*100)+'% 分给接手上场的队友（每个技能最多 +3）');
-  if(pv.ppDebuff) a.push('每从对手身上削去 '+((pv.ppDebuff.step)||2)+' 点 PP，随机一名敌方随机一项能力 -1 级');
+  if(pv.ppDebuff) a.push('每从对手身上削去 '+((pv.ppDebuff.step)||2)+' 点 PP，随机一名敌方随机一项能力 -1 级，并回复自身 '+Math.round((pv.ppDebuff.heal||0.07)*100)+'% 生命');
   if(pv.slowDR) a.push('速度低于对手时，受到的伤害 -'+Math.round(pv.slowDR*100)+'%');
   if(pv.copyBoost) a.push('每次临摹成功，威力永久 +'+Math.round(pv.copyBoost*100)+'%（最多 +25%）');
   if(pv.finalDR) a.push('最终减伤'+Math.round(pv.finalDR*100)+'%');
@@ -863,7 +864,7 @@ function ppDrainPassive(A){ const pv=A&&A.def&&A.def.passive; if(!pv||!pv.ppDebu
   while(((A.ppDrained||0)-(A._ppDebuffDone||0))>=step && guard++<20){ A._ppDebuffDone=(A._ppDebuffDone||0)+step;
     const side=(S.me.team.indexOf(A)>=0)?S.me:S.foe, os=(side===S.me)?S.foe:S.me; const alive=os.team.filter(function(t){return t&&!t.fainted;}); if(!alive.length) return;
     const t=alive[Math.floor(Math.random()*alive.length)]; const ks=['atk','def','spa','spd','spe'], k=ks[Math.floor(Math.random()*ks.length)];
-    applyStat(t,k,-1); logLine(`　↳ 🔥 <b>熔炉吞蚀</b>：${t.name} 的${SNAME[k]} -1 级。`); } }
+    applyStat(t,k,-1); const _hp0=A.hp; const _hl=Math.round(A.maxhp*(pv.ppDebuff.heal||0.07)*healMul(A)); A.hp=Math.min(A.maxhp,A.hp+_hl); logLine(`　↳ 🔥 <b>熔炉吞蚀</b>：${t.name} 的${SNAME[k]} -1 级${A.hp>_hp0?('，自身回复 '+(A.hp-_hp0)+' 生命'):''}。`); } }
 function drainPPMulti(pet,count,each,attacker){ if(!pet) return []; const idx=[]; pet.moves.forEach(function(m,i){ if(m.pp>0) idx.push(i); }); for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; } const names=[]; let _rm=0; idx.slice(0,count).forEach(function(k){ const _b=pet.moves[k].pp; pet.moves[k].pp=Math.max(0,_b-each); _rm+=_b-pet.moves[k].pp; names.push(pet.moves[k].name); }); if(attacker&&_rm>0){ attacker.ppDrained=(attacker.ppDrained||0)+_rm; ppDrainPassive(attacker); } return names; }
 function checkLow(p){ if(!p||p.fainted||!S) return; const pv=p.def&&p.def.passive; if(!pv||!pv.onFirstLow||p._lowUsed) return; if((p.hp/Math.max(1,p.maxhp))<pv.onFirstLow.below){ p._lowUsed=true; const os=(S.me.team.indexOf(p)>=0)?S.foe:S.me; const t=os.team[os.active]; if(t&&!t.fainted){ const nm=drainPPMulti(t,pv.onFirstLow.skills||2,pv.onFirstLow.each||1); if(nm.length) logLine(`　↳ ${p.name} 血量首次告急——削去了对手「${nm.join('」「')}」各 ${pv.onFirstLow.each||1} 点使用次数！`); } } }
 function onEnter(p,swiftOK){ if(!p||p.fainted) return; const pv=p.def&&p.def.passive;
