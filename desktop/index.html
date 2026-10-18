@@ -78,7 +78,8 @@
   .pet .art{font-size:80px;line-height:1;transition:transform .12s}
   .pet .art img{max-height:150px;max-width:32vw}
   .pet.me .art{transform:scaleX(-1)}     /* 我方朝右（面向对手） */
-  .pet.me[data-artkey="rongzhu"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
+  .pet[data-artkey="rongzhu"] .art{transform:scale(1.5);transform-origin:bottom center}
+  .pet.me[data-artkey="rongzhu"] .art{transform:scale(1.5);transform-origin:bottom center}   /* 本身朝右，不镜像；放大 1.5 */
   .pet.me[data-artkey="bingzhu"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
   .pet.me[data-artkey="moying"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
   .pet.me[data-artkey="zhongyan"] .art{transform:none}   /* 立绘本身朝右，不再镜像 */
@@ -725,7 +726,7 @@ PETS.push({id:'zhongyan',name:'重械驮兽',type:['机械','普通'],emoji:'�
 PETS.push({id:'rongzhu',name:'熔铸机龙',type:['机械','龙'],emoji:'🐲',art:'rongzhu',passive:{ppDebuff:{step:2}},base:{hp:100,atk:94,def:96,spa:50,spd:84,spe:50},own:[
     {name:'铆钉炮',star:1,cat:'物理',power:85,pp:7,type:'机械',drainFoePP:{count:1,each:1},desc:'专属 · 85威力机械系物理；命中后随机削去对手 1 个技能 1 点 PP'},
     {name:'炉渣喷吐',star:1,cat:'魔法',power:75,pp:7,type:'火',burn:2,drainFoePP:{count:1,each:1},desc:'专属 · 75威力火系魔法；灼烧 2 回合，并削去对手 1 点 PP'},
-    {name:'三系熔铸',star:1,cat:'物理',power:55,pp:1,spd:11,triHits:[{type:'火',power:55},{type:'龙',power:55},{type:'机械',power:65}],desc:'专属 · 先手+3 · 火/龙/机械三段连击（55 / 55 / 65）'},
+    {name:'三系熔铸',star:1,cat:'物理',power:55,pp:5,spd:11,triHits:[{type:'火',power:55},{type:'龙',power:55},{type:'机械',power:65}],desc:'专属 · 先手+3 · 火/龙/机械三段连击（55 / 55 / 65）'},
     {name:'崩解重炮',star:1,cat:'物理',power:120,pp:4,type:'机械',drainFoePP:{count:2,each:1},ppDrainedScale:{per:4,cap:60},desc:'专属 · 120威力机械系物理；削对手 2 个技能各 1 点 PP；本场每削 1 点 PP 威力 +4（上限 +60）'}
   ]});
 
@@ -862,9 +863,12 @@ function passiveDesc(pet){ const pv=pet&&pet.passive; if(!pv) return ''; const a
   return a.join('、'); }
 function ppDrainPassive(A){ const pv=A&&A.def&&A.def.passive; if(!pv||!pv.ppDebuff||!S) return; const step=pv.ppDebuff.step||2; let guard=0;
   while(((A.ppDrained||0)-(A._ppDebuffDone||0))>=step && guard++<20){ A._ppDebuffDone=(A._ppDebuffDone||0)+step;
-    const side=(S.me.team.indexOf(A)>=0)?S.me:S.foe, os=(side===S.me)?S.foe:S.me; const alive=os.team.filter(function(t){return t&&!t.fainted;}); if(!alive.length) return;
-    const t=alive[Math.floor(Math.random()*alive.length)]; const ks=['atk','def','spa','spd','spe'], k=ks[Math.floor(Math.random()*ks.length)];
-    applyStat(t,k,-1); const _hp0=A.hp; const _hl=Math.round(A.maxhp*(pv.ppDebuff.heal||0.07)*healMul(A)); A.hp=Math.min(A.maxhp,A.hp+_hl); logLine(`　↳ 🔥 <b>熔炉吞蚀</b>：${t.name} 的${SNAME[k]} -1 级${A.hp>_hp0?('，自身回复 '+(A.hp-_hp0)+' 生命'):''}。`); } }
+    const side=(S.me.team.indexOf(A)>=0)?S.me:S.foe, os=(side===S.me)?S.foe:S.me; const alive=os.team.filter(function(t){return t&&!t.fainted;});
+    let _txt='';
+    if(alive.length){ const t=alive[Math.floor(Math.random()*alive.length)]; const ks=['atk','def','spa','spd','spe'], k=ks[Math.floor(Math.random()*ks.length)]; applyStat(t,k,-1); _txt=`${t.name} 的${SNAME[k]} -1 级`; }   // 没有可指定的目标也照常回血
+    const _hp0=A.hp; const _hl=Math.round(A.maxhp*(pv.ppDebuff.heal||0.07)*healMul(A)); A.hp=Math.min(A.maxhp,A.hp+_hl); const _hg=A.hp-_hp0;
+    logLine(`　↳ 🔥 <b>熔炉吞蚀</b>：${_txt?(_txt+'，'):''}${_hg>0?('自身回复 '+_hg+' 生命'):'自身生命已满'}。`);
+  } }
 function drainPPMulti(pet,count,each,attacker){ if(!pet) return []; const idx=[]; pet.moves.forEach(function(m,i){ if(m.pp>0) idx.push(i); }); for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; } const names=[]; let _rm=0; idx.slice(0,count).forEach(function(k){ const _b=pet.moves[k].pp; pet.moves[k].pp=Math.max(0,_b-each); _rm+=_b-pet.moves[k].pp; names.push(pet.moves[k].name); }); if(attacker&&_rm>0){ attacker.ppDrained=(attacker.ppDrained||0)+_rm; ppDrainPassive(attacker); } return names; }
 function checkLow(p){ if(!p||p.fainted||!S) return; const pv=p.def&&p.def.passive; if(!pv||!pv.onFirstLow||p._lowUsed) return; if((p.hp/Math.max(1,p.maxhp))<pv.onFirstLow.below){ p._lowUsed=true; const os=(S.me.team.indexOf(p)>=0)?S.foe:S.me; const t=os.team[os.active]; if(t&&!t.fainted){ const nm=drainPPMulti(t,pv.onFirstLow.skills||2,pv.onFirstLow.each||1); if(nm.length) logLine(`　↳ ${p.name} 血量首次告急——削去了对手「${nm.join('」「')}」各 ${pv.onFirstLow.each||1} 点使用次数！`); } } }
 function onEnter(p,swiftOK){ if(!p||p.fainted) return; const pv=p.def&&p.def.passive;
@@ -1316,7 +1320,7 @@ function doSkill(sideKey,side,other,mi,who){
     }
   }
   if(skill.selfKill&&!A.fainted){ A.hp=0; logLine(`　↳ 💀 ${A.name} 燃尽了生命。`); tryFaint(A); }
-  if(skill.drainFoePP&&!D.fainted){ const _df=skill.drainFoePP; const _cnt=(typeof _df==='number')?1:(_df.count||1); const _each=(typeof _df==='number')?_df:(_df.each||1); const _nm=drainPPMulti(D,_cnt,_each,A); if(_nm&&_nm.length) logLine(`　↳ <b>${skill.name}</b> 削去了 ${D.name} 的「${_nm.join('」「')}」各 ${_each} 点使用次数！`); else logLine(`　↳ ${D.name} 的技能次数都已用尽。`); }
+  if(skill.drainFoePP){ const _df=skill.drainFoePP; const _cnt=(typeof _df==='number')?1:(_df.count||1); const _each=(typeof _df==='number')?_df:(_df.each||1); const _nm=drainPPMulti(D,_cnt,_each,A); if(_nm&&_nm.length) logLine(`　↳ <b>${skill.name}</b> 削去了 ${D.name} 的「${_nm.join('」「')}」各 ${_each} 点使用次数！`); else logLine(`　↳ ${D.name} 的技能次数都已用尽。`); }
   if(skill.stealBuffs) doStealBuffs(A,D,sideKey);
   if(skill.clearbuff&&D&&!D.fainted&&buffLockOwner()){ logLine(`　↳ 🔒 能力等级被【禁锢】锁定，无法消除。`); }
     if(skill.clearbuff&&!D.fainted&&!buffLockOwner()){ let _cn=0,_lv=0; for(const _k in D.buffs){ if(D.buffs[_k]&&(D.buffs[_k].lv||0)>0){ _lv+=(D.buffs[_k].lv||0); delete D.buffs[_k]; _cn++; } } if(D.thorns){ delete D.thorns; _cn++; } if(D.drain){ delete D.drain; _cn++; } logLine(`　↳ 消除了 ${D.name} 的全部增益${_cn?'':'（本就无增益）'}。`);
@@ -1445,7 +1449,7 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.clearbuff&&!D.fainted&&!buffLockOwner()){ let _cn=0,_lv=0; for(const _k in D.buffs){ if(D.buffs[_k]&&(D.buffs[_k].lv||0)>0){ _lv+=(D.buffs[_k].lv||0); delete D.buffs[_k]; _cn++; } } if(D.thorns){ delete D.thorns; _cn++; } if(D.drain){ delete D.drain; _cn++; } logLine(`　↳ 消除了 ${D.name} 的全部增益${_cn?'':'（本就无增益）'}。`);
       if(skill.clearbuffDmg&&_lv>0&&!D.fainted){ let _cd=_lv*(skill.clearbuffDmg.per||35); if(D.shield>0){ const _ab=Math.min(D.shield,_cd); D.shield-=_ab; _cd-=_ab; if(D.shield<=0){D.shield=0;D.shieldT=0;} } if(_cd>0){ D.hp=Math.max(0,D.hp-_cd); D.turnDmgTaken=(D.turnDmgTaken||0)+_cd; logLine(`　↳ 💥 消除 ${_lv} 级增益 —— 对 ${D.name} 造成 ${_cd} 点固定伤害！`); S.fx.push({on:(other===S.foe?'foe':'me'),txt:'-'+_cd,shake:true,hpFrom:Math.round((D.hp+_cd)/D.maxhp*100),hpTo:Math.round(D.hp/D.maxhp*100)}); if(D.hp<=0) tryFaint(D); } } }
   if(skill.ppRestoreOne){ const rm=restoreOnePP(A,mi,skill.ppRestoreOne); logLine(rm?`　↳ ${A.name} 的「${rm.name}」回复了 ${skill.ppRestoreOne} 点使用次数。`:`　↳ ${A.name} 的技能次数都已满。`); }
-  if(skill.drainFoePP&&!D.fainted){ const _df=skill.drainFoePP; const _cnt=(typeof _df==='number')?1:(_df.count||1); const _each=(typeof _df==='number')?_df:(_df.each||1); const _nm=drainPPMulti(D,_cnt,_each,A); if(_nm&&_nm.length) logLine(`　↳ <b>${skill.name}</b> 削去了 ${D.name} 的「${_nm.join('」「')}」各 ${_each} 点使用次数！`); else logLine(`　↳ ${D.name} 的技能次数都已空。`); }
+  if(skill.drainFoePP){ const _df=skill.drainFoePP; const _cnt=(typeof _df==='number')?1:(_df.count||1); const _each=(typeof _df==='number')?_df:(_df.each||1); const _nm=drainPPMulti(D,_cnt,_each,A); if(_nm&&_nm.length) logLine(`　↳ <b>${skill.name}</b> 削去了 ${D.name} 的「${_nm.join('」「')}」各 ${_each} 点使用次数！`); else logLine(`　↳ ${D.name} 的技能次数都已空。`); }
   if(skill.revenge&&_foeActed&&skill.revenge.pow) logLine(`　↳ <b>${skill.name}</b> 后发先至：威力 +${skill.revenge.pow}！`);
   if(skill.heal){ const pre=A.hp; const h=Math.round(A.maxhp*skill.heal*healMul(A)); A.hp=Math.min(A.maxhp,A.hp+h); const g=A.hp-pre; if(g>0){ logLine(`　↳ ${A.name} 回复了 ${g} 生命。`); S.fx.push({on:sideKey, heal:true, txt:'+'+g, hpFrom:Math.round(pre/A.maxhp*100), hpTo:Math.round(A.hp/A.maxhp*100)});} }   // 伤害技自回血
   if(skill.turns){ if(A.lock&&A.lock.i===mi){ A.lock.left--; if(A.lock.left<=0)A.lock=null; } else { const rem=skill.turns-1; A.lock = rem>0?{i:mi,left:rem}:null; } if(A.lock) logLine(`　↳ <b>${skill.name}</b> 持续中，剩 ${A.lock.left} 回合（锁定）`); }
