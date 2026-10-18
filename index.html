@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>灵宠对决</title>
 <link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="./icon-180.png">
+<meta name="theme-color" content="#0b111d">
+<link rel="icon" href="./icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root{--bg:#101725;--panel:#1b2740;--panel2:#22314f;--line:#33456b;--txt:#e8eefc;--dim:#9fb0d0;--good:#57d17a;--bad:#e2603f;--warn:#e8b84b}
   *{box-sizing:border-box}
@@ -260,14 +259,14 @@ const CHART={
   冰:{火:.5,草:2,石:2,风:2,武:.5,龙:2,机械:.5},
   普通:{},
   武:{草:.5,石:2,风:.5,冰:2,毒:.5,暗:.5,机械:2,萌:.5,幽:.5},
-  龙:{冰:.5,龙:2},
+  龙:{冰:.5,龙:2,机械:.5},
   光:{暗:2,幽:2},
   毒:{火:.5,草:2,石:.5,武:2,萌:.5,虫:.5},
-  暗:{草:2,武:2,光:2,萌:2,虫:.5,幽:2},
-  机械:{火:.5,水:.5,草:2,石:2,冰:2,武:.5},
-  萌:{武:2,毒:2,暗:.5,虫:.5,幽:.5},
+  暗:{草:2,武:2,光:2,萌:2,虫:.5,幽:2,机械:.5},
+  机械:{火:.5,水:.5,草:2,石:2,冰:2,武:.5,萌:2,暗:2},
+  萌:{武:2,毒:2,暗:.5,虫:.5,幽:.5,机械:.5},
   虫:{火:.5,草:2,电:.5,石:.5,毒:2,暗:2,萌:2},
-  幽:{火:.5,武:2,光:.5,暗:2,萌:2,幽:2}
+  幽:{火:.5,武:2,光:.5,暗:2,萌:2,幽:2,机械:.5}
 };
 function typeColor(t){ const a=Array.isArray(t)?t:[t]; return TYPE_COLOR[a[0]]||'#c8c8d8'; }
 function typeName(t){ return Array.isArray(t)?t.join('/'):t; }
@@ -706,6 +705,18 @@ PETS.push({id:'qingluan',name:'青鸾驿使',type:['风','光'],emoji:'🕊️',
     {name:'风铃护佑',star:1,cat:'变化',power:0,pp:4,type:'风',teamShield:60,desc:'专属 · 全队各获得60点永久护盾（每人上限120，可叠加）'},
     {name:'千里一瞬',star:1,cat:'魔法',power:80,pp:3,spd:7,type:'风',buffScale:{base:80,per:10,cap:150},desc:'专属 · 先手-1 · 风系魔法，威力80，自身每1级正面强化+10（上限150）'}
   ]});
+PETS.push({id:'moying',name:'摹影史官',type:['幽','普通'],emoji:'📜',passive:{copyBoost:0.05},base:{hp:100,atk:60,def:80,spa:92,spd:82,spe:60},own:[
+    {name:'落笔',star:1,cat:'魔法',power:60,pp:6,spd:9,type:'幽',desc:'专属 · 先手+1 · 60威力幽系魔法'},
+    {name:'临摹',star:1,cat:'变化',power:0,pp:3,type:'普通',copyFoe:true,desc:'专属 · 复制对手上一次使用的技能，以自身属性立刻释放'},
+    {name:'墨守',star:1,cat:'变化',power:0,pp:4,type:'幽',buffs:[{k:'def',lv:1}],heal:0.15,desc:'专属 · 防御+1级，并回复15%生命'},
+    {name:'定稿',star:1,cat:'魔法',power:100,pp:4,type:'幽',ifCopiedTurn:1.6,desc:'专属 · 100威力幽系魔法；本回合使用过临摹则威力×1.6'}
+  ]});
+PETS.push({id:'zhongyan',name:'重械驮兽',type:['机械','普通'],emoji:'🪨',passive:{slowDR:0.15},base:{hp:115,atk:88,def:96,spa:38,spd:88,spe:44},own:[
+    {name:'岩锤',star:1,cat:'物理',power:90,pp:6,type:'机械',desc:'专属 · 90威力机械系物理'},
+    {name:'铁壁',star:1,cat:'变化',power:0,pp:4,type:'普通',buffs:[{k:'def',lv:1}],guard:{turns:1,mul:0.7},desc:'专属 · 自身防御+1级；本回合受到的伤害-30%'},
+    {name:'地裂',star:1,cat:'物理',power:105,pp:3,type:'机械',sureHit:true,desc:'专属 · 105威力机械系物理；必中，命中前消除对手全部闪避'},
+    {name:'坚守',star:1,cat:'变化',power:0,pp:4,type:'机械',heal:0.18,desc:'专属 · 回复18%生命'}
+  ]});
 
 
 
@@ -823,6 +834,8 @@ function passiveDesc(pet){ const pv=pet&&pet.passive; if(!pv) return ''; const a
   if(pv.onEnterVsDot) a.push('上场时若敌方带持续伤害则回'+pv.onEnterVsDot.heal+'血、恢复'+pv.onEnterVsDot.pp+'点次数');
   if(pv.onFirstLow) a.push('首次血量<'+Math.round(pv.onFirstLow.below*100)+'%时削去对手'+(pv.onFirstLow.skills||2)+'个技能各'+(pv.onFirstLow.each||1)+'点次数');
   if(pv.faintPP) a.push('倒下时，把剩余技能次数的 '+Math.round(pv.faintPP*100)+'% 分给接手上场的队友（每个技能最多 +3）');
+  if(pv.slowDR) a.push('速度低于对手时，受到的伤害 -'+Math.round(pv.slowDR*100)+'%');
+  if(pv.copyBoost) a.push('每次临摹成功，威力永久 +'+Math.round(pv.copyBoost*100)+'%（最多 +25%）');
   if(pv.finalDR) a.push('最终减伤'+Math.round(pv.finalDR*100)+'%');
   if(pv.finalDmg) a.push('最终增伤'+Math.round(pv.finalDmg*100)+'%');
   if(pv.seBonus) a.push('造成克制伤害时最终伤害+'+Math.round(pv.seBonus*100)+'%');
@@ -943,6 +956,8 @@ function calcDamage(A,D,skill,dmgMul=1){
     if(_ap&&_ap.burnDmgBoost&&D&&D.status&&D.status.burn&&offStat(skill.cat)==='spa') dmg*=(1+_ap.burnDmgBoost); }  // 【焚曜灼心】：特攻打灼烧目标增伤
   dmg=Math.round(dmg*RAND());
   { const _dr=drOf(D); if(_dr>0) dmg*=Math.max(0,1-_dr); }   // 被动：最终减伤
+  if(D&&D.def&&D.def.passive&&D.def.passive.slowDR&&A&&cur(D,'spe')<cur(A,'spe')) dmg*=(1-D.def.passive.slowDR);   // 被动【负山】
+
   if(A&&A.def&&A.def.passive&&A.def.passive.typeCrit){
     A._dmgTypes=A._dmgTypes||{}; A._dmgTypes[type]=1;
     if(Object.keys(A._dmgTypes).length>=2){ A._guarCritNext=true; A._dmgTypes={}; }
@@ -1208,6 +1223,18 @@ function doSkill(sideKey,side,other,mi,who){
   const A=active(side), D=active(other), skill=A.moves[mi];
   if(!skill||skill.pp<=0){ logLine(`${A.name} 的「${skill?skill.name:'技能'}」次数已用尽！`); return; }
   skill.pp--;                                    // 消耗一次使用次数
+  if(!S._copying) side.lastSkill=skill;            // 记录本方上一招（供【临摹】使用）
+  if(skill.copyFoe&&!S._copying){                  // 【临摹】：复制对手上一招，以自身属性释放
+    const _src=other&&other.lastSkill;
+    if(!_src){ logLine(`　↳ 🖋 对手还没有出过招，临摹失败。`); return; }
+    const _tp=(Array.isArray(A.type)?A.type[0]:A.type);
+    const _cp=Object.assign({},_src,{type:_tp,pp:99,ppMax:99,copyFoe:false,turns:0,lockself:null,name:'临摹·'+_src.name,desc:''});
+    A.moves.push(_cp); const _ix=A.moves.length-1; const _pb=S._copying; S._copying=true;
+    try{ doSkill(sideKey,side,other,_ix,who); } finally { S._copying=_pb; A.moves.pop(); }
+    A.copyStacks=Math.min(5,(A.copyStacks||0)+1); A.usedCopyTurn=S.turn;
+    logLine(`　↳ 🖋 <b>临摹工笔</b>：本场威力 +${A.copyStacks*5}%（上限 +25%）。`);
+    return;
+  }
   const _sTp=skill.type||(Array.isArray(A.type)?A.type[0]:A.type);
   const _mcp=A.def&&A.def.passive&&A.def.passive.mechCharge;
   if(_mcp&&_sTp==='水'){ const _c=A.charge||0; if(_c<_mcp.max){ A.charge=_c+1; logLine(`　↳ 🔋 ${A.name} 注入械水充能（${A.charge}/${_mcp.max}）。`); } }
@@ -1286,6 +1313,7 @@ function doSkill(sideKey,side,other,mi,who){
   const _foeHpBefore=D.hp;
   let _mechMul=1, _consumeAllN=0;
   if(_mcp&&_sTp==='机械'&&skill.power>0&&skill.cat!=='变化'){ if(skill.consumeAll){ _consumeAllN=(A.charge||0); A.charge=0; if(_consumeAllN) logLine(`　↳ ⚙️ ${A.name} 消耗全部充能 ${_consumeAllN} 层 → 枢核溃震威力 +${_consumeAllN*skill.consumeAll.per}。`); } else if((A.charge||0)>0){ A.charge--; _mechMul=1+_mcp.boost; logLine(`　↳ ⚙️ ${A.name} 消耗 1 层充能 → 机械技能威力 +${Math.round(_mcp.boost*100)}%（剩 ${A.charge}/${_mcp.max}）。`); } }
+  if(skill.sureHit&&D.dodge>0){ logLine(`　↳ 🎯 <b>${skill.name}</b> 必中：消除了 ${D.name} 的全部闪避（${D.dodge} 次）！`); D.dodge=0; }
   for(let i=0;i<reps;i++){
     if(D.fainted)break;
     const _fxMark=S.fx.length;
@@ -1309,13 +1337,15 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.lostHpPow) _pw += Math.floor((A.maxhp-A.hp)/A.maxhp*100/(skill.lostHpStep||5))*skill.lostHpPow;
     if(skill.hpScale&&D.hp>0) _pw += Math.floor(Math.max(0,1-D.hp/D.maxhp)/skill.hpScale.per)*skill.hpScale.add;   // 对手每损失5%生命，威力+
     if(_consumeAllN) _pw += _consumeAllN*(skill.consumeAll.per);
+    if(A.copyStacks) _pw=Math.round(_pw*(1+0.05*A.copyStacks));   // 【临摹工笔】威力成长
+    if(skill.ifCopiedTurn&&A.usedCopyTurn===S.turn) _pw=Math.round(_pw*skill.ifCopiedTurn);   // 【定稿】
     if(_mechMul!==1) _pw=Math.round(_pw*_mechMul);
     if(skill.consumeSelfBuffPow) _pw += Math.min((skill.consumeSelfBuffCap||6), posBuffLevels(A))*skill.consumeSelfBuffPow;
     const _sk=Object.assign({},skill,{power:_pw});
     if(A.def&&A.def.passive&&A.def.passive.firstCrit&&!A._firstAtk){ A._firstAtk=true; _sk.critBonus=(_sk.critBonus||0)+A.def.passive.firstCrit; }
     const {dmg,e,crit}=calcDamage(A,D,_sk); const preHp=D.hp;
     let _dmg=dmg;
-    if(D.dodge>0){ D.dodge--; _dmg=0; logLine(`　↳ ${D.name} 闪避了这次攻击！`); }
+    if(D.dodge>0&&!skill.sureHit){ D.dodge--; _dmg=0; logLine(`　↳ ${D.name} 闪避了这次攻击！`); }
     else{
       if(skill.flat) _dmg+=skill.flat;   // 固定伤害（残月羽斩 +100）
       if(skill.burstDmg&&(D.status.burn||D.dot)){ _dmg+=skill.burstDmg; if(D.status.burn) delete D.status.burn; D.dot=null; logLine(`　↳ 引爆了 ${D.name} 身上的灼烧/持续伤害！`); }
