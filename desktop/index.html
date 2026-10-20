@@ -1115,6 +1115,12 @@ function openRoster(sel){
 }
 function startBattle(myCfg,foeCfg){
   S={ me:{team:myCfg.map(makePet),active:0}, foe:{team:foeCfg.map(makePet),active:0}, turn:1, log:[], busy:false, over:false, pendSwitch:false, fx:[], banner:'你的回合', queue:null, qi:0 };
+  S.foe.style=(foeCfg&&foeCfg.styleKey)||(RANK&&RANK.active&&RANK.aiStyle)||AI_STYLE_KEY||'read';
+  S.foe.bpSystem=(foeCfg&&foeCfg.bpSystem)||(RANK&&RANK.active&&RANK.bpSystem)||null;
+  S.foe.roles=(foeCfg&&foeCfg.roles)||{};
+  S.foe.temper=(foeCfg&&foeCfg.temper)||bpSampleTemper();
+  S.foe.switchLog=[];
+  S.foe.lastSwitchTurn=-9;
   logLine('⚔️ 战斗开始！'); applyBattleBg(); renderBattle(); armPlayerTimer(); onEnter(active(S.me),false); onEnter(active(S.foe),false); try{BGM.start();}catch(e){}
 }
 /* 被动：死亡时满血复活一次（首个被动 · 焚寂凤羽） */
@@ -1141,6 +1147,7 @@ function tryFaint(p){
     const _rv=p.def.passive.revive;
     const _rvPct=(typeof _rv==='object'&&_rv.hp!=null)?_rv.hp:1;
     p.reviveUsed=true; p.hp=Math.max(1,Math.round((p.maxhp||p.hp)*_rvPct)); p.fainted=false;
+    p.buffs={};   // B 方案：复活后不保留能力强化，避免同一批强化反复喂星愿
     const _sk=(S&&S.me&&S.me.team.indexOf(p)>=0)?'me':'foe';
     logLine(`　↳ 🔥 <b>${p.name}</b> 触发被动【不死凤羽】——复活并恢复 ${Math.round(_rvPct*100)}% 生命！`);
     if(typeof _rv==='object'&&_rv.teamDR){
@@ -1202,6 +1209,8 @@ function tryFaint(p){
       logLine(`　↳ ⭐ ${t.name} 触发【星愿共鸣】：${p.name} 带着 ${_lay} 层强化倒下 → 全技能威力永久 +${_add}（累计 +${t.powBonus}）。`);
     });
   }catch(e){}
+  /* B 方案：强化「转移」而不是「复制」——遗赠已经拿走，原宠身上不再保留正面强化 */
+  try{ for(const k in (p.buffs||{})){ const lv=(p.buffs[k]&&p.buffs[k].lv)||0; if(lv>0) delete p.buffs[k]; } }catch(e){}
 }
 function hurt(side,p,d,pop){
   p.hp=Math.max(0,p.hp-d); if(p.hp<=0)tryFaint(p);
@@ -1314,6 +1323,7 @@ function doSkill(sideKey,side,other,mi,who){
     if(!_dead.length){ logLine(`　↳ 🕯 ${A.name} 没有可复活的队友。`); }
     else { const _t=_dead[Math.floor(Math.random()*_dead.length)];
       _t.fainted=false; _t.hp=Math.max(1,Math.round(_t.maxhp*(skill.reviveAlly.hp||0.5))); _t.dot=null; _t.status={burn:0,par:0,frz:0,bind:0,fear:0};
+      _t.buffs={};   // B 方案：复活后不保留能力强化
       _t.moves.forEach(function(m){ if(m.pp<=0&&m.ppMax>0) m.pp=1; });
       logLine(`　↳ 🕯 <b>${A.name}</b> 献祭自身 —— <b>${_t.name}</b> 复活并回复 ${Math.round((skill.reviveAlly.hp||0.5)*100)}% 生命！`);
       if(S.fx) S.fx.push({on:(side===S.me?'me':'foe'), heal:true, txt:'复活', hpFrom:0, hpTo:Math.round(_t.hp/_t.maxhp*100)});
@@ -1597,66 +1607,659 @@ function aiDmgEst(me,foe,s){
   if(s.lostHpPow) dmg+=Math.floor((me.maxhp-me.hp)/Math.max(1,me.maxhp)*100/(s.lostHpStep||5))*s.lostHpPow*reps;
   return dmg;
 }
-/* ---- AI 难度（类似月圆之夜）：只影响「主动换人」频率，不影响出招/吃状态/被迫换人 ---- */
+/* ---- AI 难度：影响 出招精度 / 换人决断 / 局势计算 ---- */
 const AI_DIFFS=[
-  {key:'easy',   name:'简单', sw:0.0, desc:'对手不会主动换人，硬打到底'},
-  {key:'normal', name:'普通', sw:0.4, desc:'对手主动换人 ≈ 原来的 40%'},
-  {key:'hard',   name:'困难', sw:0.8, desc:'对手主动换人 ≈ 原来的 80%'}
+  {key:'easy',   name:'简单', sw:0.45, noise:0.22, smart:0,   switch:0.50, desc:'出招粗糙、很少主动换人，不会算斩杀线'},
+  {key:'normal', name:'普通', sw:0.70, noise:0.08, smart:0.6, switch:0.85, desc:'会抓克制、残血撤退，偶尔铺垫'},
+  {key:'hard',   name:'困难', sw:1.00, noise:0.02, smart:1,   switch:1.00, desc:'会算斩杀线、抓换人时机，会做铺垫与接力'}
 ];
 let AI_DIFF='normal';
 try{ const _ad=localStorage.getItem('lc_ai_diff'); if(_ad&&AI_DIFFS.some(x=>x.key===_ad)) AI_DIFF=_ad; }catch(e){}
 function aiDiffObj(){ return AI_DIFFS.find(x=>x.key===AI_DIFF)||AI_DIFFS[1]; }
 function setAiDiff(k){ if(AI_DIFFS.some(x=>x.key===k)){ AI_DIFF=k; try{localStorage.setItem('lc_ai_diff',k);}catch(e){} } }
-function aiMaySwitch(){ return Math.random() < aiDiffObj().sw; }
-function aiChoose(){
-  const me=active(S.foe), foe=active(S.me);
-  if(me.lock) return {kind:'skill', i:me.lock.i};
-  const _sw=aiMaySwitch();   // 本回合是否允许「主动换人」（难度门控；一回合掷一次）
-  const _ctl=controlled(me);   // 被控制 → 不能主动换人
-  const hpP=me.hp/me.maxhp;
-  const hasTurtle = S.foe.team.some(function(p){ return p && p.def && p.def.id==='turtle'; });   // AI 队带天玄→启用 DoT 套路
-  if(hpP<0.28 || !hasMoves(me)){
-    let best=-1,bs=-1e9;
-    for(let i=0;i<S.foe.team.length;i++){ const t=S.foe.team[i]; if(i===S.foe.active||t.fainted||!hasMoves(t))continue;
-      const mt=primaryType(t.type);
-      const sc=(t.hp/t.maxhp)*1.6 + (eff(mt,foe.type)-1)*0.9 - (eff(primaryType(foe.type),mt)-1)*0.9;
-      if(sc>bs){bs=sc;best=i;} }
-    if(best>=0 && !hasMoves(me)) return {kind:'switch',i:best};            // 没招可用，必须换
-    if(best>=0 && hpP<0.28 && _sw && !_ctl) return {kind:'switch',i:best};          // 残血撤退（受难度门控）
+
+/* ---- AI 大类（风格）：组队倾向 + 出招偏好 + 换人策略 ----
+   每条线都要有「不同的赢法」，而不是同一套打分换属性：
+   猛攻=压血线；磐石=消耗；锋=铺垫爆发；弈=控场；驿=接力轮转；衡=万金油 */
+const AI_STYLES=[
+  {key:'rush', name:'疾风', label:'强攻型', emoji:'💨', desc:'高速爆发抢节奏；能杀就杀，只在被克制且快死时换人',
+   team:{off:1.40, bulk:0.55, spe:1.55, dot:0.25, control:0.25, sustain:0.15, combo:0.30, field:0.20, coverage:0.60},
+   skill:{attack:1.35, burst:1.25, buff:0.55, heal:0.40, regen:0.40, shield:0.50, dot:0.65, status:0.70, debuff:0.75, mark:1.05, team:0.50, dodge:0.75, thorns:0.55, survive:0.85, copy:0.90, field:0.40},
+   sw:{low:0.18, bad:1.20, every:0, chance:0.18}, open:0.95},
+  {key:'stall', name:'铁壁', label:'消耗型', emoji:'🛡️', desc:'高耐久+回复+状态，铺 DoT 拉扯；频繁换人躲克制',
+   team:{off:0.65, bulk:1.55, spe:0.38, dot:1.45, control:1.15, sustain:1.55, combo:0.60, field:0.40, coverage:0.70},
+   skill:{attack:0.78, burst:0.85, buff:1.05, heal:1.55, regen:1.60, shield:1.50, dot:1.75, status:1.35, debuff:1.25, mark:0.95, team:1.10, dodge:0.95, thorns:1.35, survive:1.20, copy:0.85, field:0.60},
+   sw:{low:0.35, bad:0.35, every:3, chance:0.80}, open:1.25},
+  {key:'field', name:'布局', label:'控场型', emoji:'🌀', desc:'先铺场域再控场；减速/锁足/封锁，按场面换人保场地',
+   team:{off:0.75, bulk:1.05, spe:1.25, dot:1.05, control:1.60, sustain:1.00, combo:0.90, field:3.00, coverage:0.90},
+   skill:{attack:0.88, burst:1.00, buff:1.10, heal:1.00, regen:1.00, shield:1.15, dot:1.15, status:1.70, debuff:1.65, mark:1.25, team:1.00, dodge:1.30, thorns:1.15, survive:1.05, copy:1.00, field:3.00},
+   sw:{low:0.28, bad:0.70, every:0, chance:0.45}, open:1.40},
+  {key:'read', name:'读心', label:'反制型', emoji:'🔮', desc:'均衡多面手，优先克制技能，预判换人做反向换人',
+   team:{off:1.00, bulk:1.00, spe:1.00, dot:1.00, control:1.00, sustain:1.00, combo:1.00, field:1.00, coverage:1.60},
+   skill:{attack:1.10, burst:1.05, buff:1.00, heal:1.00, regen:1.00, shield:1.00, dot:1.00, status:1.05, debuff:1.05, mark:1.05, team:1.00, dodge:1.05, thorns:1.00, survive:1.00, copy:1.10, field:1.00},
+   sw:{low:0.25, bad:0.55, every:0, chance:0.55}, open:1.05}
+];
+let AI_STYLE_FORCE='random';
+try{ const _as=localStorage.getItem('lc_ai_style'); if(_as&&(_as==='random'||AI_STYLES.some(x=>x.key===_as))) AI_STYLE_FORCE=_as; }catch(e){}
+let AI_STYLE_KEY='read';
+function aiStyleBy(k){ return AI_STYLES.find(function(x){return x.key===k;})||AI_STYLES[3]; }
+function aiStyleOf(side){ return aiStyleBy((side&&side.style)||AI_STYLE_KEY); }
+function aiStyleName(side){ const id=side&&side.bpSystem; const sys=bpSystem(id); return sys?sys.name:''; }
+function setAiStyle(k){ if(k==='random'||bpSystem(k)){ AI_STYLE_FORCE=k; try{localStorage.setItem('lc_ai_style',k);}catch(e){} } }
+function aiPickStyle(){
+  if(AI_STYLE_FORCE!=='random') return AI_STYLE_FORCE;
+  const w={rush:28,stall:26,field:24,read:22}; let sum=0;
+  AI_STYLES.forEach(function(s){sum+=w[s.key]||10;});
+  let r=Math.random()*sum;
+  for(const s of AI_STYLES){ r-=w[s.key]||10; if(r<=0) return s.key; }
+  return 'read';
+}
+
+/* ---- 宠物画像：把「数值」与「机制标签」拆开，供组队/BP 使用 ---- */
+function aiPetProfile(p){
+  const b=p.base||{};
+  const off=Math.max(b.atk||0,b.spa||0);
+  const bulk=(b.hp||0)*0.55+(b.def||0)*0.45+(b.spd||0)*0.45;
+  const tags={dot:0,status:0,buff:0,heal:0,shield:0,control:0,team:0,combo:0,burst:0,field:0,cleanse:0,priority:0};
+  function scan(s){
+    if(!s) return;
+    if(s.dot||s.burn) tags.dot+=1;
+    if(s.status) tags.status+=1;
+    if(s.buff||s.buffs) tags.buff+=1;
+    if(s.debuff||s.debuffs||s.clearbuff) tags.control+=1;
+    if(s.debuff&&s.debuff.k==='spe') tags.control+=0.5;
+    if(s.heal||s.regen||s.drain) tags.heal+=1;
+    if(s.shield||s.shieldLost) tags.shield+=1;
+    if(s.teamHeal||s.teamPP||s.teamShield) tags.team+=1;
+    if(s.addMark||s.detonate||s.markScale) tags.burst+=1;
+    if(s.dodge||s.thorns||s.survive) tags.control+=0.6;
+    if(s.burstDmg) tags.burst+=0.8;
+    if(s.tidal) tags.field+=2;
+    if(s.root) tags.field+=1;
+    if(s.cleanse||s.clearMind) tags.cleanse+=1;
+    if((s.spd||0)>=9) tags.priority+=1;
   }
-  if(hasTurtle){ const ti=S.foe.team.findIndex(function(p){ return p&&p.def&&p.def.id==='turtle'&&!p.fainted&&hasMoves(p); });
-    if(ti>=0 && ti!==S.foe.active){ const tur=S.foe.team[ti]; const canNuke=tur.moves.some(function(m){return m.burstDmg&&m.pp>0;});
-      if(canNuke && (foe.status.burn||foe.dot) && _sw && !_ctl) return {kind:'switch',i:ti}; } }   // 对手带状态→换天玄回来引爆（受难度门控）
-  // —— 克制轮转（通用宏观）：主动换到明显更优的对位，每 2 回合最多换一次；能一击必杀则不换 ——
-  if(!me.lock && (S.turn-(S.foe.lsTurn||-9))>=2){
-    let _ko=false; for(let i=0;i<me.moves.length;i++){ const sk=me.moves[i]; if(sk.pp>0&&aiDmgEst(me,foe,sk)>=foe.hp+(foe.shield||0)){ _ko=true; break; } }
-    if(!_ko){ let _bs=matchScore(me,foe)+0.6, _bi=-1;
-      for(let i=0;i<S.foe.team.length;i++){ if(i===S.foe.active)continue; const t=S.foe.team[i]; if(t.fainted||!hasMoves(t))continue; const _s=matchScore(t,foe); if(_s>_bs){_bs=_s;_bi=i;} }
-      if(_bi>=0 && _sw && !_ctl){ S.foe.lsTurn=S.turn; return {kind:'switch', i:_bi}; }
+  (p.own||[]).forEach(scan);
+  const pv=p.passive||{};
+  if(pv.revive||pv.faintPP||pv.onSelfFaintTeam||pv.onFaintBlast) tags.combo+=1;
+  if(pv.onEnterAbsorbTypes||pv.onEnterDotTick||pv.onEnterDodgeBuff||pv.onEnterEatAllyPP||pv.onEnterVsDot) tags.combo+=1;
+  if(pv.teamRegen||pv.teamRegenMissing||pv.startHeal) tags.team+=1;
+  if(pv.moonDrain||pv.drain||pv.turnRegen) tags.heal+=1;
+  if(pv.crit||pv.firstMoveCrit||pv.typeCrit) tags.burst+=1;
+  if(pv.clearMind) tags.cleanse+=1;
+  return {off:off, bulk:bulk, spe:b.spe||0, types:(Array.isArray(p.type)?p.type:[p.type]).length, tags:tags};
+}
+function aiStyleScore(p, st){
+  const pr=aiPetProfile(p);
+  const off=(pr.off-85)/26, bulk=(pr.bulk-120)/42, spe=(pr.spe-75)/36;
+  const t=pr.tags, w=st.team||{};
+  return (w.off||1)*off + (w.bulk||1)*bulk + (w.spe||1)*spe
+       + (w.dot||1)*t.dot*0.55 + (w.control||1)*t.control*0.55
+       + (w.sustain||1)*(t.heal*0.5+t.shield*0.45)
+       + (w.combo||1)*((t.combo+t.team*0.6)*0.6)
+       + (w.field||0)*t.field*1.2
+       + (w.coverage||0)*((pr.types||1)>=2?0.5:0)
+       + (w.burst||0)*t.burst*0.25;
+}
+/* 风格化组队：按「阵容需求」凑体系，而不是单纯比总分 */
+function aiTeamNeed(st, team){
+  const pr=team.map(aiPetProfile);
+  const cnt=f=>pr.filter(f).length;
+  const need={};
+  if(st.key==='rush'){ need.off=cnt(x=>x.off>=100&&x.spe>=85)<4; need.priority=cnt(x=>x.tags.priority>=1)<2; }
+  if(st.key==='stall'){ need.bulk=cnt(x=>x.bulk>=125)<3; need.sustain=cnt(x=>x.tags.heal+x.tags.shield>=1)<2; need.dot=cnt(x=>x.tags.dot>=1)<2; }
+  if(st.key==='field'){ need.field=cnt(x=>x.tags.field>=1)<1; need.control=cnt(x=>x.tags.control>=1.2)<3; need.status=cnt(x=>x.tags.status>=1)<2; }
+  if(st.key==='read'){ need.types=new Set(pr.map(x=>x.type)).size<4; need.dual=cnt(x=>x.types>=2)<2; }
+  return need;
+}
+function aiBuildTeam(st){
+  const out=[], used={}, typeCount={}, distinct={};
+  for(let n=0;n<6;n++){
+    let best=null,bs=-1e9;
+    const need=aiTeamNeed(st,out);
+    PETS.forEach(function(p){
+      if(used[p.id]) return;
+      const pr=aiPetProfile(p);
+      let s=aiStyleScore(p,st)*2.4;
+      const t=primaryType(p.type), tc=typeCount[t]||0;
+      s-=tc*1.25; if(tc>=2) s-=2.6;
+      if(st.key==='read'&&!distinct[t]) s+=0.65;                 // 反制型：优先覆盖没见过的属性
+      if(st.key==='read'&&pr.types>=2) s+=0.45;
+      const dmg=(p.own||[]).filter(function(x){return x.power>0&&x.cat!=='变化';}).length;
+      if(n<3&&dmg===0) s-=1.6;
+      // 未满足的阵容需求：强烈加分；后期仍缺则惩罚不合适的
+      if(need.off&&pr.off>=100&&pr.spe>=85) s+=1.9;
+      if(need.priority&&pr.tags.priority>=1) s+=1.0;
+      if(need.bulk&&pr.bulk>=125) s+=1.8;
+      if(need.sustain&&(pr.tags.heal+pr.tags.shield)>=1) s+=1.2;
+      if(need.dot&&pr.tags.dot>=1) s+=1.4;
+      if(need.field&&pr.tags.field>=1) s+=3.2;
+      if(need.control&&pr.tags.control>=1.2) s+=1.5;
+      if(need.status&&pr.tags.status>=1) s+=1.2;
+      if(need.dual&&pr.types>=2) s+=1.0;
+      if(n>=4){ if(need.bulk&&pr.bulk<110) s-=1.4; if(need.off&&pr.off<92) s-=1.1; if(need.control&&pr.tags.control<1) s-=0.9; }
+      s+=Math.random()*0.22;
+      if(s>bs){bs=s;best=p;}
+    });
+    if(!best) break;
+    used[best.id]=1;
+    const t=primaryType(best.type); typeCount[t]=(typeCount[t]||0)+1; distinct[t]=1;
+    out.push(best);
+  }
+  return out;
+}
+/* 风格化加点：每只 150 点、单项≤50 */
+function aiBuildFor(pet, st){
+  const off=guessPrimary(pet)||'atk';
+  let order;
+  switch(st.key){
+    case 'rush': order=[off,'spe','hp','def']; break;
+    case 'stall': order=['hp','def','spd',off]; break;
+    case 'field': order=['spe','hp','spd',off]; break;
+    case 'read': order=[off,'hp','spe','def']; break;
+    default: order=[off,'spe','hp','def'];
+  }
+  const b={}; let left=POOL;
+  order.forEach(function(k){ if(left<=0) return; const add=Math.min(CAP,left); b[k]=(b[k]||0)+add; left-=add; });
+  STATS.forEach(function(k){ if(left<=0) return; const c=b[k]||0, add=Math.min(CAP-c,left); if(add>0){b[k]=c+add;left-=add;} });
+  return b;
+}
+/* 风格化技能：同一只宠，不同 AI 会带不同的 4 招 */
+function skIsPp(sk){ return !!(sk&&(sk.drainFoePP||sk.spreadDrainPP||sk.ppDrainedScale||sk.drainPPIfFoeAbove)); }
+function skPpActive(sk,foe){ return skIsPp(sk)&&(!sk.drainPPIfFoeAbove||foe.hp/Math.max(1,foe.maxhp)>=sk.drainPPIfFoeAbove.hp); }
+function aiSkillTag(sk){
+  if(!sk) return 'other';
+  if(sk.tidal) return 'field';
+  if(sk.power>0&&sk.cat!=='变化') return 'attack';
+  if(sk.burstDmg) return 'burst';
+  if(sk.reviveAlly||sk.selfKill) return 'revive';
+  if(sk.stealBuffs||sk.clearbuff||sk.corrodeShield) return 'anti';
+  if(skIsPp(sk)) return 'pp';
+  /* 主效果优先：带 DoT/状态/减益的复合技，按它真正的用途归类 */
+  if(sk.dot||sk.burn) return 'dot';
+  if(sk.status) return 'status';
+  if(sk.debuff||sk.debuffs) return 'debuff';
+  if(sk.buff||sk.buffs) return 'buff';
+  if(sk.heal) return 'heal';
+  if(sk.regen) return 'regen';
+  if(sk.shield||sk.shieldLost||sk.teamShield) return 'shield';
+  if(sk.addMark) return 'mark';
+  if(sk.teamHeal||sk.teamPP) return 'team';
+  if(sk.dodge) return 'dodge';
+  if(sk.thorns) return 'thorns';
+  if(sk.survive) return 'survive';
+  if(sk.copyFoe) return 'copy';
+  return 'other';
+}
+function aiSkillValue(sk, st){
+  let v=0;
+  if(!sk) return -1e9;
+  if(sk.tidal){ v+=(sk.power||0)*0.5+70; }
+  else if(sk.power>0&&sk.cat!=='变化'){
+    let pw=sk.power;
+    if(sk.powers) pw=sk.powers.reduce(function(a,b){return a+b;},0)/sk.powers.length;
+    if(sk.multi) pw*=(sk.multi[0]+sk.multi[1])/2;
+    v+=pw*0.5;
+    if(sk.burstDmg) v+=26;
+    if(sk.vsStatus) v+=8;
+    if(sk.markScale||sk.detonate) v+=10;
+    if(sk.burnBonus) v+=6;
+    if(sk.drain) v+=8;
+  }
+  else if(sk.burstDmg) v+=58;
+  else if(sk.heal) v+=26+Math.min(20,(sk.heal||0)*50);
+  else if(sk.regen) v+=24;
+  else if(sk.shield||sk.shieldLost) v+=27;
+  else if(sk.teamShield) v+=32;
+  else if(sk.buff||sk.buffs) v+=24;
+  else if(sk.dot||sk.burn) v+=28;
+  else if(sk.status) v+=24;
+  else if(sk.debuff||sk.debuffs) v+=22;
+  else if(sk.addMark) v+=20;
+  else if(sk.teamHeal||sk.teamPP) v+=25;
+  else if(sk.dodge) v+=18;
+  else if(sk.thorns) v+=18;
+  else if(sk.survive) v+=20;
+  else if(sk.copyFoe) v+=20;
+  else if(sk.selfKill) v+=10;
+  else v+=8;
+  v*=((st.skill&&st.skill[aiSkillTag(sk)])||1);
+  if(sk.star) v*=1.12;
+  return v;
+}
+function aiEquips(pet, st){
+  const pool=petPool(pet);
+  const ranked=pool.map(function(s,i){ return {i:i,v:aiSkillValue(s,st)}; }).sort(function(a,b){return b.v-a.v;});
+  let sel=ranked.slice(0,MAXSK).map(function(x){return x.i;});
+  const isDmg=function(i){ const s=pool[i]; return s&&s.power>0&&s.cat!=='变化'; };
+  if(!sel.some(isDmg)){
+    const dmg=ranked.find(function(x){ return isDmg(x.i); });
+    if(dmg){ sel[sel.length-1]=dmg.i; sel=Array.from(new Set(sel)); }
+  }
+  /* 体系保证：每个风格至少带 1 张自己的「核心牌」，否则风格只剩数值 */
+  const needTags={stall:['dot'],field:['field'],read:['status','debuff']}[st.key];
+  if(needTags&&!sel.some(function(i){ return needTags.indexOf(aiSkillTag(pool[i]))>=0; })){
+    const cand=ranked.find(function(x){ return needTags.indexOf(aiSkillTag(pool[x.i]))>=0; });
+    if(cand){
+      const dmgSel=sel.filter(isDmg);
+      let worst=-1,wv=1e9;
+      sel.forEach(function(i,k){ if(isDmg(i)&&dmgSel.length<=1) return; if(aiSkillValue(pool[i],st)<wv){wv=aiSkillValue(pool[i],st);worst=k;} });
+      if(worst>=0&&sel.indexOf(cand.i)<0) sel[worst]=cand.i;
     }
   }
+  return sel;
+}
+/* 首发顺序：不同风格用不同「队长」，让第一回合就能看出打法 */
+function aiLeadScore(p, st){
+  const pr=aiPetProfile(p);
+  switch(st.key){
+    case 'rush': return pr.off*1.0+pr.spe*0.9+pr.tags.priority*20;
+    case 'stall': return pr.bulk*1.0+(pr.tags.heal+pr.tags.shield)*30+pr.tags.dot*25;
+    case 'field': return pr.tags.field*120+pr.tags.control*35+pr.spe*0.5+pr.bulk*0.3;
+    case 'read': return pr.off*0.5+pr.bulk*0.4+pr.spe*0.4+(pr.types>=2?20:0);
+    default: return pr.off*0.6+pr.bulk*0.5+pr.spe*0.4;
+  }
+}
+function aiOrderTeam(team, st){ return team.slice().sort(function(a,b){ return aiLeadScore(b,st)-aiLeadScore(a,st); }); }
+function makeAiFoeTeam(){
+  const sys=(AI_STYLE_FORCE!=='random'&&bpSystem(AI_STYLE_FORCE))?bpSystem(AI_STYLE_FORCE):aiNextCasualSystem();
+  const ids=aiComposeTeamIds(sys);
+  const roles={};
+  const arr=ids.map(function(id){ const pet=PETS.find(function(p){return p.id===id;}); const role=bpRoleOf(id,sys.id); roles[id]=role; return {pet:pet, build:bpBuildFor(pet,sys.id,role), equips:bpEquips(pet,sys.id,role)}; });
+  const lead={}; arr.forEach(function(a){ lead[a.pet.id]=bpLeadScore(a.pet.id,sys.id)+Math.random()*0.01; });
+  arr.sort(function(a,b){ return lead[b.pet.id]-lead[a.pet.id]; });
+  if(arr.length>1&&Math.random()<0.15){ const t=arr[0];arr[0]=arr[1];arr[1]=t; }   /* 15% 换首发，避免每局开头一模一样 */
+  arr.bpSystem=sys.id; arr.roles=roles;
+  return arr;
+}
+/* ---- 战斗估算辅助 ---- */
+function aiBestDamage(me, foe){
+  let dmg=0, sk=null;
+  (me.moves||[]).forEach(function(mv){ if(mv.pp<=0) return; const d=aiDmgEst(me,foe,mv); if(d>dmg){dmg=d;sk=mv;} });
+  return {dmg:dmg, sk:sk};
+}
+function aiIncoming(foe, target){
+  let worst=0;
+  (foe.moves||[]).forEach(function(mv){ if(mv.pp<=0) return; const d=aiDmgEst(foe,target,mv); if(d>worst) worst=d; });
+  return worst;
+}
+/* 对位优势：把「属性克制 / 能不能吃下这回合 / 血量」合成一个可比较的分数 */
+function aiMatchAdv(p, foe){
+  if(!p||p.fainted) return -9;
+  const off=eff(primaryType(p.type),foe.type)-1;
+  const def=eff(primaryType(foe.type),p.type)-1;
+  const hpP=p.hp/Math.max(1,p.maxhp);
+  const inc=aiIncoming(foe,p);
+  let adv=off*0.95-def*0.72+(hpP-0.5)*0.55-Math.min(1.5,inc/Math.max(1,p.maxhp))*0.95;
+  const pr=aiPetProfile(p);
+  adv+=pr.tags.combo*0.03+pr.tags.team*0.03;
+  return adv;
+}
+function aiBenchPick(me, foe, st){
+  let bi=-1,ba=-9e9;
+  S.foe.team.forEach(function(t,i){
+    if(i===S.foe.active||t.fainted||!hasMoves(t)) return;
+    let adv=aiMatchAdv(t,foe)+Math.random()*0.06;
+    if(adv>ba){ba=adv;bi=i;}
+  });
+  return {i:bi,adv:ba};
+}
+
+/* ---- 出招打分：风格权重只作用在“选择”，不改变实际伤害 ---- */
+function aiScoreSkill(sk, me, foe, st, D, ctx){
+  if(!sk||sk.pp<=0) return -1e9;
+  const hpP=ctx.hpP, tag=aiSkillTag(sk);
+  let sc=0;
+  if(sk.power>0&&sk.cat!=='变化'){
+    let dmg=aiDmgEst(me,foe,sk);
+    if(sk.markScale) dmg+=(foe.leimark||0)*sk.markScale.per;
+    if(sk.detonate) dmg+=(foe.leimark||0)*sk.detonate.per;
+    /* 统一量纲：按「占对手剩余血量的比例」评分，再和变化技的权重比较 */
+    sc=Math.min(2.4,dmg/Math.max(1,foe.hp+(foe.shield||0)))*140;
+    if(dmg>=foe.hp+(foe.shield||0)) sc+=1000;
+    if(sk.burstDmg&&(foe.status.burn||foe.dot)) sc=Math.max(sc,190);
+    if(ctx.doomed&&!ctx.canKo) sc*=0.62;
+    if(hpP<0.24&&st.key!=='rush') sc*=0.88;
+  }
+  else if(sk.burstDmg&&(foe.status.burn||foe.dot)){ sc=190; }
+  else if(sk.heal){ sc=hpP<0.60?(me.maxhp-me.hp)*0.85+40:4; }
+  else if(sk.regen){ sc=hpP<0.70?40:10; }
+  else if(sk.shield||sk.shieldLost){ sc=(me.shield>0)?8:46; }
+  else if(sk.teamShield){ sc=52; }
+  else if(sk.buff||sk.buffs){
+    const _b=sk.buff||(sk.buffs&&sk.buffs[0]);
+    const lv=(_b&&me.buffs[_b.k]&&me.buffs[_b.k].lv)||0;
+    /* 强化只在「开局且血线健康」时值钱；拖到中后期就该出招了 */
+    const early=(ctx.turn<=6&&hpP>0.45);
+    sc=(lv<6)?((early?30:16)+(6-lv)*3):4;
+    if(hpP<0.60) sc*=0.55;
+  }
+  else if(sk.addMark){ const cur=(foe.leimark||0); sc=(cur<5)?(78+(5-cur)*10):16; }
+  else if(sk.debuff||sk.debuffs){
+    const lv=sk.debuff?((foe.buffs[sk.debuff.k]&&foe.buffs[sk.debuff.k].lv)||0):0;
+    sc=sk.debuff?((lv>-6)?42:8):42;
+  }
+  else if(sk.burn){ sc=foe.status.burn?8:44; }
+  else if(sk.status){ sc=foe.status[sk.status.n]?8:38; }
+  else if(sk.dot){ sc=foe.dot?10:(st.key==='stall'?160:50); }
+  else if(sk.teamHeal||sk.teamPP){ sc=32; }
+  else if(sk.mark){ sc=(me.marks&&me.marks[sk.mark.n])?10:40; }
+  else if(sk.dodge){ sc=(me.dodge>0)?10:36; }
+  else if(sk.thorns){ sc=(me.thorns)?10:36; }
+  else if(sk.survive){ sc=(me.surviveT>0)?8:40; }
+  else if(sk.copyFoe){ sc=ctx.turn<=2?24:32; }
+  else sc=22;
+  if(sk.tidal){ const _up=!!(S.foe.field&&S.foe.field.turns>0); sc=Math.max(sc,(_up?6:160)*((st.skill&&st.skill.field)||1)); }
+  sc*=((st.skill&&st.skill[tag])||1);
+  if(ctx.turn===1 && (tag==='dot'||tag==='status'||tag==='debuff'||tag==='buff'||tag==='team')) sc*=st.open||1;
+  /* 僵局收束：回合拖长后降低续航权重、提高输出权重，避免互相干耗到 PP 尽 */
+  if(ctx.turn>=30){ if(tag==='attack') sc*=1.15; else if(tag==='heal'||tag==='regen'||tag==='shield') sc*=0.78; }
+  if(ctx.turn>=35&&(tag==='heal'||tag==='regen'||tag==='shield')) sc*=0.62;
+  if(ctx.turn>=50){ if(tag==='attack') sc*=1.20; else if(tag==='heal'||tag==='regen'||tag==='shield') sc*=0.55; }
+  if(ctx.turn>=70){ if(tag==='attack') sc*=1.30; else if(tag==='heal'||tag==='regen'||tag==='shield') sc*=0.40; }
+  if(tag==='heal'&&hpP>0.95) sc=Math.min(sc,6);
+  if(tag==='shield'&&me.shield>60) sc=Math.min(sc,8);
+  if(tag==='buff'&&sk.buff){
+    const lv=(me.buffs[sk.buff.k]&&me.buffs[sk.buff.k].lv)||0;
+    if(lv>=6) sc=Math.min(sc,4);
+  }
+  sc*=rnd(1-D.noise,1+D.noise);
+  return sc;
+}
+
+function aiPredictIncoming(aiActive){
+  const p=active(S.me); if(!p||p.fainted) return null;
+  const bench=S.me.team.filter(function(t){ return t&&t!==p&&!t.fainted&&hasMoves(t); });
+  if(!bench.length) return null;
+  const cur=aiMatchAdv(p,aiActive);
+  let best=null,ba=-9e9;
+  bench.forEach(function(t){ const a=aiMatchAdv(t,aiActive); if(a>ba){ba=a;best=t;} });
+  const hp=p.hp/Math.max(1,p.maxhp);
+  if(hp<0.35||(cur<-0.2&&ba>cur+0.35)) return best;
+  return null;
+}
+
+/* ---- 体系局内评分：每套体系的技能权重完全不同 ---- */
+function aiScoreSkillBP(sk, me, foe, sys, role, ctx){
+  if(!sk||sk.pp<=0) return -1e9;
+  const B=BP_BATTLE[sys]||BP_BATTLE.stall;
+  const hpP=me.hp/Math.max(1,me.maxhp), tag=aiSkillTag(sk);
+  const guard=foe.shield||0;
+  let sc=0;
+  if(sk.power>0&&sk.cat!=='变化'){
+    let dmg=aiDmgEst(me,foe,sk);
+    if(sk.markScale) dmg+=(foe.leimark||0)*sk.markScale.per;
+    if(sk.detonate) dmg+=(foe.leimark||0)*sk.detonate.per;
+    sc=Math.min(2.4,dmg/Math.max(1,foe.hp+guard))*140;
+    if(dmg>=foe.hp+guard) sc+=1000;
+    /* 血线：这一招能不能把对面送进下一招的斩杀线；两回合能否直接打死 */
+    if(ctx.kill){
+      const after=(foe.hp+guard)-dmg;
+      if(dmg<foe.hp+guard){
+        if(ctx.twoTurn&&ctx.nextBestDmg&&(dmg+ctx.nextBestDmg)>=foe.hp+guard) sc+=190;
+        else if(after<=ctx.nextBestDmg*1.10) sc+=110;
+      }
+      if(ctx.doomed&&dmg<foe.hp+guard) sc*=0.60;
+      if(!ctx.survive&&dmg>=foe.hp+guard) sc+=160;
+    }
+    if(sk.burstDmg&&(foe.status.burn||foe.dot)) sc=Math.max(sc,190);
+    if(ctx.doomed&&!ctx.canKo) sc*=0.62;
+    if(role==='sweeper'&&!ctx.sweeperStarted) sc*=0.65;
+    if(sys==='burst') sc*=1.15;
+    if(sys==='stall') sc*=0.90;
+  }
+  else if(sk.heal){ sc=hpP<0.60?(me.maxhp-me.hp)*0.85+40:4; }
+  else if(sk.regen){ sc=hpP<0.70?40:10; }
+  else if(sk.shield||sk.shieldLost){ sc=(me.shield>0)?8:46; }
+  else if(sk.teamShield){ sc=52; }
+  else if(sk.buff||sk.buffs){
+    const _b=sk.buff||(sk.buffs&&sk.buffs[0]);
+    const lv=(_b&&me.buffs[_b.k]&&me.buffs[_b.k].lv)||0;
+    const early=(ctx.turn<=6&&hpP>0.45);
+    sc=(lv<6)?((early?30:16)+(6-lv)*3):4;
+    if(hpP<0.60) sc*=0.55;
+    if(ctx.doomed) sc*=1.4;
+  }
+  else if(sk.addMark){ const cur=(foe.leimark||0); sc=(cur<5)?(78+(5-cur)*10):16; }
+  else if(sk.debuff||sk.debuffs){ const lv=sk.debuff?((foe.buffs[sk.debuff.k]&&foe.buffs[sk.debuff.k].lv)||0):0; sc=sk.debuff?((lv>-6)?42:8):42; }
+  else if(sk.burn){ sc=foe.status.burn?8:44; }
+  else if(sk.status){ sc=foe.status[sk.status.n]?8:38; }
+  else if(sk.dot){ sc=foe.dot?10:(sys==='stall'?160:50); }
+  else if(sk.teamHeal||sk.teamPP){ sc=32; }
+  else if(sk.mark){ sc=(me.marks&&me.marks[sk.mark.n])?10:40; }
+  else if(sk.dodge){ sc=(me.dodge>0)?10:36; }
+  else if(sk.thorns){ sc=(me.thorns)?10:36; }
+  else if(sk.survive){ sc=(me.surviveT>0)?8:40; }
+  else if(sk.tidal){ sc=(S.foe.field&&S.foe.field.turns>0)?8:160; }
+  else if(sk.stealBuffs){ sc=bpHasPosBuffs(foe)?125:5; }
+  else if(sk.clearbuff){ sc=bpHasPosBuffs(foe)?115:5; }
+  else if(sk.reviveAlly){ sc=bpTeamDead(me)?125:5; }
+  else if(sk.selfKill){ sc=bpTeamDead(me)?95:10; }
+  else if(sk.drainFoePP||sk.spreadDrainPP){ sc=72; }
+  else if(sk.copyFoe){ sc=ctx.turn<=2?24:32; }
+  else sc=22;
+  /* 体系专属加成：不是换皮，每套的优先项不同 */
+  if(sys==='ppDrain'&&skPpActive(sk,foe)) sc*=1.9;
+  if(sys==='dot'&&sk.dot&&!foe.dot) sc*=2.2;
+  if(sys==='dot'&&!foe.dot&&(sk.addDotLayer||sk.extendDot||sk.tickDot||sk.dotBonusPow)) sc*=0.5;
+  if(sys==='dot'&&!foe.dot&&tag==='debuff') sc*=0.60;
+  if(sys==='dot'&&foe.dot&&(sk.vsDotMul||sk.burstDmg||sk.dotScale)) sc*=1.4;
+  if(sys==='setupSweep'&&sk.teamShield) sc=Math.max(sc,110);
+  if(sys==='setupSweep'&&sk.selfKill&&bpTeamDead(me)) sc=Math.max(sc,115);
+  if(sys==='setupSweep'&&role==='support'&&sk.buff&&sk.buff.k==='atk') sc*=0.5;
+  if(sys==='dot'&&sk.dot&&!foe.dot) sc=Math.max(sc,120);
+  if(sys==='dot'&&!foe.dot&&(sk.addDotLayer||sk.extendDot||sk.tickDot||sk.dotBonusPow)) sc=Math.max(sc,72);
+  if(sys==='ppDrain'&&skPpActive(sk,foe)) sc=Math.max(sc,110);
+  if(sys==='antiBuff'&&(sk.stealBuffs||sk.clearbuff)&&bpHasPosBuffs(foe)) sc=Math.max(sc,130);
+  if(sys==='revive'&&sk.reviveAlly&&bpTeamDead(me)) sc=Math.max(sc,130);
+  if(sys==='antiBuff'&&(sk.stealBuffs||sk.clearbuff)&&bpHasPosBuffs(foe)) sc*=2.0;
+  if(sys==='revive'&&sk.reviveAlly&&bpTeamDead(me)) sc*=2.2;
+  if(sys==='setupSweep'&&sk.selfKill) sc*=1.4;
+  if(sys==='stall'&&(tag==='heal'||tag==='shield'||tag==='dot')) sc*=1.25;
+  if(role==='support'&&(tag==='heal'||tag==='shield'||tag==='revive'||tag==='team')) sc*=1.2;
+  if(role==='enabler'&&(tag==='pp'||tag==='dot'||tag==='anti'||tag==='buff'||tag==='field')) sc*=1.2;
+  if(role==='sweeper'&&(sk.power>0&&sk.cat!=='变化')&&ctx.sweeperStarted) sc*=1.1;
+  sc*=((B.skill&&B.skill[tag])||1);
+  if(tag==='attack'||tag==='burst') sc*=(ctx.agg||1);
+  if(tag==='heal'||tag==='shield'||tag==='regen'||tag==='survive') sc*=(ctx.caution||1);
+  if(tag==='dot'||tag==='pp'||tag==='anti'||tag==='buff'||tag==='field') sc*=(ctx.setupW||1);
+  sc*=rnd(0.94,1.06);   // 每局性格之外的小抖动，避免同一局面永远同一手
+  sc*=rnd(1-aiDiffObj().noise,1+aiDiffObj().noise);
+  return sc;
+}
+function aiSwitchScoreBP(target, me, foe, sys, role, ctx){
+  if(!target||target.fainted||!hasMoves(target)) return -999;
+  if(eff(primaryType(foe.type),target.type)>1 && !ctx.sweeperEmergency) return -999;   // 换上去被当前对手克制：非紧急一票否决
+  const tr=bpRoleOf(target.def.id,sys);
+  let best=0; (target.moves||[]).forEach(function(m){ if(m.pp>0){ const d=aiDmgEst(target,foe,m); if(d>best) best=d; } });
+  const gain=Math.min(100,best/Math.max(1,foe.hp+(foe.shield||0))*100);
+  const inc=Math.min(150,aiIncoming(foe,target)/Math.max(1,target.hp)*100);
+  let score=gain*1.25-inc*0.95;
+  const recent=(S.foe.switchLog||[]).filter(function(t){return ctx.turn-t<=3;}).length;
+  if(recent>=2) score-=30; if(recent>=3) score-=60;
+  let coef=(BP_BATTLE[sys]||{}).switchCoef||0.6; let rc=1;
+  if(role==='sweeper'&&ctx.sweeperStarted) rc*=ctx.sweeperEmergency?1.2:0.1;
+  if(tr==='sweeper'&&!ctx.sweeperStarted) rc*=0.1;
+  if(role==='enabler') rc*=1.5;
+  if(tr==='enabler') rc*=1.5;
+  if(role==='support'&&ctx.teamNeedsSupport) rc*=0.5;
+  if(tr==='revenge'&&foe.hp/Math.max(1,foe.maxhp)<0.35) rc*=2;
+  if(sys==='stall') score*=0.9;
+  if(sys==='burst') score*=0.8;
+  return score*coef*rc;
+}
+/* 血线/斩杀计算：把每招的期望伤害、是否直接击杀、两回合能否击杀、对方最大反打都算清楚 */
+function aiKillInfo(me, foe){
+  const foeHp=foe.hp+(foe.shield||0);
+  const moves=[];
+  (me.moves||[]).forEach(function(sk,i){
+    if(!sk||sk.pp<=0) return;
+    if(!(sk.power>0&&sk.cat!=='变化')) return;
+    let dmg=aiDmgEst(me,foe,sk);
+    if(sk.markScale) dmg+=(foe.leimark||0)*sk.markScale.per;
+    if(sk.detonate) dmg+=(foe.leimark||0)*sk.detonate.per;
+    moves.push({i:i,sk:sk,dmg:dmg,lethal:dmg>=foeHp,pri:(skSpd(sk)>8)});
+  });
+  moves.sort(function(a,b){return b.dmg-a.dmg;});
+  const best=moves[0]||null;
+  const next=moves[1]||null;
+  const incoming=aiIncoming(foe,me);
+  const survive=(me.hp+(me.shield||0))>incoming;
+  const twoTurn=!!(best&&next&&(best.dmg+next.dmg)>=foeHp);
+  const killLine=best?Math.max(0,foeHp-best.dmg):foeHp;
+  return {foeHp:foeHp,moves:moves,best:best,next:next,nextBestDmg:next?next.dmg:0,incoming:incoming,survive:survive,twoTurn:twoTurn,killLine:killLine};
+}
+function aiChooseBP(){
+  const me=active(S.foe), foe=active(S.me);
+  if(!me) return {kind:'skill',i:0};
+  if(me.lock) return {kind:'skill', i:me.lock.i};
+  const sys=S.foe.bpSystem||'stall', D=aiDiffObj();
+  const role=bpRoleOf(me.def.id,sys);
+  const hpP=me.hp/Math.max(1,me.maxhp), turn=S.turn||1;
+  const started=bpSweeperStarted(sys,me);
+  const teamNeedsSupport=S.foe.team.some(function(p){return !p.fainted&&p.hp/Math.max(1,p.maxhp)<0.4;});
+  const kill=aiKillInfo(me,foe);
+  const atk=kill.best?{sk:kill.best.sk,dmg:kill.best.dmg}:aiBestDamage(me,foe);
+  const canKo=!!(kill.best&&kill.best.lethal);
+  const incoming=kill.incoming;
+  const doomed=incoming>=me.hp+(me.shield||0);
+  const killLine=kill.killLine, nextBestDmg=kill.nextBestDmg, twoTurn=kill.twoTurn, survive=kill.survive;
+  const hardCountered=eff(primaryType(foe.type),me.type)>1;
+  const outsped=cur(me,'spe')<cur(foe,'spe');
+  const sweeperEmergency=role==='sweeper'&&started&&(doomed||(hardCountered&&(outsped||hpP<0.5)));
+  /* 收尾模式：对面场上/全队已经残血，优先补刀，不许为了对位再换人亏回合 */
+  const foeLow=foe.hp/Math.max(1,foe.maxhp)<0.35;
+  const foeTeamLow=S.me.team.filter(function(p){return !p.fainted;}).every(function(p){return p.hp/Math.max(1,p.maxhp)<0.35;});
+  const T=S.foe.temper||bpSampleTemper();
+  let agg=T.agg,caution=T.caution,setupW=T.setup;
+  const myAlive=S.foe.team.filter(function(p){return !p.fainted;}).length;
+  const foeAlive=S.me.team.filter(function(p){return !p.fainted;}).length;
+  const myHp=S.foe.team.reduce(function(a,p){return a+(p.fainted?0:p.hp/Math.max(1,p.maxhp));},0);
+  const foeHp=S.me.team.reduce(function(a,p){return a+(p.fainted?0:p.hp/Math.max(1,p.maxhp));},0);
+  if(myAlive<foeAlive||myHp<foeHp-0.15){agg*=1.15;caution*=0.90;}
+  else if(myAlive>foeAlive||myHp>foeHp+0.15){agg*=0.95;caution*=1.10;}
+  const ctx={turn:turn,hpP:hpP,doomed:doomed,canKo:canKo,sweeperStarted:started,teamNeedsSupport:teamNeedsSupport,sweeperEmergency:sweeperEmergency,agg:agg,caution:caution,setupW:setupW,temper:T,kill:kill,killLine:killLine,nextBestDmg:nextBestDmg,twoTurn:twoTurn,survive:survive,incoming:incoming};
+  if(canKo&&!doomed) return {kind:'skill', i:me.moves.indexOf(atk.sk)};
+  /* 血线：能换掉对面且自己还有替补时，允许打斩杀交换（最后一只/先手/有优先技时更积极） */
+  if(canKo&&doomed){
+    const alive=S.foe.team.filter(function(p){return !p.fainted;}).length;
+    const lastFoe=S.me.team.filter(function(p){return !p.fainted;}).length<=1;
+    if(lastFoe||alive>=2||kill.best.pri||!outsped) return {kind:'skill', i:me.moves.indexOf(atk.sk)};
+  }
+  let bi=-1,bs=-1e9,bi2=-1,bs2=-1e9;
+  me.moves.forEach(function(sk,i){ if(sk.pp<=0) return; const sc=aiScoreSkillBP(sk,me,foe,sys,role,ctx);
+    if(sc>bs){bs2=bs;bi2=bi;bs=sc;bi=i;} else if(sc>bs2){bs2=sc;bi2=i;} });
+  if(bi2>=0&&Math.random()<T.explore&&bs2>bs*0.82) bi=bi2;
+  /* 对面残血时，直接选最高伤害的可用技能补刀，不玩功能技 */
+  if(foeLow&&!doomed){
+    let di=-1,db=-1;
+    me.moves.forEach(function(sk,i){ if(sk.pp>0&&sk.power>0&&sk.cat!=='变化'){ const d=aiDmgEst(me,foe,sk); if(d>db){db=d;di=i;} } });
+    if(di>=0){ bi=di; bs=Math.max(bs,db); }
+  }
+  let si=-1,ss=-999;
+  S.foe.team.forEach(function(t,i){
+    if(i===S.foe.active||t.fainted||!hasMoves(t)) return;
+    const sc=aiSwitchScoreBP(t,me,foe,sys,role,ctx);
+    if(sc>ss){ss=sc;si=i;}
+  });
+  /* 大C 紧急撤退：被硬克制/必死时，宁可换下去保强化，也不站着送 */
+  if(sweeperEmergency&&doomed&&si>=0){
+    const t=S.foe.team[si]; const tInc=aiIncoming(foe,t);
+    if(tInc<t.hp&&(tInc<incoming*0.98||t.hp>me.hp*1.5)){
+      if(Math.random()<0.78){ S.foe.switchLog=(S.foe.switchLog||[]).concat([turn]); try{ console.log('[BATTLE] emergency switch '+t.name+' | sweeper danger'); }catch(e){} return {kind:'switch',i:si}; }
+    }
+  }
+  const threshold=Math.max(18,bs*1.3*T.switchBias);
+  let allowSwitch=true;
+  if(sys==='burst') allowSwitch=doomed;
+  else if(sys==='stall') allowSwitch=doomed||hpP<0.25;
+  else if(sys==='dot'&&!foe.dot) allowSwitch=!me.moves.some(function(m){return m.dot&&m.pp>0;});
+  else if(sys==='antiBuff') allowSwitch=doomed||hpP<0.25;
+  else if(sys==='setupSweep'&&role==='sweeper'&&started) allowSwitch=sweeperEmergency;
+  if((foeLow||foeTeamLow)&&!doomed) allowSwitch=false;   // 收尾阶段不换人
+  if(si>=0&&allowSwitch&&ss>threshold&&ss>0){
+    S.foe.switchLog=(S.foe.switchLog||[]).concat([turn]);
+    try{ console.log('[BATTLE] switch '+S.foe.team[si].name+' | '+sys+'/'+role+' score='+ss.toFixed(1)+' skill='+bs.toFixed(1)); }catch(e){}
+    return {kind:'switch',i:si};
+  }
+  if(bi<0){ const nx=S.foe.team.findIndex(function(p){return !p.fainted&&hasMoves(p);}); if(nx>=0) return {kind:'switch',i:nx}; return {kind:'skill',i:0}; }
+  try{ console.log('[BATTLE] skill '+me.moves[bi].name+' | '+sys+'/'+role+' score='+bs.toFixed(1)); }catch(e){}
+  return {kind:'skill',i:bi};
+}
+
+function aiChoose(){
+  if(S&&S.foe&&S.foe.bpSystem&&typeof aiChooseBP==='function') return aiChooseBP();
+  const me=active(S.foe), foe=active(S.me);
+  if(me.lock) return {kind:'skill', i:me.lock.i};
+  const st=aiStyleOf(S.foe), D=aiDiffObj();
+  const hpP=me.hp/Math.max(1,me.maxhp);
+  const turn=S.turn||1;
+  const _ctl=controlled(me);
+  const atk=aiBestDamage(me,foe);
+  const canKo=!!(atk.sk&&atk.dmg>=foe.hp+(foe.shield||0));
+  const incoming=aiIncoming(foe,me);
+  const doomed=incoming>=me.hp+(me.shield||0);
+  const fieldUp=!!(S.foe.field&&S.foe.field.turns>0);
+  const iAmSetter=(me.moves||[]).some(function(m){return m.tidal&&m.pp>0;});
+  const setterIdx=S.foe.team.findIndex(function(t,i){ return i!==S.foe.active&&!t.fainted&&hasMoves(t)&&(t.moves||[]).some(function(m){return m.tidal&&m.pp>0;}); });
+  /* 读心：预判玩家可能换谁，再按「实际会站场上的那只」来算伤害/换人 */
+  const pred=(st.key==='read'&&D.smart>=0.5)?aiPredictIncoming(me):null;
+  const target=pred||foe;
+  const bench=aiBenchPick(me,target,st);
+  const curAdv=aiMatchAdv(me,foe);
+  const benchOk=bench.i>=0 && bench.adv>curAdv+0.12;
+  const since=Math.max(1,turn-(S.foe.lastSwitchTurn||-9));
+  const canSwitch=!S.busy && !_ctl && turn>1 && (since>=2 || doomed);
+  const low=hpP<st.sw.low;
+  const threatened=incoming>me.maxhp*0.60;
+  const resisted=eff(primaryType(me.type),foe.type)<0.80;
+  const bad=bench.i>=0 && curAdv<0.15 && (bench.adv-curAdv)>st.sw.bad && (resisted||(threatened&&curAdv<-0.15));
+  const stallDodge=(st.key==='stall') && bench.i>=0 && benchOk && (bench.adv-curAdv)>0.30;
+
+  /* 1) 能一击必杀 → 先杀（除非自己必死且没有更优选择） */
+  if(canKo && !doomed) return {kind:'skill', i:me.moves.indexOf(atk.sk)};
+
+  /* 2) 控场型：场地优先。场域在身且自己就是铺场手 → 不轻易走；场域没了 → 换铺场手上场 */
+  if(st.key==='field'){
+    if(fieldUp && iAmSetter && !low && !doomed){
+      /* 保场地：留在场上继续控 */
+    } else if(!fieldUp && setterIdx>=0 && turn>1 && hpP>0.40 && benchOk){
+      if(Math.random()<clamp(D.switch*0.80,0,0.92)){
+        S.foe.lastSwitchTurn=turn;
+        return {kind:'switch', i:setterIdx};
+      }
+    }
+  }
+
+  /* 3) 主动换人：残血 / 必死 / 被明显克制 / 铁壁躲克制 */
+  const mustSwitch=low||doomed||bad||stallDodge;
+  const fieldHold=(st.key==='field'&&fieldUp&&iAmSetter&&!low&&!doomed);
+  if(canSwitch && mustSwitch && !fieldHold){
+    let p=clamp(D.switch*st.sw.chance,0,0.98);
+    if(low) p+=0.20; if(doomed) p+=0.22; if(bad) p+=0.10;
+    if(stallDodge) p+=0.18;
+    if(turn>=40&&!doomed) p*=0.6;                       // 残局少换人，尽快见分晓
+    if(D.smart<0.5) p=Math.min(p,0.45);                 // 简单：偶尔也会犯怂
+    if(benchOk && Math.random()<clamp(p,0,0.94)){
+      S.foe.lastSwitchTurn=turn;
+      return {kind:'switch', i:bench.i};
+    }
+  }
+
+  /* 4) 出招：风格化打分；读心会把「预判目标」也纳入伤害期望 */
+  const ctx={hpP:hpP, foeP:foe.hp/Math.max(1,foe.maxhp), doomed:doomed, canKo:canKo, turn:turn, altFoe:pred, altProb:pred?0.60:0};
   let bi=-1,bs=-1e9;
-  for(let i=0;i<me.moves.length;i++){ const sk=me.moves[i]; if(sk.pp<=0)continue; let sc=0;
-    if(sk.burstDmg && (foe.status.burn||foe.dot)){ sc=hasTurtle?340:240; }   // 天玄：对手带状态时引爆收割
-    else if(sk.power>0 && sk.cat!=='变化'){ let dmg=aiDmgEst(me,foe,sk); if(sk.markScale) dmg+=(foe.leimark||0)*sk.markScale.per; if(sk.detonate) dmg+=(foe.leimark||0)*sk.detonate.per; sc=dmg; if(dmg>=foe.hp+(foe.shield||0)) sc+=1000; }
-    else if(sk.heal){ sc = hpP<0.55 ? (me.maxhp-me.hp)*0.8+40 : 6; }
-    else if(sk.regen){ sc = hpP<0.7 ? 36 : 14; }
-    else if(sk.shield||sk.shieldLost){ sc = (me.shield>0)?10:44; }
-    else if(sk.buff||sk.buffs){ const _b=sk.buff||(sk.buffs&&sk.buffs[0]); const lv=(me.buffs[_b.k]&&me.buffs[_b.k].lv)||0; sc=(hpP>0.3&&lv<6)?(30+(6-lv)*4):8; }
-    else if(sk.addMark){ const _cur=(foe.leimark||0); sc=(_cur<5)?(80+(5-_cur)*10):16; }
-    else if(sk.debuff||sk.debuffs){ const lv=sk.debuff?((foe.buffs[sk.debuff.k]&&foe.buffs[sk.debuff.k].lv)||0):0; sc=sk.debuff?(lv>-6?48:8):48; }
-    else if(sk.burn){ sc=foe.status.burn?8:42; }
-    else if(sk.status){ sc=foe.status[sk.status.n]?8:42; }
-    else if(sk.dot){ sc=foe.dot?12:(hasTurtle?140:46); }   // 带天玄时大幅优先铺垫 DoT（喂饭）
-    else if(sk.teamHeal||sk.teamPP){ sc=30; }
-    else if(sk.mark){ sc=(me.marks&&me.marks[sk.mark.n])?10:40; }
-    else if(sk.dodge){ sc=(me.dodge>0)?10:36; }
-    else if(sk.thorns){ sc=(me.thorns)?10:36; }
-    else if(sk.survive){ sc=(me.surviveT>0)?8:38; }
-    else sc=22;
-    sc*=rnd(0.95,1.05);
-    if(sc>bs){bs=sc;bi=i;} }
-  if(bi<0){ const nx=S.foe.team.findIndex(p=>!p.fainted&&hasMoves(p)); if(nx>=0) return {kind:'switch',i:nx}; return {kind:'skill',i:0}; }
+  me.moves.forEach(function(sk,i){
+    if(sk.pp<=0) return;
+    let sc=aiScoreSkill(sk,me,foe,st,D,ctx);
+    if(pred){
+      const ctx2={hpP:ctx.hpP,foeP:pred.hp/Math.max(1,pred.maxhp),doomed:ctx.doomed,canKo:ctx.canKo,turn:ctx.turn,altFoe:null,altProb:0};
+      const sc2=aiScoreSkill(sk,me,pred,st,D,ctx2);
+      sc=sc*(1-ctx.altProb)+sc2*ctx.altProb;
+    }
+    if(sc>bs){bs=sc;bi=i;}
+  });
+  if(bi<0){ const nx=S.foe.team.findIndex(function(p){return !p.fainted&&hasMoves(p);}); if(nx>=0) return {kind:'switch',i:nx}; return {kind:'skill',i:0}; }
   return {kind:'skill',i:bi};
 }
 
@@ -1740,7 +2343,7 @@ function renderBattle(){
       <div class="bars">
         ${barsHTML('me',S.me,'你')}
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div class="vsbadge">VS</div><div class="roundhint">第 ${S.turn} 回合</div><div class="turnbanner ${S.banner==='对手回合'?'foe':''}">${S.banner||''}</div><button id="psvbtn" class="pbtn">📖 双方被动</button></div>
-        ${barsHTML('foe',S.foe,'对手')}
+        ${barsHTML('foe',S.foe,'对手 · '+aiStyleName(S.foe))}
       </div>
       <div class="stage" id="stage">
         ${petHTML('me',S.me)}
@@ -2141,27 +2744,300 @@ function rankTierNow(){ return rankTier(RANK.points); }
 function rankAvail(){ return PETS.filter(function(p){ return !RANK.banned[p.id] && !RANK.picksA.some(function(x){return x.id===p.id;}) && !RANK.picksB.some(function(x){return x.id===p.id;}); }); }
 function rankBotScore(pet,myPicks,foePicks,kind){
   const t=primaryType(pet.type);
+  const st=aiStyleBy(RANK.aiStyle||AI_STYLE_KEY||'read');
+  const pr=aiPetProfile(pet);
   let s=STATS.reduce(function(a,k){return a+pet.base[k];},0)*0.35;
+  s+=aiStyleScore(pet,st)*18;                       // 按本局 BP 风格组队，而不是谁分高拿谁
   if(kind==='pick'){
-    myPicks.forEach(function(mp){ if(primaryType(mp.type)===t)s-=45; });
+    myPicks.forEach(function(mp){ if(primaryType(mp.type)===t)s-=45; });   // 同属性不重复
     foePicks.forEach(function(fp){ s+=(eff(t,fp.type)-1)*70; s-=Math.max(0,eff(primaryType(fp.type),pet.type)-1)*35; });
+    if(st.key==='rush') s+=pr.spe*1.1+pr.off*0.6+pr.tags.priority*12;        // 抢高速核心
+    if(st.key==='stall') s+=pr.bulk*0.45+(pr.tags.heal+pr.tags.shield)*22+pr.tags.dot*20; // 抢续航核心
+    if(st.key==='field') s+=pr.tags.field*90+pr.tags.control*28+pr.tags.status*12;        // 抢场地/控场核心
+    if(st.key==='read') s+=(pr.types>=2?20:0)+pr.tags.cleanse*10;                          // 多面手/覆盖
   } else {
-    foePicks.forEach(function(fp){ s+=(eff(t,fp.type)-1)*80; });
+    /* Ban：按风格拆掉对面最难受的东西 */
+    myPicks.forEach(function(mp){ s+=(eff(t,mp.type)-1)*80; });            // 能打我方的优先 ban
+    if(st.key==='rush') s+=pr.bulk*0.45+(pr.tags.heal+pr.tags.shield)*30;   // 疾风：ban 肉盾/回复
+    if(st.key==='stall') s+=pr.off*0.55+pr.tags.burst*34+pr.tags.cleanse*50; // 铁壁：ban 爆发/清状态
+    if(st.key==='field') s+=pr.tags.cleanse*55+pr.tags.burst*26+pr.spe*0.4;  // 布局：ban 能无视场地的
+    if(st.key==='read') s+=aiStyleScore(pet,st)*10+pr.tags.cleanse*15;       // 读心：拆对面体系核心
   }
   return s;
 }
+/* ===================== BP 层：7 套体系 + 守阵/拆阵/读阵 ===================== */
+const BP_SYSTEMS=[
+  {id:'setupSweep',name:'强化/单C',
+   main:['xingyuan','qingluan','shigu','bamboo','gangfeng','golem'],
+   backups:['wuzhi','whale','yexun','mianhua','zhongyan','bian'],
+   bans:['jinbi','zhimeng','lvyi','serpent','phoenix'],
+   oppCore:['xingyuan','qingluan','shigu','bamboo']},
+  {id:'ppDrain',name:'删PP',
+   main:['rongzhu','koi','yhx','yinghuo','zhen','shigu'],
+   backups:['wuzhi','yexun','mingting','wanxiang','mianhua','sandfox'],
+   bans:['falcon','leopard','gangfeng','turtle','sprite','dragon'],
+   oppCore:['rongzhu','koi','shigu','zhen']},
+  {id:'stall',name:'消耗',
+   main:['turtle','tiejia','jinbi','canglan','dragon','mingdeng'],
+   backups:['mianhua','whale','yeti','golem','shijia','zhongyan','yinhun'],
+   bans:['koi','rongzhu','junmu','cfl','zhen','falcon'],
+   oppCore:['turtle','tiejia','jinbi','canglan']},
+  {id:'dot',name:'DoT',
+   main:['junmu','cfl','turtle','canglan','mingdeng','fox'],
+   backups:['zhen','yeti','sandfox','eel','leopard','shijia','yinghuo','fenyao'],
+   bans:['falcon','moxiao','gangfeng','leopard','koi','rongzhu'],
+   oppCore:['junmu','cfl','turtle','canglan']},
+  {id:'burst',name:'爆发',
+   main:['gangfeng','falcon','leopard','cfl','fenyao','yinghuo'],
+   backups:['wuzhi','bian','yhx','zhen','fox','rongzhu','zhongyan'],
+   bans:['golem','turtle','yhx','jinbi','bian','tiejia'],
+   oppCore:['gangfeng','falcon','leopard','cfl']},
+  {id:'revive',name:'复活/车轮',
+   main:['phoenix','yexun','yinhun','shigu','turtle','tiejia'],
+   backups:['qingluan','dragon','whale','jinbi','yeti','shijia','xingyuan'],
+   bans:['rongzhu','koi','falcon','shigu','cfl','jinbi'],
+   oppCore:['phoenix','yexun','yinhun','shigu']},
+  {id:'antiBuff',name:'反制',
+   main:['jinbi','zhimeng','lvyi','bamboo','serpent','zuiyan'],
+   backups:['phoenix','turtle','tiejia','moying','bingzhu','dragon','whale','mianhua'],
+   bans:['gangfeng','falcon','leopard','xingyuan','yinghuo','cfl'],
+   oppCore:['jinbi','zhimeng','lvyi','bamboo','serpent']}
+];
+
+/* ---- 七套体系的局内战斗配置：技能权重 / 角色 / 首发 ---- */
+const BP_BATTLE={
+ setupSweep:{skill:{attack:0.78,buff:1.30,heal:0.60,shield:0.70,dot:0.45,status:0.50,debuff:0.50,pp:0.25,anti:0.25,revive:0.45,field:0.2,team:0.8,dodge:0.6,thorns:0.5,survive:0.8,copy:0.8,mark:0.6},switchCoef:0.30,dotFirst:false},
+ ppDrain:{skill:{attack:1.15,pp:1.90,buff:0.70,heal:0.70,shield:0.80,dot:0.60,status:0.65,debuff:0.70,anti:0.50,revive:0.50,field:0.5,team:0.7,dodge:0.6,thorns:0.7,survive:0.9,copy:0.8,mark:0.8},switchCoef:0.80,dotFirst:false},
+ stall:{skill:{attack:0.85,heal:1.40,shield:1.40,dot:1.20,status:1.10,debuff:1.00,pp:1.00,anti:0.85,revive:0.85,field:0.8,team:1.1,dodge:1.0,thorns:1.3,survive:1.1,copy:0.8,mark:0.8},switchCoef:1.00,dotFirst:false},
+ dot:{skill:{attack:0.85,dot:1.80,status:0.90,heal:1.00,shield:0.90,pp:0.35,anti:0.50,revive:0.50,field:1.1,team:0.8,dodge:0.9,thorns:0.8,survive:0.9,copy:0.8,mark:0.9},switchCoef:0.50,dotFirst:true},
+ burst:{skill:{attack:1.35,buff:0.70,heal:0.40,shield:0.50,dot:0.60,status:0.70,debuff:0.70,pp:0.25,anti:0.40,revive:0.40,field:0.4,team:0.5,dodge:0.7,thorns:0.5,survive:0.8,copy:0.8,mark:1.0},switchCoef:0.30,dotFirst:false},
+ revive:{skill:{attack:0.90,heal:1.20,shield:1.10,revive:2.20,selfKill:1.50,dot:0.60,pp:0.60,anti:0.55,buff:0.8,status:0.7,debuff:0.7,field:0.5,team:1.3,dodge:0.9,thorns:0.8,survive:1.0,copy:0.8,mark:0.6},switchCoef:1.20,dotFirst:false},
+ antiBuff:{skill:{attack:1.00,anti:1.85,steal:2.00,clear:1.90,lock:1.70,debuff:1.10,buff:0.80,heal:0.80,shield:0.90,dot:0.6,status:0.8,pp:0.50,revive:0.60,field:0.5,team:0.8,dodge:0.9,thorns:0.9,survive:0.9,copy:1.0,mark:0.8},switchCoef:0.60,dotFirst:false}
+};
+const BP_ROLES={
+ setupSweep:{xingyuan:'sweeper',qingluan:'support',shigu:'enabler',bamboo:'sweeper',gangfeng:'lead',golem:'support',wuzhi:'enabler',whale:'support',yexun:'enabler',mianhua:'support',zhongyan:'support',bian:'lead'},
+ ppDrain:{rongzhu:'sweeper',koi:'sweeper',yhx:'lead',yinghuo:'lead',zhen:'enabler',shigu:'enabler',wuzhi:'enabler',yexun:'enabler',mingting:'enabler',wanxiang:'enabler',mianhua:'support',sandfox:'lead'},
+ stall:{turtle:'support',tiejia:'support',jinbi:'support',canglan:'enabler',dragon:'support',mingdeng:'enabler',mianhua:'support',whale:'support',yeti:'support',golem:'support',shijia:'enabler',zhongyan:'support',yinhun:'support'},
+ dot:{junmu:'enabler',cfl:'sweeper',turtle:'sweeper',canglan:'enabler',mingdeng:'sweeper',fox:'enabler',zhen:'enabler',yeti:'enabler',sandfox:'enabler',eel:'enabler',leopard:'lead',shijia:'enabler',yinghuo:'lead',fenyao:'sweeper'},
+ burst:{gangfeng:'sweeper',falcon:'lead',leopard:'lead',cfl:'sweeper',fenyao:'sweeper',yinghuo:'lead',wuzhi:'sweeper',bian:'revenge',yhx:'sweeper',zhen:'enabler',fox:'lead',rongzhu:'sweeper',zhongyan:'support'},
+ revive:{phoenix:'support',yexun:'support',yinhun:'support',shigu:'enabler',turtle:'support',tiejia:'support',qingluan:'support',dragon:'support',whale:'support',jinbi:'support',yeti:'support',shijia:'enabler',xingyuan:'sweeper'},
+ antiBuff:{jinbi:'support',zhimeng:'enabler',lvyi:'sweeper',bamboo:'sweeper',serpent:'support',zuiyan:'sweeper',phoenix:'support',turtle:'support',tiejia:'support',moying:'enabler',bingzhu:'support',dragon:'support',whale:'support',mianhua:'support'}
+};
+const BP_LEAD={
+ setupSweep:['qingluan','golem','shigu','gangfeng','bamboo','xingyuan'],
+ ppDrain:['yinghuo','yhx','rongzhu','koi','zhen','shigu'],
+ stall:['turtle','tiejia','jinbi','canglan','dragon','mingdeng'],
+ dot:['junmu','canglan','fox','mingdeng','turtle','cfl'],
+ burst:['falcon','leopard','yinghuo','gangfeng','fenyao','cfl'],
+ revive:['phoenix','yexun','yinhun','turtle','tiejia','shigu'],
+ antiBuff:['jinbi','zhimeng','lvyi','serpent','bamboo','zuiyan']
+};
+function bpSystem(id){ return BP_SYSTEMS.find(function(s){return s.id===id;})||null; }
+/* ---- AI 组队随机化：体系轮换 + 队内搭配变化 ----
+   目标：重开游戏后的第一场也不再固定成同一套（尤其不再永远 DoT）。
+   1) 休闲对战用「洗牌袋」轮换 7 套体系，一轮内不重复；
+   2) 每套体系不再固定取 main 前 6 只，改为 4~5 核心 + 1~2 备选；
+   3) 最近用过的体系记进 localStorage，重开游戏后第一场也会避开。 */
+const AI_SYS_RECENT_KEY='lc_ai_sys_recent';
+let AI_SYS_RECENT=[];
+try{
+  const _r=JSON.parse(localStorage.getItem(AI_SYS_RECENT_KEY)||'[]');
+  if(Array.isArray(_r)) AI_SYS_RECENT=_r.filter(function(x){return typeof x==='string';}).slice(0,4);
+}catch(e){}
+function aiSysNote(id){
+  if(!id) return;
+  AI_SYS_RECENT=[id].concat(AI_SYS_RECENT.filter(function(x){return x!==id;})).slice(0,4);
+  try{ localStorage.setItem(AI_SYS_RECENT_KEY,JSON.stringify(AI_SYS_RECENT)); }catch(e){}
+}
+function aiShuffle(a){
+  const x=a.slice();
+  for(let i=x.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=x[i];x[i]=x[j];x[j]=t; }
+  return x;
+}
+function aiNextCasualSystem(){
+  /* 完全随机：每局独立抽 1/7，不做洗牌袋、不做近期避重，避免“第一局dot、第二局X”的固定顺序 */
+  const sys=BP_SYSTEMS[Math.floor(Math.random()*BP_SYSTEMS.length)];
+  aiSysNote(sys.id);
+  return sys;
+}
+function aiComposeTeamIds(sys){
+  const mains=aiShuffle((sys.main||[]).slice(0,6));
+  const backs=aiShuffle((sys.backups||[]).filter(function(id){return mains.indexOf(id)<0;}));
+  let ids=mains.slice(0,6);
+  /* 30% 概率用 1 只备选替换最后一只核心，保证同一体系每局也不是完全同一套 */
+  if(backs.length&&ids.length>=6&&Math.random()<0.15){
+    ids=ids.slice(0,5).concat([backs[Math.floor(Math.random()*backs.length)]]);
+  }
+  for(let i=0;i<backs.length&&ids.length<6;i++){ if(ids.indexOf(backs[i])<0) ids.push(backs[i]); }
+  for(let i=0;i<mains.length&&ids.length<6;i++){ if(ids.indexOf(mains[i])<0) ids.push(mains[i]); }
+  return aiShuffle(ids);
+}
+function bpRoleOf(id,sys){ const m=BP_ROLES[sys]||{}; if(m[id]) return m[id]; const p=PETS.find(function(x){return x.id===id;}); if(!p) return 'support'; const pr=aiPetProfile(p); if(pr.tags.heal+pr.tags.shield>=2) return 'support'; if(pr.tags.dot+pr.tags.field>=1) return 'enabler'; if(pr.spe>=100&&pr.off>=100) return 'lead'; if(pr.off>=100) return 'sweeper'; return 'support'; }
+function bpLeadScore(id,sys){ const a=BP_LEAD[sys]||[]; const i=a.indexOf(id); return i>=0?(100-i*10):0; }
+function bpBuildFor(pet,sys,role){
+  /* 加点按宠物本身的专属技能判物攻/魔攻/双攻，再按速度决定加不加速度 */
+  return allocForPet(pet);
+}
+function bpEquips(pet,sys,role){
+  /* 默认就是 4 个专属技（star 技优先），和玩家侧 defaultEquips 一致；
+     只有专属技不足 4 个时才从通用/属性池补位。 */
+  const eq=defaultEquips(pet);
+  if(eq.length>=MAXSK) return eq;
+  const pool=petPool(pet);
+  const sel=eq.slice();
+  for(let i=0;i<pool.length&&sel.length<MAXSK;i++){ if(sel.indexOf(i)<0) sel.push(i); }
+  return sel.slice(0,MAXSK);
+}
+function bpSweeperStarted(sys,me){
+  if(sys==='setupSweep'){
+    const dead=S.foe.team.filter(function(p){return p.fainted;}).length;
+    const lv=posBuffLevels(me);
+    const foe=active(S.me);
+    return dead>=2||lv>=2||(foe&&eff(primaryType(me.type),foe.type)>1)||(S.turn||1)>=8;
+  }
+  if(sys==='dot'){ const foe=active(S.me); return !!(foe&&foe.dot)||(S.turn||1)>=6; }
+  return true;
+}
+function bpSampleTemper(){
+  return {agg:rnd(0.85,1.15),caution:rnd(0.85,1.15),setup:rnd(0.85,1.15),risk:rnd(0.85,1.20),switchBias:rnd(0.85,1.15),explore:rnd(0.03,0.08)};
+}
+function bpHasPosBuffs(p){ if(!p||!p.buffs) return false; for(const k in p.buffs){ if((p.buffs[k]&&p.buffs[k].lv||0)>0) return true; } return false; }
+function bpTeamDead(me){ return S.foe.team.some(function(p){return p.fainted;}); }
+
+const BP_STYLES=[{key:'guard',name:'守阵',w:40},{key:'disrupt',name:'拆阵',w:30},{key:'read',name:'读阵',w:30}];
+function bpStyleName(k){ const s=BP_STYLES.find(function(x){return x.key===k;}); return s?s.name:'读阵'; }
+function bpPickStyle(){
+  let sum=0; BP_STYLES.forEach(function(s){sum+=s.w;}); let r=Math.random()*sum;
+  for(const s of BP_STYLES){ r-=s.w; if(r<=0) return s.key; }
+  return 'read';
+}
+function bpInit(){
+  RANK.bpStyle=bpPickStyle();
+  RANK.bpSystem=null; RANK.bpSecondary=null; RANK.bpOpp=null; RANK._lastWhy='';
+  RANK.systemHistory=RANK.systemHistory||[];
+}
+function bpPet(id){ return PETS.find(function(p){return p.id===id;})||null; }
+function bpSys(id){ return BP_SYSTEMS.find(function(s){return s.id===id;})||null; }
+function bpAvailIds(){ return rankAvail().map(function(p){return p.id;}); }
+function bpOwnBans(sys){ return sys.bans.filter(function(id){return sys.main.indexOf(id)<0 && sys.backups.indexOf(id)<0;}); }
+function bpSystemScore(sys, availIds, oppPicks){
+  let s=0;
+  sys.main.forEach(function(id,i){ s += (availIds.indexOf(id)>=0) ? (6-i)*1.0 : -1.6; });
+  sys.backups.forEach(function(id){ if(availIds.indexOf(id)>=0) s+=0.35; });
+  // 对手已经拿走的核心，说明这条线被抢，降权
+  sys.main.forEach(function(id){ if(oppPicks.indexOf(id)>=0) s-=1.2; });
+  return s+Math.random()*2.4;
+}
+function bpChooseSystem(){
+  // 已定主体系且仍有 >=2 个核心可用 → 不轻易换线，保证整局 BP 连贯
+  if(RANK.bpSystem){
+    const cur=bpSys(RANK.bpSystem);
+    const avail=bpAvailIds();
+    const curMain=cur?cur.main.filter(function(id){return avail.indexOf(id)>=0;}).length:0;
+    if(cur&&curMain>=2) return cur;
+  }
+  /* 每个体系完全等概率：1/7 随机抽，不按分数、不按近期使用次数 */
+  const pick=BP_SYSTEMS[Math.floor(Math.random()*BP_SYSTEMS.length)];
+  RANK.bpSystem=pick.id;
+  const others=BP_SYSTEMS.filter(function(s){return s.id!==pick.id;});
+  RANK.bpSecondary=others.length?others[Math.floor(Math.random()*others.length)].id:null;
+  return pick;
+}
+function bpInferOpponent(){
+  const picks=RANK.picksA.map(function(p){return p.id;});
+  let best=null,bc=0,bs=-1;
+  BP_SYSTEMS.forEach(function(sys){
+    let c=0,s=0;
+    sys.oppCore.forEach(function(id,i){ if(picks.indexOf(id)>=0){ c++; s+=(i<2?3:2); } });
+    if(c>bc||(c===bc&&s>bs)){ bc=c; bs=s; best=sys; }
+  });
+  RANK.bpOpp=best?{id:best.id,count:bc}:null;
+  return {sys:best,count:bc};
+}
+function bpBanPet(){
+  const avail=bpAvailIds(); if(!avail.length) return null;
+  const sys=bpChooseSystem(), style=RANK.bpStyle;
+  const own=bpOwnBans(sys).filter(function(id){return avail.indexOf(id)>=0;});
+  const opp=bpInferOpponent();
+  /* 不再固定 ban 第 1 位：体系 ban 列表 + 对面核心一起进候选，等概率抽。
+     这样每个体系的 ban 仍然是有意义的威胁，但第一 ban 每局都会变。 */
+  const cand=[], seen={};
+  function add(id,tag){ if(!id||seen[id]||avail.indexOf(id)<0) return; seen[id]=1; cand.push({id:id,tag:tag}); }
+  own.forEach(function(id){ add(id,'own'); });
+  if(opp.sys) opp.sys.oppCore.forEach(function(id){ if(sys.main.indexOf(id)<0&&sys.backups.indexOf(id)<0) add(id,'opp'); });
+  if(cand.length){
+    const pick=cand[Math.floor(Math.random()*cand.length)];
+    const p=bpPet(pick.id);
+    RANK._lastWhy=bpStyleName(style)+'｜'+sys.name+(pick.tag==='opp'?' 拆核心 ban：':' ban：')+(p?p.name:pick.id);
+    return p;
+  }
+  const fb=rankAvail().sort(function(a,b){return rankBotScore(b,[],[],'ban')-rankBotScore(a,[],[],'ban');})[0];
+  RANK._lastWhy=bpStyleName(style)+'｜兜底 ban：'+(fb?fb.name:'');
+  return fb||null;
+}
+function bpPickPet(){
+  const avail=bpAvailIds(); if(!avail.length) return null;
+  const sys=bpChooseSystem();
+  const opp=bpInferOpponent();
+  const main=sys.main.filter(function(id){return avail.indexOf(id)>=0;});
+  if(main.length){
+    /* 主核心不再永远按 main[0] 的顺序拿：前 4 个核心里按契合度排序，再带权重随机取 */
+    const cand=main.slice(0,4).map(function(id){
+      const p=bpPet(id);
+      const sc=(p?rankBotScore(p,RANK.picksB,RANK.picksA,'pick'):0)+Math.random()*0.01;
+      return {p:p,id:id,sc:sc};
+    }).sort(function(a,b){return b.sc-a.sc;});
+    const r=Math.random();
+    const idx=r<0.40?0:(r<0.70?1:(r<0.90?2:3));
+    const pick=cand[Math.min(idx,cand.length-1)];
+    const p=pick.p;
+    RANK._lastWhy=bpStyleName(RANK.bpStyle)+'｜'+sys.name+' 主选核心：'+(p?p.name:pick.id);
+    return p;
+  }
+  // 拆阵抢核心：只在不牺牲自己主核心时，从自己的备选/万金油位里抢对面核心
+  const wantDisrupt=(RANK.bpStyle==='disrupt')||(RANK.bpStyle==='read'&&opp.count>=2);
+  if(wantDisrupt&&opp.sys){
+    const steal=opp.sys.oppCore.find(function(id){ return avail.indexOf(id)>=0 && (sys.backups.indexOf(id)>=0 || id==='moying'||id==='wanxiang'||id==='qingluan'); });
+    if(steal){ const p=bpPet(steal); RANK._lastWhy=bpStyleName(RANK.bpStyle)+'｜抢对面 '+opp.sys.name+' 核心：'+(p?p.name:steal); return p; }
+  }
+  const back=sys.backups.filter(function(id){return avail.indexOf(id)>=0;});
+  if(back.length){
+    const cand=back.slice(0,4).map(function(id){
+      const p=bpPet(id);
+      const sc=(p?rankBotScore(p,RANK.picksB,RANK.picksA,'pick'):0)+Math.random()*0.01;
+      return {p:p,id:id,sc:sc};
+    }).sort(function(a,b){return b.sc-a.sc;});
+    const r=Math.random();
+    const idx=r<0.50?0:(r<0.80?1:2);
+    const pick=cand[Math.min(idx,cand.length-1)];
+    const p=pick.p;
+    RANK._lastWhy=bpStyleName(RANK.bpStyle)+'｜'+sys.name+' 备选补位：'+(p?p.name:pick.id);
+    return p;
+  }
+  // 切次体系
+  if(RANK.bpSecondary){
+    const sec=bpSys(RANK.bpSecondary);
+    const sm=sec.main.filter(function(id){return avail.indexOf(id)>=0;});
+    if(sm.length){ const p=bpPet(sm[0]); RANK._lastWhy=bpStyleName(RANK.bpStyle)+'｜切次体系 '+sec.name+'：'+(p?p.name:sm[0]); return p; }
+  }
+  const fb=rankAvail()[0]; RANK._lastWhy=bpStyleName(RANK.bpStyle)+'｜兜底 pick：'+(fb?fb.name:''); return fb||null;
+}
+function bpBattleStyle(id){
+  return ({setupSweep:'rush',ppDrain:'stall',stall:'stall',dot:'field',burst:'rush',revive:'read',antiBuff:'read'})[id]||'read';
+}
+
 function rankChooseBot(kind){
   const avail=rankAvail(); if(!avail.length) return null;
-  const my=RANK.picksB, foe=RANK.picksA;
-  let best=avail[0],bs=-1e9;
-  avail.forEach(function(p){ const sc=rankBotScore(p,my,foe,kind)+Math.random()*6; if(sc>bs){bs=sc;best=p;} });
-  return best;
+  if(!RANK.bpStyle) bpInit();
+  const pet=(kind==='ban')?bpBanPet():bpPickPet();
+  if(pet&&RANK._lastWhy){ try{ console.log('[BP] '+kind+' '+pet.name+' | '+RANK._lastWhy); }catch(e){} }
+  return pet||null;
 }
 function rankApply(side,kind,pet){
   if(!pet) return;
   if(kind==='ban'){ RANK.banned[pet.id]=1; (side==='A'?RANK.bansA:RANK.bansB).push(pet.id); }
   else { (side==='A'?RANK.picksA:RANK.picksB).push(pet); }
-  RANK.log.push({side:side,kind:kind,id:pet.id,name:pet.name});
+  RANK.log.push({side:side,kind:kind,id:pet.id,name:pet.name,why:RANK._lastWhy||''});
   RANK.step++;
   if(RANK.step>=RANK.queue.length) rankFinishBP(); else rankStep();
 }
@@ -2169,7 +3045,15 @@ function rankFinishBP(){
   RANK.active=true; RANK.before=RANK.points; RANK.settled=false;
   pick=RANK.picksA.slice(); builds={}; equips={}; allocTab=0;
   pick.forEach(function(p){ autoAlloc(p.id); equips[p.id]=defaultEquips(p); });
-  RANK.aiCfg=RANK.picksB.map(function(p){ return {pet:p, build:autoBuild(p.id), equips:defaultEquips(p)}; });
+  const sys=bpSystem(RANK.bpSystem)||BP_SYSTEMS[0];
+  const roles={};
+  const arr=RANK.picksB.map(function(p){
+    const role=bpRoleOf(p.id,sys.id); roles[p.id]=role;
+    return {pet:p, build:bpBuildFor(p,sys.id,role), equips:bpEquips(p,sys.id,role)};
+  });
+  arr.sort(function(a,b){ return bpLeadScore(b.pet.id,sys.id)-bpLeadScore(a.pet.id,sys.id); });
+  arr.bpSystem=sys.id; arr.roles=roles;
+  RANK.aiCfg=arr; RANK.aiStyle=sys.id;
   renderBuild();
 }
 function renderRankHome(){
@@ -2202,6 +3086,7 @@ function startRanked(){
   RANK.active=true; RANK.firstSide=(Math.random()<0.5?'A':'B'); RANK.queue=rankQueue(RANK.firstSide); RANK.step=0;
   RANK.log=[]; RANK.picksA=[]; RANK.picksB=[]; RANK.bansA=[]; RANK.bansB=[]; RANK.banned={};
   RANK.aiCfg=null; RANK.settled=false; RANK.before=RANK.points;
+  RANK.aiStyle=aiPickStyle(); AI_STYLE_KEY=RANK.aiStyle; bpInit();
   RANK.prevDiff=RANK.prevDiff||AI_DIFF;
   AI_DIFF=rankTierNow().diff;
   rankStep();
@@ -2407,7 +3292,7 @@ function renderSelect(){
 function tb(id){ const b=builds[id]||{}; return STATS.reduce((s,k)=>s+(b[k]||0),0); }
 function eqOf(id){ if(!equips[id]) equips[id]=defaultEquips(PETS.find(x=>x.id===id)); return equips[id]; }
 function renderBuild(){
-  try{BGM.stop();}catch(e){} pick.forEach(p=>{ if(!builds[p.id])builds[p.id]={}; eqOf(p.id); });
+  try{BGM.stop();}catch(e){} if(AI_STYLE_FORCE!=='random'&&!bpSystem(AI_STYLE_FORCE)) AI_STYLE_FORCE='random'; pick.forEach(p=>{ if(!builds[p.id])builds[p.id]={}; eqOf(p.id); });
   const p=pick[allocTab], eq=eqOf(p.id);
   $('#app').innerHTML=`
     <h1>养成${RANK.active?' · 🏆 排位':''}</h1>
@@ -2430,6 +3315,9 @@ function renderBuild(){
     <div class="row" style="margin-top:10px"><span class="muted">对手难度</span>
       <span class="tabs" id="diffTabs">${AI_DIFFS.map(d=>`<button data-diff="${d.key}" class="${AI_DIFF===d.key?'on':''}">${d.name}</button>`).join('')}</span>
       <span class="muted" id="diffDesc">${aiDiffObj().desc}</span></div>
+    <div class="row" style="margin-top:6px"><span class="muted">对手体系</span>
+      <span class="tabs" id="styleTabs"><button data-style="random" class="${AI_STYLE_FORCE==='random'?'on':''}">🎲 随机</button>${BP_SYSTEMS.map(s=>`<button data-style="${s.id}" class="${AI_STYLE_FORCE===s.id?'on':''}" title="${s.name}">${s.name}</button>`).join('')}</span>
+      <span class="muted" id="styleDesc">${AI_STYLE_FORCE==='random'?'每局随机一套体系':(bpSystem(AI_STYLE_FORCE)?bpSystem(AI_STYLE_FORCE).name:'随机')}</span></div>
     <div class="row"><button id="backSel">← 重选宠</button><button id="savePreset">💾 保存预设</button><button id="loadPreset">📂 读取预设</button>
       <span class="grow"></span><button id="startBtn">开始对战 ▶</button></div>
     <input type="file" id="fileinput" accept=".json,application/json" style="display:none">`;
@@ -2442,15 +3330,53 @@ function renderBuild(){
     if(k>=0){ if(arr.length>1)arr.splice(k,1); } else { if(arr.length<MAXSK)arr.push(i); } renderBuild(); });
   $('#backSel').onclick=renderSelect; $('#savePreset').onclick=savePreset; $('#loadPreset').onclick=()=>$('#fileinput').click(); bindFileInput();
   document.querySelectorAll('#diffTabs [data-diff]').forEach(b=>b.onclick=()=>{ setAiDiff(b.dataset.diff); renderBuild(); });
+  document.querySelectorAll('#styleTabs [data-style]').forEach(b=>b.onclick=()=>{ setAiStyle(b.dataset.style); renderBuild(); });
   $('#startBtn').onclick=()=>{ pick.forEach(x=>topUpPoints(x.id));
     const mine=pick.map(x=>({pet:x, build:{...builds[x.id]}, equips:eqOf(x.id).slice()}));
-    const foe=(RANK.active&&RANK.aiCfg)?RANK.aiCfg:PETS.slice().sort(()=>Math.random()-0.5).slice(0,6).map(x=>({pet:x, build:autoBuild(x.id), equips:defaultEquips(x)}));
+    const foe=(RANK.active&&RANK.aiCfg)?RANK.aiCfg:makeAiFoeTeam();
     RANK.settled=false; startBattle(mine,foe); };
 }
-function guessPrimary(pet){ let best='atk',bp=-1; for(const s of petPool(pet)){ if(s.power>bp){bp=s.power; best=(s.cat==='魔法')?'spa':(s.cat==='物理')?'atk':'hp'; } } return best==='hp'?'hp':best; }
-function autoAlloc(id){ const pet=PETS.find(x=>x.id===id),pri=guessPrimary(pet); builds[id]={}; let left=POOL;
-  for(const k of [pri,'spe','hp']){ if(left<=0)break; const add=Math.min(CAP,left); builds[id][k]=(builds[id][k]||0)+add; left-=add; }
-  for(const k of STATS){ if(left<=0)break; const c=builds[id][k]||0,a=Math.min(CAP-c,left); if(a>0){builds[id][k]=c+a;left-=a;} } }
+function ownDamageTotals(pet){
+  let ph=0, mg=0;
+  (pet.own||[]).forEach(function(s){
+    if(!s||s.cat==='变化'||!s.power||s.power<=0) return;
+    let total=s.power;
+    if(s.powers) total=s.powers.reduce(function(a,b){return a+b;},0);
+    else if(s.multi) total=s.power*((s.multi[0]+s.multi[1])/2);
+    if(s.cat==='物理') ph+=total; else if(s.cat==='魔法') mg+=total;
+  });
+  return {ph:ph,mg:mg};
+}
+function attackProfile(pet){
+  const t=ownDamageTotals(pet), b=pet.base||{};
+  const dual=(t.ph>=80&&t.mg>=80&&Math.min(t.ph,t.mg)/Math.max(t.ph,t.mg)>=0.75);
+  let mode;
+  if(dual) mode='dual';
+  else if(t.ph>t.mg) mode='atk';
+  else if(t.mg>t.ph) mode='spa';
+  else mode=((b.atk||0)>=(b.spa||0)?'atk':'spa');
+  return {mode:mode,ph:t.ph,mg:t.mg,primary:(mode==='dual'?((b.atk||0)>=(b.spa||0)?'atk':'spa'):mode)};
+}
+function allocForPet(pet){
+  const prof=attackProfile(pet), b=pet.base||{}, bld={};
+  const add=function(k,v){ bld[k]=Math.min(CAP,(bld[k]||0)+v); };
+  if(prof.mode==='dual'){
+    /* 双攻：舍弃速度，物攻/魔攻各 50，剩 50 给体力 */
+    add('atk',50); add('spa',50); add('hp',50);
+  } else {
+    const atk=prof.mode==='spa'?'spa':'atk';
+    if(prof.ph+prof.mg>=40){
+      add(atk,50);
+      if((b.spe||0)<70){ add('def',50); add('spd',50); }   /* 低速：不加速度，改双抗 */
+      else { add('spe',50); add('hp',50); }                 /* 高速：速度 + 体力 */
+    } else {
+      add('hp',50); add('def',50); add('spd',50);           /* 纯辅助：体力 + 双抗 */
+    }
+  }
+  return bld;
+}
+function guessPrimary(pet){ return attackProfile(pet).primary; }
+function autoAlloc(id){ const pet=PETS.find(x=>x.id===id); builds[id]=allocForPet(pet); }
 function topUpPoints(id){ let left=POOL-tb(id); const pri=guessPrimary(PETS.find(x=>x.id===id));
   while(left>0){ const c=builds[id][pri]||0; if(c<CAP){ const a=Math.min(5,CAP-c,left); builds[id][pri]=c+a; left-=a; } else { let done=false; for(const k of STATS){ if((builds[id][k]||0)<CAP){ const a=Math.min(5,CAP-(builds[id][k]||0),left); builds[id][k]=(builds[id][k]||0)+a; left-=a; done=true; break; } } if(!done)break; } } }
 function autoBuild(id){ autoAlloc(id); return {...builds[id]}; }
@@ -2483,7 +3409,7 @@ function showResult(win,why){
   if(RANK.active && !RANK.settled){ RANK.settled=true; rInfo=rankSettle(win); rankExport(win,rInfo); }
   const ov=document.createElement('div'); ov.className='overlay';
   ov.innerHTML=`<div class="dialog"><h2>${win?'🏆 胜利！':'💀 战败…'}</h2>${why?`<div class="muted">${why}</div>`:''}<div class="muted">历经 ${S.turn} 回合</div>
-    <div class="muted">对手难度：${aiDiffObj().name}</div>
+    <div class="muted">对手难度：${aiDiffObj().name} ｜ 对手体系：${aiStyleName(S.foe)}${RANK.active&&RANK.bpSystem?(' ｜ BP：'+bpStyleName(RANK.bpStyle)+' / '+bpSys(RANK.bpSystem).name):''}</div>
     ${rInfo?`<div class="rankdelta">${rInfo.delta>=0?'+':''}${rInfo.delta} 分 · ${tierIcon(rInfo.tierBefore)}${rInfo.tierBefore.name} → ${tierIcon(rInfo.tierAfter)}${rInfo.tierAfter.name}（${rInfo.after} 分）</div>`:''}
     <div class="row center" style="margin-top:14px">${RANK.active?'<button id="rankNext">🎯 再排一局</button><button id="rankHome">🏠 返回主界面</button>':'<button id="again">再战一场</button><button id="reselect">重新养成</button>'}</div></div>`;
   document.body.appendChild(ov);
@@ -2493,7 +3419,7 @@ function showResult(win,why){
   } else {
     $('#again',ov).onclick=()=>{ ov.remove();
       const mine=pick.map(x=>({pet:x,build:{...builds[x.id]},equips:eqOf(x.id).slice()}));
-      const foe=PETS.slice().sort(()=>Math.random()-0.5).slice(0,6).map(x=>({pet:x,build:autoBuild(x.id),equips:defaultEquips(x)})); startBattle(mine,foe); };
+      const foe=makeAiFoeTeam(); startBattle(mine,foe); };
     $('#reselect',ov).onclick=()=>{ ov.remove(); renderBuild(); };
   }
 }
