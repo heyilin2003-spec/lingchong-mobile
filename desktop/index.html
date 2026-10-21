@@ -50,6 +50,8 @@
   .hpside .nm{font-weight:700;font-size:14px}
   .vsbadge{font-weight:900;font-size:18px;letter-spacing:3px;color:#cfe0ff;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 20px}
   .roundhint{color:var(--dim);font-size:12px;text-align:center;margin-top:3px}
+  .weatherchip{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:rgba(255,255,255,.03);text-align:center}
+  .weatherchip.on{color:#e8f1ff;background:rgba(90,169,230,.12);font-weight:700}
   .turnbanner{font-size:12px;padding:2px 12px;border-radius:999px;background:#1f4a2c;color:#a8f0c0;font-weight:700}
   .turnbanner.foe{background:#4a1f2c;color:#f0a8bf}
   .hpbar{position:relative;width:100%;height:16px;border-radius:8px;background:#0c1322;overflow:hidden;border:1px solid #26324d}
@@ -536,7 +538,8 @@ PETS.push({id:'dawn',passive:{startHeal:0.08},name:'曙天晨曦',type:'光',emo
     {name:'曙光初现',star:1,cat:'变化',power:0,pp:5,spd:15,type:'光',heal:.2,bless:true,desc:'专属 · 先手+7 · 回复自身20%生命，并进入【祝福】状态：该状态下获得的增益翻倍'},
     {name:'晨曦微光',star:1,cat:'魔法',power:75,pp:5,type:'光',benchBuffOnHigh:{above:0.5,n:1,buffs:[{k:'atk',lv:1},{k:'spa',lv:1}]},desc:'专属 · 75威力光系魔法；造成伤害后若对手血量>50%，则随机一名场下队友 物攻+1、魔攻+1'},
     {name:'破晓之剑',star:1,cat:'魔法',power:80,pp:5,spd:10,type:'光',phaseBelow:0.3,desc:'专属 · 先手+2 · 80威力光系魔法；造成伤害后若对手血量<30%，则将其踢下场，由对手另选一只上场'},
-    {name:'天穹曙色',star:1,cat:'变化',power:0,pp:3,type:'光',regen:{turns:3,amt:60},randomBuff:1,desc:'专属 · 连续3回合各回复60生命，并获得随机1层增益'}
+    {name:'天穹曙色',star:1,cat:'变化',power:0,pp:3,type:'光',regen:{turns:3,amt:60},randomBuff:1,desc:'专属 · 连续3回合各回复60生命，并获得随机1层增益'},
+    {name:'星光',cat:'变化',power:0,pp:4,type:'光',weather:{id:'starlight',turns:4},desc:'天气 · 铺展4回合【星光】：光系+25%、暗系-20%；每回合末双方出战宠随机1个技能回1PP'}
   ]});
 PETS.push({id:'koi',name:'碧海龙鲤',type:['水','龙'],emoji:'🐟',art:'koi',passive:{ppDrainPerHp:{step:250,pp:1}},base:{hp:95,atk:88,def:88,spa:72,spd:88,spe:65},own:[
     {name:'逆鳞洄',star:1,cat:'魔法',power:75,pp:5,spd:9,type:'水',spreadDrainPP:{skills:2,each:1},desc:'专属 · 先手+1 · 75威力水系魔法；造成伤害后随机删除对手两个技能各 1 点使用次数'},
@@ -560,7 +563,8 @@ PETS.push({id:'zhen',name:'鸩虚幻兽',type:'毒',emoji:'☠️',art:'zhen',pa
     {name:'鸩羽毒雾',star:1,cat:'魔法',power:70,pp:5,type:'毒',dot:{pct:0.05,type:'毒',turns:3},desc:'专属 · 70威力毒系魔法；命中后挂【剧毒】持续伤害（每回合损失5%最大生命，3回合）'},
     {name:'虚影缠身',star:1,cat:'变化',power:0,pp:5,spd:9,type:'毒',status:{n:'bind'},dodge:1,desc:'专属 · 先手+1 · 令对手陷入【束缚】（3回合，先手减半），并自身获得1次闪避'},
     {name:'蚀骨幻噬',star:1,cat:'魔法',power:85,pp:5,type:'毒',debuff:{k:'spd',lv:-1},spreadDrainPP:{skills:2,each:1},desc:'专属 · 85威力毒系魔法；命中后令对手魔抗 -1 级，并删对手两个技能各 1 点使用次数'},
-    {name:'鸩虚幻兽·灭',star:1,cat:'变化',power:0,pp:3,type:'毒',condFoeStatus:'bind',thenSelf:{healFlat:200,cleanse:true,buff:{k:'spa',lv:1}},desc:'专属 · 若对手处于【束缚】：自身回复200生命、净化自身所有负面、魔攻+1级'}
+    {name:'鸩虚幻兽·灭',star:1,cat:'变化',power:0,pp:3,type:'毒',condFoeStatus:'bind',thenSelf:{healFlat:200,cleanse:true,buff:{k:'spa',lv:1}},desc:'专属 · 若对手处于【束缚】：自身回复200生命、净化自身所有负面、魔攻+1级'},
+    {name:'毒雾',cat:'变化',power:0,pp:4,type:'毒',weather:{id:'poison',turns:4},desc:'天气 · 铺展4回合【毒雾】：毒系+25%；双方所有宠每回合-2%最大生命；回血-20%'}
   ]});
 
 PETS.push({id:'moxiao',name:'暗月魔枭',type:'暗',emoji:'🦉',art:'moxiao',passive:{moonDrain:{thr:75,pct:0.10}},base:{hp:88,atk:89,def:92,spa:38,spd:98,spe:77},own:[
@@ -574,14 +578,16 @@ PETS.push({id:'tianci',name:'疾械天泚',type:['机械','水'],emoji:'🤖',ar
     {name:'涡轮重碾',star:1,cat:'物理',power:85,pp:5,type:'机械',debuff:{k:'def',lv:-1},chargeHealBlock:{turns:3,mul:0.5},desc:'专属 · 85威力机械物理；命中后令对手物防-1级；若持有充能，额外3回合内对手受到的治疗-50%'},
     {name:'瀚闸涌泄',star:1,cat:'物理',power:95,pp:3,spd:11,type:'水',tidal:{turns:3,dmg:25},desc:'专属 · 先手+3 · 95威力水系物理；命中后铺展3回合【涌潮场域】：敌方每回合速度衰减并受25威力伤害；场域内自身机械技能命中时回复随机技能PP'},
     {name:'枢核溃震',star:1,cat:'物理',power:30,pp:3,type:'机械',consumeAll:{per:25},shieldBreak:{heal:0.4},desc:'专属 · 30威力机械物理；消耗全部充能，每层+25威力；命中震碎对手护盾，若对手无护盾则回复自身已损生命的40%'},
-    {name:'沉甲潜航',star:1,cat:'变化',power:0,pp:4,spd:10,type:'水',backGuard:{mul:0.4,heal:0.18},desc:'专属 · 先手+2 · 本回合受到的对手后手伤害-60%；成功抵挡则回复18%生命并获得1层充能'}
+    {name:'沉甲潜航',star:1,cat:'变化',power:0,pp:4,spd:10,type:'水',backGuard:{mul:0.4,heal:0.18},desc:'专属 · 先手+2 · 本回合受到的对手后手伤害-60%；成功抵挡则回复18%生命并获得1层充能'},
+    {name:'雨天',cat:'变化',power:0,pp:4,type:'水',weather:{id:'rainy',turns:4},desc:'天气 · 铺展4回合【雨天】：水系+25%，火系-20%'}
   ]});
 
 PETS.push({id:'mingting',name:'冥霆阊劫',type:['电','暗'],emoji:'🌩️',art:'mingting',passive:{nonSeDR:0.15},base:{hp:96,atk:50,def:66,spa:100,spd:74,spe:90},own:[
     {name:'霆落·引雷',star:1,cat:'魔法',power:80,pp:5,type:'电',addMark:{n:1},desc:'专属 · 80威力电系魔法；命中后为对手叠加 1 层【引雷印】'},
     {name:'冥锁·引渡',star:1,cat:'魔法',power:70,pp:5,spd:9,type:'暗',detonate:{per:40,healPer:0.02,ppStack:3,ppCount:2,ppEach:1},desc:'专属 · 先手+1 · 70威力暗系魔法；引爆对手全部【引雷印】：每层造成40固定电系伤害并回复自身2%生命；引爆≥3层时额外删除对手 2 点技能次数'},
     {name:'雷狱·锁冥',star:1,cat:'变化',power:0,pp:4,spd:11,type:'电',addMark:{n:2},debuff:{k:'spe',lv:-1},healBlockApply:1,heal:0.15,desc:'专属 · 先手+3 · 为对手叠加2层【引雷印】、令其速度-1级、封锁其回血1回合，并回复自身15%生命'},
-    {name:'阊阖天劫',star:1,cat:'魔法',power:30,pp:3,spd:7,type:'暗',markScale:{per:30},detonate:{per:40,healPer:0.02,ppStack:3,ppCount:2,ppEach:1},desc:'专属 · 先手-1 · 30威力暗系魔法，威力随【引雷印】层数成长(每层+30)；命中后引爆剩余引雷印'}
+    {name:'阊阖天劫',star:1,cat:'魔法',power:30,pp:3,spd:7,type:'暗',markScale:{per:30},detonate:{per:40,healPer:0.02,ppStack:3,ppCount:2,ppEach:1},desc:'专属 · 先手-1 · 30威力暗系魔法，威力随【引雷印】层数成长(每层+30)；命中后引爆剩余引雷印'},
+    {name:'电场',cat:'变化',power:0,pp:4,type:'电',weather:{id:'electric',turns:4},desc:'天气 · 铺展4回合【电场】：电系+25%；麻痹概率+15%；麻痹宠每回合-2%最大生命'}
   ]});
 
 PETS.push({id:'canglan',name:'苍澜天青',type:['草','水'],emoji:'🐉',art:'canglan',passive:{turnRegen:0.04},base:{hp:106,atk:58,def:82,spa:96,spd:88,spe:40},own:[
@@ -628,7 +634,8 @@ PETS.push({id:'tiejia',name:'铁壳甲虫',type:['虫','石'],emoji:'🪲',art:'
     {name:'铁壳角撞',star:1,cat:'物理',power:85,pp:6,type:'虫',buff:{k:'def',lv:1},desc:'专属 · 85威力虫系物理；自身防御+1级'},
     {name:'岩甲闭合',star:1,cat:'变化',power:0,pp:4,spd:11,type:'虫',healMissingDamage:{pct:0.35},desc:'专属 · 先手+3 · 回复已损生命的35%，并对对手造成等量伤害'},
     {name:'虫蛀碎击',star:1,cat:'物理',power:65,pp:5,type:'虫',debuff:{k:'def',lv:-1},dot:{pct:0.03,turns:3,nm:'虫蛀'},desc:'专属 · 65威力虫系物理；防御-1级并挂虫蛀DoT'},
-    {name:'地脉甲击',star:1,cat:'物理',power:110,pp:3,type:'石',lowHpMul:{below:0.4,mul:1.4},desc:'专属 · 110威力石系物理；自身残血(<40%)时威力×1.4'}
+    {name:'地脉甲击',star:1,cat:'物理',power:110,pp:3,type:'石',lowHpMul:{below:0.4,mul:1.4},desc:'专属 · 110威力石系物理；自身残血(<40%)时威力×1.4'},
+    {name:'沙暴',cat:'变化',power:0,pp:4,type:'石',weather:{id:'sand',turns:4},desc:'天气 · 铺展4回合【沙暴】：石系+25%；非石系每回合-4%最大生命；石系每回合+15护盾'}
   ]});
 
 PETS.push({id:'yinghuo',name:'萤火蛛',type:['虫','幽'],emoji:'🕷️',art:'yinghuo',passive:{firstMoveCrit:0.35},base:{hp:80,atk:104,def:60,spa:45,spd:62,spe:115},own:[
@@ -667,7 +674,8 @@ PETS.push({id:'yinhun',name:'引魂灯使',type:['幽','火'],emoji:'🕯️',ar
     {name:'引魂火',star:1,cat:'魔法',power:70,pp:6,type:'幽',heal:0.06,desc:'专属 · 70威力幽系魔法；命中后回复自身6%生命'},
     {name:'灯油泼洒',star:1,cat:'魔法',power:60,pp:5,type:'火',status:{n:'burn',ch:0.6},desc:'专属 · 60威力火系魔法；60%使对手灼烧'},
     {name:'长明',star:1,cat:'变化',power:0,pp:4,spd:9,type:'火',heal:0.18,teamHeal:0.08,desc:'专属 · 先手+1 · 回复自身18%生命，场下队友各回复8%'},
-    {name:'舍身引魂',star:1,cat:'变化',power:0,pp:1,type:'幽',reviveAlly:{hp:0.5},selfKill:true,desc:'专属 · 消耗自身全部生命，随机复活一名阵亡队友（回复50%生命，技能次数补到至少1）'}
+    {name:'舍身引魂',star:1,cat:'变化',power:0,pp:1,type:'幽',reviveAlly:{hp:0.5},selfKill:true,desc:'专属 · 消耗自身全部生命，随机复活一名阵亡队友（回复50%生命，技能次数补到至少1）'},
+    {name:'晴天',cat:'变化',power:0,pp:4,type:'火',weather:{id:'sunny',turns:4},desc:'天气 · 铺展4回合【晴天】：火系+25%，水系-20%'}
   ]});
 PETS.push({id:'wanxiang',name:'万象拟态兽',type:['普通','暗'],emoji:'🎭',art:'wanxiang',poolEveryType:2,passive:{onEnterAbsorbTypes:true},base:{hp:100,atk:88,def:78,spa:88,spd:72,spe:65},own:[
     {name:'万象一击',star:1,cat:'物理',power:85,pp:6,type:'普通',desc:'专属 · 85威力普通系物理'},
@@ -697,7 +705,8 @@ PETS.push({id:'bingzhu',name:'冰铸守卫',type:['冰','机械'],emoji:'🧊',a
     {name:'霜锤',star:1,cat:'物理',power:80,pp:6,type:'冰',desc:'专属 · 80威力冰系物理'},
     {name:'冰封之触',star:1,cat:'变化',power:0,pp:5,type:'冰',status:{n:'frz',ch:0.4},desc:'专属 · 40%使对手冻结（2回合）'},
     {name:'寒铁壁',star:1,cat:'变化',power:0,pp:4,type:'机械',buffs:[{k:'def',lv:1}],guard:{turns:1,mul:0.75},desc:'专属 · 自身防御+1级；本回合受到的伤害-25%'},
-    {name:'碎冰',star:1,cat:'魔法',power:70,pp:5,type:'冰',vsStatus:{n:'frz',mul:1.4},desc:'专属 · 70威力冰系魔法；对手处于冻结时威力×1.4'}
+    {name:'碎冰',star:1,cat:'魔法',power:70,pp:5,type:'冰',vsStatus:{n:'frz',mul:1.4},desc:'专属 · 70威力冰系魔法；对手处于冻结时威力×1.4'},
+    {name:'雪天',cat:'变化',power:0,pp:4,type:'冰',weather:{id:'snow',turns:4},desc:'天气 · 铺展4回合【雪天】：冰系+25%；非冰每回合速度-1（最多-2）；冻结+10%'}
   ]});
 PETS.push({id:'zhimeng',name:'织梦纸蚕',type:['普通','虫'],emoji:'🧵',art:'zhimeng',passive:{onStealHeal:{base:100,per:0.05}},base:{hp:106,atk:52,def:84,spa:98,spd:86,spe:52},own:[
     {name:'纸茧缠丝',star:1,cat:'变化',power:0,pp:5,spd:9,type:'虫',status:{n:'bind'},debuff:{k:'spe',lv:-1},desc:'专属 · 先手+1 · 束缚对手3回合，并令其速度-1级'},
@@ -709,7 +718,8 @@ PETS.push({id:'qingluan',name:'青鸾驿使',type:['风','光'],emoji:'🕊️',
     {name:'疾风传书',star:1,cat:'魔法',power:65,pp:6,spd:9,type:'风',buff:{k:'spe',lv:1},desc:'专属 · 先手+1 · 65威力风系魔法；命中后自身速度+1级'},
     {name:'薪火相传',star:1,cat:'变化',power:0,pp:2,type:'光',selfKill:true,desc:'专属 · 献祭自身；倒下时把全部正面强化与剩余次数交给下一只上场的队友'},
     {name:'风铃护佑',star:1,cat:'变化',power:0,pp:4,type:'风',teamShield:60,desc:'专属 · 全队各获得60点永久护盾（每人上限120，可叠加）'},
-    {name:'千里一瞬',star:1,cat:'魔法',power:80,pp:3,spd:7,type:'风',buffScale:{base:80,per:10,cap:150},desc:'专属 · 先手-1 · 风系魔法，威力80，自身每1级正面强化+10（上限150）'}
+    {name:'千里一瞬',star:1,cat:'魔法',power:80,pp:3,spd:7,type:'风',buffScale:{base:80,per:10,cap:150},desc:'专属 · 先手-1 · 风系魔法，威力80，自身每1级正面强化+10（上限150）'},
+    {name:'星光',cat:'变化',power:0,pp:4,type:'光',weather:{id:'starlight',turns:4},desc:'天气 · 铺展4回合【星光】：光系+25%、暗系-20%；每回合末双方出战宠随机1个技能回1PP'}
   ]});
 PETS.push({id:'moying',name:'摹影史官',type:['幽','普通'],emoji:'📜',art:'moying',passive:{copyBoost:0.05},base:{hp:100,atk:60,def:80,spa:92,spd:82,spe:60},own:[
     {name:'落笔',star:1,cat:'魔法',power:60,pp:6,spd:9,type:'幽',desc:'专属 · 先手+1 · 60威力幽系魔法'},
@@ -721,7 +731,8 @@ PETS.push({id:'zhongyan',name:'重械驮兽',type:['机械','普通'],emoji:'�
     {name:'岩锤',star:1,cat:'物理',power:90,pp:6,type:'机械',desc:'专属 · 90威力机械系物理'},
     {name:'铁壁',star:1,cat:'变化',power:0,pp:4,type:'普通',buffs:[{k:'def',lv:1}],guard:{turns:1,mul:0.7},desc:'专属 · 自身防御+1级；本回合受到的伤害-30%'},
     {name:'地裂',star:1,cat:'物理',power:105,pp:3,type:'机械',sureHit:true,desc:'专属 · 105威力机械系物理；必中，命中前消除对手全部闪避'},
-    {name:'坚守',star:1,cat:'变化',power:0,pp:4,type:'机械',heal:0.18,desc:'专属 · 回复18%生命'}
+    {name:'坚守',star:1,cat:'变化',power:0,pp:4,type:'机械',heal:0.18,desc:'专属 · 回复18%生命'},
+    {name:'薄雾',cat:'变化',power:0,pp:4,type:'普通',weather:{id:'mist',turns:4},desc:'天气 · 铺展4回合【薄雾】：普通系+20%；闪避效果减半；命中率+10%'}
   ]});
 PETS.push({id:'rongzhu',name:'熔铸机龙',type:['机械','龙'],emoji:'🐲',art:'rongzhu',passive:{ppDebuff:{step:2}},base:{hp:100,atk:94,def:96,spa:50,spd:84,spe:50},own:[
     {name:'铆钉炮',star:1,cat:'物理',power:85,pp:7,type:'机械',drainFoePP:{count:1,each:1},desc:'专属 · 85威力机械系物理；命中后随机削去对手 1 个技能 1 点 PP'},
@@ -747,6 +758,19 @@ PETS.push({id:'rongzhu',name:'熔铸机龙',type:['机械','龙'],emoji:'🐲',a
 
 
 
+PETS.push({id:'shiying',name:'时逆之影',type:['幽','光'],emoji:'🔄',art:'shiying',passive:{weatherExtend:3,weatherProtect:2},base:{hp:120,atk:35,def:98,spa:88,spd:96,spe:32},own:[
+    {name:'逆序',star:1,cat:'变化',power:0,pp:4,type:'幽',weather:{id:'reverse',turns:4},desc:'专属 · 铺展4回合【逆序】：先手值与速度顺序反转，先手+1变-1，速度慢的先出招'},
+    {name:'逆流冲击',star:1,cat:'魔法',power:85,pp:5,spd:5,type:'幽',speedGapPow:{per:0.25,cap:45},desc:'专属 · 先手-3 · 85威力幽系魔法；逆序下变先手+3；自身速度低于对手时，威力+(对手速度-自身速度)×0.25，上限+45'},
+    {name:'时滞刻印',star:1,cat:'魔法',power:70,pp:4,type:'幽',slowDrainPP:{skills:2,each:1},desc:'专属 · 70威力幽系魔法；命中后若自身速度低于对手，随机削去对手2个技能各1点PP'},
+    {name:'回溯',star:1,cat:'变化',power:0,pp:3,type:'幽',heal:0.25,cleanse:true,reverseWeatherBonus:{heal:0.15,dodge:1},desc:'专属 · 回复自身25%生命并清除负面；逆序天气下额外回复15%并获得1次闪避'}
+  ]});
+PET_ART.shiying={"idle":"data:image/webp;base64,UklGRgaYAABXRUJQVlA4WAoAAAAQAAAA+wAAUwEAQUxQSDJFAAAB/yckSPD/eGtEpO4DktxGkiTJzcw7K2PS4v8P3jMSc4/o/wTEqwDwWwS0+obdRAdjO0+R1GQWrB6GDcizNmZm/kckxcyVyFqznhQkYBeruTJRn/u+X8tB4SCKXH1lZs37vt76h+xlAsDlAku11uw+uDYYiAgNbTckIDwugFTDppT5PPe9YmAE37ck9SoE2MbVMZWZ5b7vOXeyl/eNQSs19l0hm21DciBJDXqOiCmk5xtyLntUFwosjtBGj56JFXIFgNMmCYDTS9QFiVtQYb1AsjPeYQDfKgCeByBIn0YgS0GXlZMreIHIzOz4G2wuAMV+oV4XqR0g03SAKGVQJqQBr0vaFGFLQK2jtqOJTL8QESJK6VT+zeBNs4OIwl9KKKWQruw25BG4b7eUZEuaiFfIGTSWuHSdAXHQn7EBZOZb0OIEO0OuQDMYXFJMkwSqBjwhpwpJzMbSuiRZWuAMMl8CKE2xQ4Ic5EJmTkiAdtgdNpCWYkpS7MBMKStADohK4LE3kIb9gm2AtAk9Mc2uhLaU544dQGYKVPMXLyCfW9IuW9UkWeN56pwn0puQaVuySRr9CZI9pHYB6ICY3gC8sDlIrMRBCkQQ0NQT5EHRwTcY3SZzwj4tMoHMzB4O4qj/lb8/UACuSwLwPKfljZQEXCSOHkQAeUkgSYCHZMKjwO/3+w10giIiM+YBIJPSEW5iGYDaA6zYja/FIfgcsEvnAJ9DblAL6ZRckiTbPgWZH0NygZR0SEZkImOenfsIRZNaCHZPUBOhbZbNNzLeKcV+CbG9092jEbZFxDZHxBkRmWxXEBHBnuLlHpEjck6vRTZ2cI8OQNyMiNAgo88E4uSB4qPuxWf1MfX4OX7CdiN9yI7wZwDg35eGn5OkTwHxOsNBJEmBM+1fNnDwiYGImIDGUmXtueGrBq5YjC/gysExrYMsVButdHDR2XTUi+yXLtrQujGpXYcVE+e2qrQ3aKfLpSX7mG0ptMVdKm1pdVEO1saCMpJBjp0qo9o066YWQkeTuWz0oY8cP0lflLU/98LsB30lL0yeKicVD17LKxttdU2zj3322A/46De580Xbtiq50baNuXYkKFPoTMmyZJkeMzNTMTMzMzMzMzMzg9lursfMKbOsUrmxZRZTYpy9LjLixKE4cRsRE4CN//9FUiN9fv+qapfpcRdcg0QgRIjLZi227nLr7r5n6+7ud+uWjSsJgTiB4MEZGPfuaa36/x50D9lwt3kcERNAV5XNWTLjQEqmpppu7k6JRfG8UkCdfv01aVclpgM77/kcZY+K6SxMzNYkWVjy9o3OnPHrYw9f21R53OZMycYIjaIaJALe4J5UCajBhq9/xQskgshcQnopkUpyZnTKqMVDg48ZjTSqakYs+eN5a+dImQkgVQKqiigCWoWYxubwWNhUXNUgN7Tgc0c6nbqY3vIBUBYyVHmGosb1VUXUOOqLeFYcB6HuCqkX/8dTgWgd4DGw8t0LUAcS4BAX4/Y1O6FoSExHX2Q2T3lgcjDcMDQ05Tp7VYQZQVuozkj8ZxXczejc3Wc+NtzsAJi352HS2qvhSAI/yIvaZL2GG0JOcybhern+I2Fz36M7fX/A1AfbcADVFtvx1fVEI2OByKycihOO17eE47Y/KM6U7DSnKmuSR5zV7U3zV68AKgfHju3du/NYxRgbcWd4rirm3YmRvVI4hpUqQVwTC4VmppjTFZAqBRZ7e0oALde8uGVeIxAcv/2uvUNTpNKTYZdQ4rlI0N9w8h3ZhbpiHABVRRwRQAEFCwYUAhwRMOXwmvrVvaGelr4w+ac2PTzl51OdNy7OIc9BjD+R5CN0fOZtvRhqCiKoDZjTREQL4AooqgASkbZM3jVnnn9mX5Thw49uzZuV335nHPOcQzxhU/B8gMhvJh0QowJBAIR6VdxYigA37Jf3FMgCoriCIvUSYqpSDuo7zrxs5VJv7I6bdmQvec3IRhTVCrHwSpy8/eDjtspaQOo3nBFesNZqkMwEZeMX/fJ4Qbf1h4qDJ06OAhjH860VIdBQS9Oy113K+G2P9OfeuiZ2WZJaGXhCU/lZ74SHg6YXd3fPXzKvm3/20NTg1l378tNTZRCjIGKtE2Te9u5mggf+ciKx7P3zDwiqE/YGp4DKiyt+x7XPOz9OtVXkn2GoHtu347GdA7aQN7i+FdQQrF//mlUMf3eeR+dXR7H6YPzKkwIk4dFfrt8wH9QigPxzFFUxwNSWm0YG92dFFBRxg0py46ajpLqjdUi2jD5XMA6/0WMBWqsVQyCGahuACrhyKgKqiJAf6b/9lh2IAVAh0x08doToje9uo2NxA88RxbI7PFJI9UWMkC8UK6XybKU4qxUBzyt3nBkoguMAmo07gKqBwq5H/7pnsmJUQePRk8fr3FnSoUalLiXPCaTHXO6JFwMqvj+xf2x8qiJHQ6ub8kRDJojky6sXBX4+Fzk2rJmOqXymPh12DKgaOL75N5uK4iji2NGSPbnXwZZC6P79+lzA9JOk6QVROfK3if4xJ9IViiSiDXV+89DA9Lxo/qJGFcajPDgghfFcIWhuWd7bgI0KFkP/5k13H3ERi2o2HprJYaMVGd2xPGLdDwb3P9+TYljzj99nS+3xznGdvmJycCbV+fjq8JJjzotcmJ1un/3rlNOzdjL751JDvH5BvJJKthkshvLffrGlUDGi6qUHHx0JMxt1KTiluep+gnOKouwNb7+tsX7BfR2pDcNDblvYpCZHx6JndwSV8fomHuqf7bND+WBZ8/ERf2Bq3bzulKtgHQ7+x1Mj2SDkEGTzjctPknbw/2QPQELdzVh0R1GsmU7v+UFQn5ko2YERJzvWXB+p7y1lznW3Gi+UaUsn69l58nimfciJx3Zv6ehctKjPRUWR3CP3335UyoGILj57fwQrUpj/stFA6GZiHM48a8K9EJYHPl93VXnknuUthppigg98pZit05wxD31pX7RhSXtzumHDrscm4xd2HXvy0MZUmLAnKgpjd9zX6CWixPOzDq0JEZxoY2dWzL8sATjrNo8FQb54yTf2PtKBi+OhVAef/TRzvvO7TbkCkbqFL5qXnNeQm8nYcMPo7x7ItWQAQRha1dMb9zMzI264UuegnHOGPBL6lyUQ3fCf997XLIbBLe7fffD8N35/QdhzHBVAbOQdX5Bc/1LUPPKuJ+K26NpKU0jcV7+g19u+rFmlMJusSAFRUSTW3eObrKMmmBdtQHDid0kY51+T0Paybz32XytWT8dYBLs0yoLHLtvJH7uM6ziGQEBjb/2c9/PNP7OmfM3dEa3U182MRgIbNC1Yd866HmvKY2Tvv//O/T4qKMme3ukiJLx5oeYIoJ0Tq2Ke6UJiaPruo29cDJwXZwpge/4Ns6y8b2IqgxUTrDox6ShE1BBei8rGpY4QaVpzQcEqBE29qz+8APb+oa9XK7Rl26kpqwZ37zo0raVOF0CSXvuapFr3gfO+/tG1uPEm9/nezM/qO5slzE/884y6oLLqWJ4AwcaZPBOVleDTvP5gWgVwVr4g9oaRw6vc0avT+91EYYJilSiQPeEH5cneMIBb3x0ez8nUVQRn3o2v7gPPcQRd483c/K5XB4R4cXl1Q6XKKAJiwzdSao4hdA1Z4+LeGQggweW/yfhn7Y9v/PG84dsOVpLpI7E01aKqTifTPrW1YcP5HSGhmxrc13x4KXie60my+ZSfznjMycrb6gLruO4v4x2FCnM75XWG8pWqrg8mcAf+1hoAxm/93YU8+aO7h7NtHd5sq3N232G3M1IF2KmmhnDc2CodeuDYmrc8b/ncQesWAld99jLwXNcVFr7r+w899KdZnmXf9fMOGH8rzW6HaC3xE7+4/cy6NFaeDKzxl3z+EhwQM/g4Oqtfe+iR8NDfb7ic+tG7e1I9cVtDOT7VGkUL2QA48tC+bTs7lgUHXJF/BQKJK169FMdzXIeG5//gtof//B8vv24M+6xoZdJSnS2FuxZSW2z68+u2NRhrDX/MizN2o96AARhC8Rteow6maR6q7/1yJJtpHshXIUGpKE4wOer6ItvuGi0PjCf7TlyexKk+IXzxq9eC5zguznU/Pjz6y3e8dF0nTyl4dirjVg1Yc+S7u/IDKiBY45/zk+HuAAPFvRXY1/bBZkBtTpHg4d+lxBEbUpWpXz3hrF0SerIYqYKEzoCfN1OGo49lR0+WqSzf/OY4qjqh699emMZzQ2FjMq996Nj+357T1+c5EfQANDMLnCfyvm8IEid/8NubypGKWCVkPLmwU7r7RrPh8UUGdesbXAfH8U6K6f9xEuMqPCUr2b71EnPlpfiL+sI1VOxsjHxpPCpjW8aHj4vZEZz/+EdagyqO+suXY1zHDRF6/7bhyQPfe21vouy6DTpTescWGlmp5J0HzsFoqJhsqOD2+fNjs/v8+oO55tR6Hj124Kz3zdfyjBpF7YUvFoI9D7kGC2Zgb3JL/W1tX7oy8etyerjPUwEk0HolNN7h5bu2DEmks2wiDauHd0KV5nZ0GTzH8QzN/3ZUB+/6xoZmibvqS6mEf973p/FsgNjqFWDxQ14lWNGR6c3f85RVjC2l9t/RvWjRuk4VQRBdcBEMFiKKAoj6j+97f+aFGzn6qUk/WJiktkRE0Wi8KBI4akRSoeaWZwWrsnB7Gsd1XI+2zz0yWtn64Rf0IqEY6mrO4HDHmugxK+uDGASBQK/9r8/8yVMAZWxmfhB9OAlIoH1vWoHdsL7eKDWdYNUHrmWzfnaq/Gh+IEiuiCNVmJCjFOocXzGFrKiNhusueXqosGjCwXUcF9b/ytfJe350XcQ0LenrLZeLvgL0Db7DyNwof3vEswCii974zRNODSEdk1X3/LyIEFtHaiCKecOZcWFO2VeX+eOh7hP1a0OLf/erZKSUR6vYtW3WgWFJ+BOqQDSTfOrfdx8qkwERU6WoCKicgkTK6oAIvWvXytiDT41HIjo77mSdJDpAYpX4nYUXWcsG+SSt1Tx4T6etnjEbyf0DH3yNrr/GazgveknSPwUHL2nCZOZ96Zw3vjSNkVkBUA4fSUbQpxyDb4CiebH3+Unk/4YY46SM8IyNEREB13NBISBoq/fNxJ6h+AWXr54azWetaOliiqRByFpKsXxholai8Ru+d1NdAxBIffcrz9tSPtQcVhBHAHE8D/quWze543Ac8YmrDwhin5YZhyN2FmF29P7xp+cnndNPxHGobZLtK5u7VRwoTA6NjzvUdkKuA2Aj8+P7+rcEsf3uhZ/+7Xv8iji0L7HmyIros5DWA05LCTqGfwkXjCmmpbXt7PM333N+zxkKUvEDV7Cu0PjGVQrd9+85cNsgMKEAqg88PjiP8pJYVFvQjIP7+pesxpxuNetXPv99v7/jkf6pMgg17djjX3zjtee0xmLJlGBASXZ0JR9/4OGnD9679fihi88NmtL2FNq/3onFkL3apZ96lHD5mgM2seaKtuUdN/0loe97veMmnNbXpKYxMXrevgkobMu+8OhjZNSp1ypRGb1POw03brgdOSA2+42xM3+W5nRWMOKtL/rW5qEyWIqHRp84FHHEiN/aGIr2FlRH/vz1j67t6GyMCGZpjzvz9IlDj57UjuYlt08t5fzXgFr5sihieDabysQ6UqLt6lzzz8qv5HcnZrxQ9OS8EbPkzB3nnlx85qWfe1AVRm8bal5xbbIHBFOogICeEM+k2b33aae1X6zoglVJVBCZgPfcfrBUGd55x5C7aOnI/l89NjIVUB1d5WY/8Kc9qjrzqdYVGxdn6E8HhchUPhGuqwtPZ+lYru51C8oGeJiIVHiWl7myAIw0LY3+2LxBv3/Opx8ezx2PXRxzHnpXbOWC5ZcvUw300D1jV69eld07Ty1li8wAqORuGSmeqxM3PSC1UCC5J2fmuXmKKWDh+/6TO37f996xguhnXg6gpdmTd4+ohkIHHi/4Fzzv7YNTD+aD37y+G9Oy++igt6ISDSrjKmOhWLQl319+3WgUNDb/FpVnJ/hjl04q4IDSSRBu2v7gDb9gYOpji8c/vE3rZ1deF7n/8dl3rRat+Lrn0cQ1K18WMPKrunm7bj5CtFgF3OeNXZqSe+4b8RYQz3iVtaWjqAAKjLzyG49uvujaht5VG778410AqoZTfGj794g3f/x9Z79jUKff1Ztf0nT0iC5PtPu5mYDgRatueWBm52RfZsZg4Buv6/d5duUL/nF4/7jNAZuOqbBt3vhr1sLJG3w9/q7tNjfjRH/57p7yWkD14det/eQVgLYl7pnXQDmgtsruY0cvPpfczhHUqmLiTWe0j7kVAFpu0tnfnc/yV9/yaAJECcDx2MIRso2Eexq62868Sbdd+2iwMrv1ySDTEo6DBPMuW1z43w5/23WZsoBwF0k+4Equ/d7lQwPh+P5TkaDjtYtZdAJJyF8BJytJQXTT7FXz1teh27w927tWh0FRaRkuLqlPGago1U3S8Vg/iRd2ai3ju5n44p5pPL+oe92Tuv0cXvyX9e5O4tagYxt4TrsXhF2XNY8Ed55054fC4VCknDWA+EFp4SPpH6W8ja6KNX7TOmJORIPVt13bX3k6Kp6p5ZSvfRb0OYGuCYJD7eGYUEkNh9d3HY3cvr8vCF1aj4IxpIL+lnP8pwEBRBu6R4b2oosvpLZoqKGtsZk+V07GeD/X/R9Y8rxHVL2ZRBoiU4uzs+I4bud5m/RkqMmGWhzXsQHVhonrH++uNNQP/++AsXjF53tuuGM0R586dHexEjhShfNjTxoIp26G8aNtCSM6G4+z4dz3fm/pF71MR0hVjZQfK7rtbkfsvu/dbTWg2lkcj48ryQ90qlSBuimnrm5XchJW/Ifd/6aGT6paP7o7mSvPP5B0TOf7jujogJruDs+1htrCm4bPCPf/9T1fGzKYMkOb8LyA6AEo/ezDS31rwPF7NiEAkQm4PxWqK1tjciYVHVr3nZ5r4wAG7v9WfH5qSU+nNmTvLU4fVkDoWRXPVoQvvNilpthKOHBbDiVfoeuH+j+NXV/VwDpCnlYGe50Ude+/e9ZuKY1nl82PusqcKjt2fOZjdRjPc6DzzWsjxXQUA/lv1qmIz1klt1kgZvrA6vrZiOrsRnPPp+z2pduH44o4pcf+Rrh1ZsKnrfncfF3YG5xCgcg5qwsjaPOSsJUqVKOS6D09HyHxUT1xIx/WiuFZDpz/+FyS5CdHVPUnZyWORVp8TlXD2xJIOATm7C9Mqqkgs9Wqy4s6KLe8pQVXK2uOLG2pm0hHCq/sPfTdweX+p7PHHM9w4A+H6jt6D45Fy6OxpsarcOp6ZqnW+etmh7BmYUipKYFTl1x4Qj6GNXvLr3JXaGB5lgPn9muXnXHOR6fLgzry6YQzWo5xqsqxEjGB1n9/tKDqR4qtAV0t8z4FagCuh+PJ4ej8+WvLXuPkCf89LxglVrhp9PV//MdgCDdfMo4NZrOt8fhT4yRnEECCnJnGcN4SpJYVJ716/kBULmdofyddY0HwLCnZMw9l3relP3vvEzPf+nBhbH+BU5eTcYf0jd+cUtWKVQov6LXf2/rimBuOrdx5qU4luvx4d5iJyBmt5H43UbD5tdvAcStiVJHJyW5n/I5HiRQqVIuTGC0JLStEawBu54aRheRpeI39XXej9wb15dmxslOX3jbYyeyR4c7Gl/bVI6dmW6cIn1rlkEiinLnnvTkCqGF6bR2VSkNzeb9J2EaH6Zvuuze0KHGbdYwqtQ3LHrE61JuPJadQwDSsiJewLE/7UsshCFkjp+vt++pbWzKf1WcJZN9ZsWKwf0Husw1XNleiyjMNye/cm5go7xvH2LZ/7RL73XVXgJzdVYoBBrZ/rUGIJhc/aJRqEQsB/EAD7TMky9QUUy4CS9ck0BrlgOyCXVAOQv3A93syDSva34k+S+a23RO65PADLV+6ItGRt1bklBzcpxKnxNYs+WvuL9e8ceZzC9uvcNRbnECtEZuf+TXGBWsdQREJLB6Vq67b8q3AlmdKhItIlVIqA70XrG4xVVIuueN9S3NBuH7yE1G3rZsKRnIQ2qV8olSSdLjw2/HVK3pTfiCntppp91Ihi2+/u/uFE19f271nvQMKxsBk6fZlLWM+IKqCWqIdZ+3aG9z4wYe/PqXBTIF0pAIoTV6lqqU4XaGmRoeFY/ujcnC85BdGPgCEnF0a5GBo705l848NL/CdVNldfOaSM9uCUwjN077UbFDywPnsf/xi1SsKRN+mFgEp/3V40UseeHz/LAqohiyRVF/vpft+e8LE5kfuPYlpTOKYMtURhwAhHooGQQ28oMKiPidH43nOjX//yLLu5U0/00oOqOvOevbkmBSykj/adXHoha+M6VwNfzqobNb8/dDzdg8mw4t8xCiqf5lqHs9HUUu1sfM/2TtSHx4tFkIBahr3PUFQFwffooAfqAWkvadOpYYJOcxE5QECba/7rx//+4VvCfxcWLKpkqx38tOHsuXt0wv91JsukLkCo1TjHncRgG8BnrxnrR796/xmERWUClfqyKyVutkAkHBTMICUZnzsLNWJhAgo9akQtccPTzE06LmEEAMsvfYD96rNA97dtiI/VZwtDx1+esvAhDvatDqQVkoGHkOoAmvwzdTDe63zvacquafbRsBMxygoeE7DeQtvznoWFaq9hmhEzYHNw0geQYglTQ1PqO3kx8sMD5Gj0JPCMw7AxZvUcxDqC60nZ40RMfi77LP7HQ8MRNr48sWoCkAl+M9vhttbmdcqk5t/9rQEYzlAbPyTnxj6+GEjzKnhs9Y2WAYPjGDL1FSl2tpovOO8TtBnA0i1thrEOIari3h2QOGBw0JtW7zb/VMi5fwhKlF9Kk987Il5F16xEUIwcF/g9B5OCkZN255KJWtApVbq0vMaLQ0dKRwPreFIVT9to5m2NIF9log0NYYdgzHzdilmpwQjk76CVIGT1jidZiVUxopTx0/mp86/qj8iKjBYCRK7VWxyfuc3Ni29QQlEFFRF29fed9hl7Y3ziceRqulYomqw2Ww1Y3cEDJeeLTCuERFJfcE8O8A6AhqoVHV6FBVZLpekHhi7bUGLlHcXjzUlO5euCSVe/uGyuAMz0fbJiu9CxIHMhhWhEpWJEijVwWTJVIm2Sl2cHM+6UNPJXII8D7dUQbQhqiKdzAydiFVC8HDxyVuXd7wpedMnZ+HYH0v7ey9tqd/7hcvedESiEmr2PjB/89Em17ZFKOuGd7XnKB0YqqVUxksCQmqDNiV11H3W5jQs20yewYFEswqOQX1PZ3HZrtVgzV1/8e8YuvC3jz/9grGHnng8W9hE2lmx8KKXfPE+PdJ/dv2yt4T9gie4Bmu9tJfjSC7M1EwBhFBPRxw5jYHJVn1Lu5snPe/06Z7KQbSls2zVysgs9Ax6Oj29P6EKldI3/tQ+/6XL//OJn5l0pOiq4BPrWtU48PzODU1NdcvCgcPcqgLJDiEWdQAknXABEuIs9RqbljoD+6fQ02VeyIPEesQxuK69+J59orUSgB+DVwIquXtblse//NP8EcRFAUEJuORVd/x998t7upWaAqhIwqN3STMNTaEqfCtVmM0iFMvMZ//WonC6tG7PAUsHi+a7HJ7r6/AUmln2WA/VUPvH/z3e58xGCsqc5ovObV04VDd+tlhTVdvXsFojoFQHaXwQDg0VqyQSTUdZu928IIL3EJ4dOLPn0ISoLz754dAmgsXPL01UFapqvvmxuoyNFAynmgAs5decqspsJS5gmcnX0B5jUQkODRZFQVK9qxNsprCCG8lRWB/eEgHs/jtFSpve76UxUJ0qlbue+NuMFzPOqciIRofOawVUa2EKqWj/sbDrDbg1PKIAU8mMFUDTl54TKt2OFycxnAekQ4VEAI0+0or3DkRVhsUA9l33ePGOdjkFkKB9TBsxiJlD9yl3PNB+cXRaUE4x73kAotE6OLamSA2D+Xjn7d5hDnhMBUtcVKiqWqmc3VPJhjl1iZZ6/37/qFceVRLphsYrY0Oj+ogZ6GtbWIecSiLnhy1OqrV+V8C2VaEwCBfheTCZxulYsbFUVaEM3nVBH9XRc880eXlGzku3HvN8X3CTbeUXvsOtZ01XCFBO+cS0uNhE07y2+W5wz4wKI8JO5CjY9EdPcHXWPPx4rwowa5IXvWEqPX0JzO8N1Dk1azQ9hTqNBhtqm/Y3bo3J29sn8sopix4eK4cbU3UtofTZnLyf4gqJA1B2IPWZ9U5aawDGS0mqI3LDjtGUH51d8N5RZr7c7hulMKogoAHVbnx5eqG9+xsXHl/fIKdCOf2mSxd6fqy1blGK+1fu1FRxWhfkYakcvnnQccM6FwKSwWdgVKUPPrpxYJuixV33/Yn6K1bgKU5RaqjZaJ6+oz+0auQsl1N0ZgeLjaFMMpRsWk3+1p3b8OK0O56Hs2PQbS2V5BSARvPUvWNlKBl4bEIAFGLvaI5l55Gjsy7UfyfzE7bXPxXRv+O2R7PNbanw/JUcyl7VoLDCvDEsO7Rr2VR8NGGY2xPUnPsVp0r3BAew6mIT6ozj6RyrCApo6JrWP7a0dmY7MDqXUz46O3qiWIzWmbPDHNLhWBzgQTwPZ6FdvrFRTyViyWcPj1YdxmNDk7ba/FIb4BYFUcKRaUEjQcUr4YAE7W/TTM9YJd8xaTjV4aPFoaHFr3jduavOZfqh3X+YLo6QeGIulr6hrm+s8UXnAKIeG6lQsWJRYm0kOH8pYtGA3AdUbUldrJqX99z/eME4M4X6Y+llHVvD5ayVuRQPjuemWfzqN111WZgdt5z0KK6RDfu65QCOXLjsOs/1TgXfbpUSFxyK2vmx9wP0Nc32n6Smo6mXLB666XhJjk92/uzrXZe8PK4u1dHB2XJ4vKzx5MB0T5fanSf9wIsTYl3DyTUbXUe7FzOnIB9ahiqEyCtSIHbF2SCumXnG3JPlABcNx5SktiT3maFC/WPOqgGvPumYKjF77fhsrKd5dfexrCOHfjzlUVxD7GtOnkLv9AceezwSqM5lySl7JlYlxpMWzKhdEP12f8QunPOlsyKrjXhGUXWb8b3YikIhtKyvhM6E0BoCxQ00x3RFeyHTjL37qKgWpsEpNzuWh2G1ExQeuK3UPG1rib1upUUqNWi7Rp051Mv+ERVW+rfzwZmfdfstmlPBQqJrWXP6RFnVFAouUlWzNBPJeLK6Z4R+Hrj9eERRAyu2+IzIVRw5Om0DdUumludfIadi9VUqTi2UHb5RIsdOvmNaZz9z29iIEfzRhnR55omet3xoQykXnfGHo8wdnJjsf2T6vLPHG1tgtTwWRQ2eelVsOrkKEjocy9jcSa3U8ApX4lVj5LxlxbKRGjBVFA1ktvvN6qu/6+/fHXfF5toaSOVLx4LulkQ655UVUFuVH5ucsXWZSqwlzIabLmziBQk8e9qj5wTuKjpl+85+ilVecfWvjKoVEr99zxkVlVrZolVnou3TBGqVwu0/GsUpN8Y6Xnb57J/v2Rrr63IKVIsBxZ/K+80rYgOCcvdZqxKKKcPuIKGArtPsPb7reNy3giWG8crBcusvd90InusAXsWYW5t9QMAatn1z6yF114bWHP6zHd3TG6+I1ACU4t6TFe/MC1NeVGXLOatFMdXHkQcQyF/JDh0udvfOHD8UiURJh1AqyMR4r/6pA0KBUrgzeW94HwpgUDXB978/UFm+LPrA0/G6oHV22o+4cyBHHx2zzSsaFiwIK1ef3TAvhIwvkVDM0D27/DanIfpouD7WnUaoYMMFYeeHuu1DrXgw9NPDz9+EgFLTGp5+cmz8PJLhyXnzJqZCeeZUGbtzrOS1FY4uTKs5/Is14xRS6KPO7FiA2K93TA1Pn+XFViQjKP8vG12zQXjRUX1k490arhxf9F8EVpU5VaBHGQsuJx096DroHPDk1lzJWRCJWyV4YPWOSbwACoOn4ALWgObl3PLYtrveouWW63eWVE0E/JAodR/N6t8vzdTJRbce1SDYdY9fC2V20nN//+6dbauC6Z5m2ktwpBzKJN3eRlT6n2h4UgQZYzhg8Ld8r5ybndg0EKRw9CNUt0N/zHhJFnzpqO5YRXvTNY+p5h4d1hrK7C02ITMHK31hJGRCG2WqEO/acIUBa07878B90+7kLnj7tDko++546j0HifkAld4X5BE8qlQqeUig10solU6RfNvvr3EiXc6Czx7TFiHQKtk5GJseO7LddsaLIcehreh4uW7hGQsMKA//bccmd3KXDf0iBkA5fkzav/Q4BUy+AQSjwlX/TIj6hW1AzDX1mRQvGCFwSmWAQ3TVHRtoX9MRNy1ORdrBTGZV1Degzmh/6QRFDHzFE8CsueNIQpes6lNuKvzfD8zDaTwHguK57qpUXYcJU1bKxtMhL48wVlY1uVKCzX+4oKOSSSYcTtHPkuwq5a0g/p5jY2U8P+Ox4804i9NYkf9zyCc/ko+vf3F6TH1HECAgNnBj2ckBjBfI/seTqDDYYm/JpayauXz86M54c1mB4PFdx8dJyF/6tzed1gpqivD/YBC6myZiHtYWu3EjcarVjZpko+rAsG/g5z9SaiaHXSlUqO1s3LLdr3dVUTk+4E+VKKBYcmdM2v3LVB34JFPkqr7+l3iOkSpCYeOZvLbFLiKzSqcFULKx9nA45M4h1h+ZXtBNtW5Odw1xOhq6hiS6re/+kPhVWB54hECoUiyIK3nt2FLe9pMzdEriiEyJiYT2Qa7Q1J7xATUrn7qzwTtNliR0XStDt3AxST4k4YzRqIsGeB4ipWLYSvxJ84kig6Kgu1I0Nm9tp8VsZlEEQJh3yVjBVTk9lqn7+O6niXxYyTu2ZevboqmmSCzp+M7MeEt6RBvbQuRS86xinXiwQdqKMLr8AmoWCytCRcNpKSTW411Gya/h4wQhr4T0wUiorjdpY4N5Eo0ERbcNlahM1FNgqTdCyiDLEi8QAWLFnZpETpfYWJJ4d0EKJ+vfo4bcpf2gSWXcFmkanSbZVI41plD8SARsKYL0t1MGBhd0+wAa6kgunlXhNDXyUp+JXYZQ4eKUlfwCNzk5r6klIpJidrYSzqyBw043rqulFp5pyPUBVHr6RvsQ53QRY3/3Ge8qyrBmUPIX5jmtDfUtnk2IajiZgsDgAhIFa1LVJ4sKqMk0ZkrKaSxq/NTV7CaWB9lRMqeDeGsz6bbrB5ksBLG2eqwpNmWYU0gpOdsDoOaw35QxIKcPIrzkggRq/mWIvzL2G0vyA2tex6qlbrxdGhbMFLaEuT6PLCp2OocCxPwDsZhSbBOmsGCFgEXkX4CHhy5t6B8UU79SqVe30nhGsxSmZ+aN7xRSpDSERAVEo63dEQlExSITjjq59MYwEICp6nx4l8iLC8KKte1Q7nsFEAxPiyyDvAkJgATtZe+sNv90M90m3Ufj1bOL+zItQJS7rLpI5p8eT3lNDMXgujXDpqGZih+JysnShPLTFlCSlQ3+oVS9FVqqKA7OVHFp+2MDD+8KnUPvaaMAHqsLnFd5pJhK4TeNMZwDD5YRWVo3FQMQvJatDekjEyK0toIYx3VEnfxUrGVsdJJg1113jL5m+T4o8cqC3VBBgFyYGSqbs3gWjobjpopK25L+cLMxmBoeKajjOI44pngiWpcfzqlofGL+UjvlJVhIYkUl/EdeHEiVJ83TBSFDJ+RTrZQPdPUck1SgCiBG5hfEHMeV9p6Zx0bSTuNkPypzI25tfPmCKRok7i3cYwqFsh2oMycahVEpTpfMIo9/ajShNeysnV3cqwVHDDDcZxsPPxQrRAAIucGI+JNOLgBRrFVTTjjkFacdC3gCQVRnEm45bL9xiuv8xT3P9ac1C4lWm2eKC8MDEYKk3eaHBgUNLcpOMZeemHaICiqmUnFLNGITPfHtJ8ZRgA1bfrDBfJY19/uolwpP9vwlSYFk3DY5xSfGs2g9O/mPbwbpaMWBAEFzh2QqhEIDrNc7WS7mIpGs8TBNuYlEeqzv+BRmSZPR5nHPMzvnoukdpLxTsVy6MgaKrZm6gUJmw7N7/mfnUKLOARygb55R0BCE2MaWoZFoyNp4OUv6zPbyix7+c8/+LQAhNmmt/naNic9RruIrM9Fmh+yw025bqc04EoS990IFUbClqWDRWe2RQ8Mxk13XMdzdeV2nd+SOaL5Ma2ECj3i7MH2Ih5LFgoEf93hW3WDbttAgQIORYxZSVOMJf63T+X2lY0ealsXsFS9wSu6ebScORuqjxltlasllJOUqofCsKrJzf3YSU4JG5lBUBTvifUrR7ny4/UPvb4hNXvT08LGypJ6YZCBCjo2p34paKbC+UnGTjS7rR0WxEJiXb8tYR1ccu7/UNL22Mjx+shjbrlDJQ/GCRxXrBFhu3xQt7vvG3TGKKuDmzMqkE7g7v3LX/L33GV21bct9kzYTcXJ1eYv6tUJE+k5E3d2/hIK7qeb6pqni9NNxZDvNCZAQeYvTOqqxyynMTLQR1+za3urJqocpsFR56cb0zOj48aIRpQDu8twI8SLrXU31wO7xkLThkd8fxl0/2YeKowA23tqQHh4fveglZ00ZOAV1QvwlNLtZVmf6x6enWygHfw+ii/pRcUQA0aIfihem/InpgDut5blh/GXPjqGLlYpOXEkzAJEzTbw35FYeN9yk8PFIiqLVrZt2iPZFwFROknex2jEB1HvJ7Gjr6pQup8iCeGIT6xZ1FAeLERsYYGqKojoIL5sTQ2lUAAcSnWX8Y6ErJmcUCiQhCBwb7p7fONYfmp8JKLyxB65yAY6K4AJc6U5RvKTMqG2d1tgokANgsane/Lbh1uVNZi572siZS6ktO1b+DtEilD0BPBNVUzmvPjwyXBCaFDikgNLUHe7f65aO9FupoSScuWJOEIFQImXkFbv+mCPmooIKoOLPkqnAPzr64rMhh9M6nLCA0NabOXbUaK6CAqKh7jNbrdaa4y2UHTBJmdV4McJjKOlAVZA5IChHELB3/e7MxDMYyeU+4R3cbS2ns9CYBFC5sDUzGI9H054KiLWrGrvWaNrUGGgRmzk0Zl75/qaVB2U09OLHLyKEFArCKc4ejmRSIeDAT09OvvgmYgdK3UAs17Nr0Bc5rZD5rgEJEosCip4uWhLFoL43b230ujRzRoHiwhVRWYlz7mtEyixkVtzLcy+cCZqlCDCWC+ViTW7J0+mRifmthqOpzF2fzYdf86EmnQZ//aGe/GinGE4rofkSBND2vqK11oudCFHGnNm1qMLKKLmgxmwn7knmjalvESm7PQRHXn6SCwQqA0w+cLy+uavH+IW6lrBH4cijD31owa8+MmK+uu9dxBQO+6dOnNA7ehOBKqezYf16AMFzFk6PGn/rUzPJSweWdoWmJo881k5zQufCtl5unpGYd4eVTjGv/OhV4wMGVMb3Hz+arxQj85rqC9GgaUEShh/6s7zykrF/v2XGbD31q3gbxwiZLTt07BpEOL0Nr+yrgqjfODPrNpCdTt7Yic+hpwZzZ9G6zJpaAjOybky9xyKlF/yeKce3rDvRP1Sp+LmSxNq665INrUmGj401/33P2e+NHH/HwxEd+MWzt+OtxPbtxfbHdgV/JsTpRvyDYaNVbU4xUNO9ZkMoWd8I1tj8a5fHZi4SreVbsnf+uxdV6Gojw/1PD58cD4IlJieOqe9u7eklO3vyps3ZJiSkjL9mxstL2KSZ89BjY/mWre0r+B2nvbDxg3ggQewCV0KxRHOb59pk0hoAZ6Jz5K+mltTFNLvGBKNRFQCM/3y82D9W15ROZyfnLalrmefNDo1P73/4/pkosbpyZO+HHmwu+hbbUqVUxv90IBEeTLfx1JjxzYv2yZcQAmzyfOOmGusGd00E8wfVAEruK+70fmqblqRVVuK65aIaVU58R05MpZpb5qdiixZEKB7adXhkfGz4eK7k+IvPk233Ec0jOqpZUWDr3vyE65115hF+R7jsFNvhcxfiAVhrsZKbuGCpnE9NleITh1wPBEXNiRHHswrJyiVU54M/CHuNi7s7OyIMjk88nR0ZP7BH4p0nD4Uq565gNFxG1a0bnC2glJ98tGLzrau69pzDdgkouDjyg9W4Va4rRqSU33h+W+iOvoVBASU/Wja+a62IQMWQuR7eT67KMIeH2gE7vKffVoZmG8x0oah2ZVagKVV+yrHG9T136flNavyb7s8UcFMnvu19drgVc7o5ND54Lh4IrdGKuNOxt5+x/urBW5ee54QRMmdownRm9k5XwCgOnsKgOkeYvm13jMpUAYaP7Cun2sKDEXxUBAIx6DrnV/eWiDgtH+6qIMr230TKo8n5seKuV5ihKHK6uazZ0oYL4AgQRHoOfWu6kL115LUGIfWmDZefIW2VocEdw8dcZ4oG3kp8xNFWYh8iFWpl+NaYEw95U0aMV3JEAcH43S8qPBbLhAadd+dAgZlfRcPX91cyhVinbsZwuntcfweOUyWuYmXydw9MRLKDo/dkd1ZAXnnLz4FVUJgpn9iz9ZYNNNQiWJLePWtahOkT9sCqBKuFb6aiLhhXS41TCqAxIy9etntHsqNx+Y2AGoQ1e52e0h2PNGauXs89OFUqEiwtRVVAGRvr04ZFU7c+Whh42PndK87fBLhwHAlg+v4df9h6XA0IV11l058vzAqNxkVEKtWxf67ZOEWj4QQXH+wOBMDUBWv0jVqwr2tHOZ5JIWTgwE+2by7nL/LmHtisQivd45aas/n6INXku1EmRueMbOpbxGxHzHYcg/JjP3V8jJ05V0ms3hLA+znRsWrBPc6ZacqdyvKu+hoS6EtfKBtmzu4C65RGWx0FK9u/s69IduiKzR9BAAOHScWB+uGS0SrEEgShFRtfXe8tf8ZOeIv07hgqf39LAtu2rCNIFAgxjITwnxipXMWN4KDsEqVm9oP1oze0L8AKg9O9jQhg/vGmQNLF6PQYrebsT3HFhvsmEGqZSmjWZNpmJ5leQiRbVfO+O18tyXQuGW0/geHTnOyJVY8jpyEQj9phL1k6uNYD168kxjosaIA5eP3uihzo85UDLUzDJqkg2FTrLFolBG7Fk2T+jw+uf88QOap1pn/0vv6P7O65FQz86guVUMkumkCACNEo+TP9qR5UgIjbG0Ip5gwdV0YrQ7qei6bMaRkML4iggWVO3whLFhrPueZTWA6gwtl/e3yooTzliJB8TqKqI6ImI4HNJbxAXkusCQGUcAykbB1s9EJr9Kola38iXIFn7K2GU1zjBHOoxTCvV3w6NZKvQpCOjVoDoAuUVBYiCL8g5SUVkYYYQk0HUBm6c8SZFNpNUFnjXnVnkIG/5CA1QMFxz08IM5uQKslWCLOgEvZWtonnBMo8syUUQCM5SaLSz7p21evf2nGs5fIFdq5qIRHZddchYcqZ0AVcKwMwCAGCcHeUFxhsYAE1xT0YovXJ+e0o+SuhJApRH1BSYdK2h74+9HDJPWKfSKeajA4EwMLV0ZdcXLrIQYLgDj7DnFKlz4Kilmpha9Go15lqQ00BUJwpsIlXUuki9HnPZfWrAFcHEBbNW7rObb8xfuCuRrRpp+0pi2s8dZBqEQTH1VHqjSGbjKkAytP9ECol2jg9AygM0rD3elJlYMn3tQMu0aHQrWMlsTT0nMud2xZaMjoyM/ranTEffjw178+XRzfdkS0xp1kwp5T7Y6FsfVEAGTuKuvOa5DTBEY7mHnoPCdUuhlZQiQxj7RMqStPFad158OOe8fXHhUBrj1VBCAiOjm+fcKfGr7svYbZxjMwRzEzPDmcNNYLDwIYO73SpfvhPm80rDhSEiGWgMuIjrGSN3b9foGVTswK1A8RQe2JL85Z7V/13cB9gpIZSnlkSs1UqxUdzhsyZMZXTRWXwCjldsaI+Mg0qGNYgQMQlROeqaFWg5dhPdh6LgTFS5Q9e2RoIgPjb92PDy1xOXzGItLHCyoEcBbASeTvuyIDypo+GAAFjh4YnhJoy/AhSDJDTB3VqtqMY1TvfuzGOAfq94lybLlmnzU5JrfLjE3jdme2Ose3j3wXh0LKE1nAbH1vDiJXFYetLA6UWRRPw60+h7At6aoHGr4yNWA7LhGz9b+PXIRfcsl3W+BDK0exCpIXb5HmraZaDsc3892Y3qEHRHr3wzPMmRWyC8GAv2gJx/aXqL4O4tRP3BVOO1iCaPyGl4e5MxKoFPr1ys8XiidWYEC8LlNrrNHbGggQ4CDv8Lkv7sT9FCu8IaDb/YfznPO5hLhJpx4cbaJ88dMZai0Xjvc87+uwXrTSb3OA5TxIej5Na2LjyFDAtb0BPO33Z1Bkf1pKjsLrjuu6ESKfJtOMpbP3d2NNMxd/9nlF2Nequa8sTUEdEErGd2Njbc2ixIOztI14wnKju8L5viY4lHlU7MK++Q08zsY+kFzf4Mk69jXbriTsywDhpxJ932cd7YqHUPLCtvzFwPao5+J+MbEiffs3nzAukMmxLDXZrYvXGbds7+zPhGYi/4BVT7sUJzOF1TQv1vCRRzeHmuYgsJR2C9xeLBZJH/hDdla+6U3e+ISNbT4fivDRyuqjkf92e2DB6qFvNsfh0QkadBlpKg5yugfNV6v2ZE4fqTtSaBSgbyZWK2BhLLq5y5aZU/tfM+Ozl1FznDpRVmNPsoKErvmw+QgGteSCFRuIRJDUH7sTIeODERaY03pEYWfKKOvDcVEae+taObHLxLqjmiFUoI3Hwe0m/7uoHK20HBsjdZXTP/px4h5dHQr1xS+7AM8L44Cv7PIVnXnLk0FHbf9jlubjGDxx9aLwveff+/dHqDfg0mQcOumXnIWM3tcBqtGfdexceXbMed/BsXHhp593HZ56/a8fOuGqOh8UoK2OiX4k/Ug6cfpUqXIm/8Ef795wYLODoP0lFVU7cN3YwtPCu4aOpu3ItI3PjyoUvKk2HKKsGVajGtmR27R8dum8Uscgzs6YQhfFBdzR3ZE+8Sag5wFI8K3Gla3WbecPGXjcRFRBQjm/p2TtZvOWWE4jhn7j7Hx0XhB/rb1s0z3Uc6q+zjMzFdaIdZ8d7XnjVC/8jNWsIAhDPifb7Gl+kt9xeQKygQTnk1dDg/ruP9/d2Txcz8+tM6LLh+gNJdsBEy2AiQ8X/46SIXddqUVCUaCLkLuxpjxkBKZWpKRN/ONw/ExeTCJcpL4y7apByEMYPj7S7avhNGJXJkDKnopE2c3KP0xwWCVEtUJHJocHJvD+Wc4pHO3FqXmFXQx+ombphcVIqyimLW56pVIwbimkNwIpQPVv0A78Z1aGZ7BSC8k4nASrnl8sZwzNUCfvh+lK2MojWAlVFBKG6Bol7UFaAYpcf8hc1mKG/uWl9JmDFizqF8ak0c2qVUHvddtyIZydiV+rPZU33QkJLjwWOAHoqQGAK9UtRC1VMrefKzvpb8oBQ4fGhWLTogkRCvoJ4zwCTb3Ja7zbNnhjjuc9lHKWB+7eRp6kM7Xk4Eki9Vybzj4tTDv5KaVg7UcTvoKXz5fKadsdk4xnHEK57LhKRSO1cPBU8OxFEAKH1hr71nLuubhI7FmkfGMB6m00//Ml/Ol60sb0lXjmCPvdwwf3b8Hbe8NtwchZRwb18su74qNe4qyC+rF1TFqGt38Xscv+mm5WOiNNePzqIfa7h6MY/r7vjW8N4m8jakb6YV7VIOlZn7j2aisYKkcGoNrEy4DveQiQbiApBQzrfznNNFw+/5d9wVRinnc4abFDU6Kwzv6W4IBw6uV+mFoFBGZ0RLR11qBYT9CxS89zCNfmV32zZgqOxza2ce/+NCiLTxJjs3eSdc0GXu6coCHM6VKv4g9ga9E1+VAk1c/xjw8wWvGIjAhL9GVFUM8y+oz2PDpnzL0lPDwdq0BrGrUKmj4nWsJl9rjKvGeHLw8EEoMDKEZzI9DNkhQEqxHsveOj7R9uvu7GjMF4QB0Wd0UOqYNk85c2hC0+N1EvfYKQ0dpuPM/Vhil5cuWPX0M7NW3cuvn5j4t5juAa38FMJQJlEqPYmX/DXJrXSw/H7YimApcb2jx8oFUucBkzUryCZFReeOX7fg8fA1bp3YPDN76kZOGfdZEmtiHbbL/pFajFvx6fop9hOSHBdcQVVCC/c2LPvycNTEixtVym7X6qhTvF6o1a6+D2dKg6/+NBAwUUwjmtQBEQtjcm4lnMp0oj5U9j1qfbxmhF/LfMOcEBFqxYRFECM4ANuaKaA9X9vXg0gjOLUStfFtyM6lyi5gck9YmH6ww3R8mZqhmv6jxIVbQJcNuMAkRs2B+ql29cDlaUWjgC8f+0aizVDvhaj6h1wzVyDUy/dJv/XBQLEyBXUzsilg6gbwI1bLNYM160/RlS+oLF2tTn10pn6ebCk+iAk1+LUzGi3G6gLOFxLDVUZftMjo9Un0jEcYv1Ajw9/7p65qjrDkinzOrL3x8Ov3pcBU6XBm3OqI9UDH3/8ApdZdYmsO6JOHVUBtp/77avBTBVl+Kn61FVFbL/y3DPuBamKjLTeb4PaAh4DrL38lUOAqXKQX2igNQbcMfzSowKAKkUsPm6DOXXXY+Ceh2+/9O5LsSoxHXGDU4fdDRh7/VxM1RF4k9cjiCDu/OEeoKqQDZ0bY00CHCXnPf3/kKoh8FpPqNNRmhwLOKoAseD6mgXRWPHBw0Clk4be79FrFu7sccA+K8xM5TKeNR3rFxA57uoVlFzoXDl13CCM73rIYpXJ9KppMnF3Yr0BOUe9aW9CeUyH3u1Oxx7dALzmIGfwE32oPDx/JtKpuhkTqx+46wO34/UGhJ+9v6wk0jUr1YnF0cydZ46tg31eWH/AOfZJqBzGH+nQGsPAujNXAhp6yiSqP4r461AZxPKVimkU2P6XuxWQSGaWR7f6A2LqiVgJjOdKpFTDsS/sBrDEhR9JVB3C/X2EEojvKrazsP6Ms8BQAhBdaNRk97WU0NjzHvM2Yrjp9w9gnjBnC6huqArIM3IeuQ4vwwei01p5+n9WY57QVrTN3WqGCoBKJ1GPTJRB+pcnbYg+PQtOe/GjLyOpGS5T+5bMaqe1DlznbFAZ+LPTUo2/AMdJK7osjVErIwPv61nSseJJVbqES0cRJdA/W6lUIlg6PQOvF84113hA6Mpvg6fwaO/BKKOd1YadUZ6hWHMjsU44yZ3nt2OMERhEKRL9dXmgjMbvWsFTDnJqaDqDqI8uPnbg15YigMOKuVPtInfs9hKVAh5gtlvyRxfpzQ+YrBVx+rfzaS90v1vLffSJiFKKzWgW96+KnT2RGGqDfGDTUJ8FtQKGTvg1op682EviHIi3uO4hOrajcNUGWLECkVbw055C5J4DnZKKaxCzN2AdGPuMYNTFgL3WYXQoy2406tx/KipL4PRojltyAepAHIDXBiHuR+cSvuiwsmgUp6xi13sB9ODVeAceTsaVgaMuJDCJMqD5u4VkEaJEnEPEeWSyE4u7n4To0N0JdOXG84OTZaThbfdR6sAbMWDNDjoeSeg0GuBT/dZ9WqZaozKp9lIZziqJwg3N4OnEAbilM4bjW9ZeHr9G7Db5ze+PkrEouZA5iMJ2OlTUk3ClsfDAdwcAdse7i+WWc67xsiq9wABqpv+Hp8PnHkJqxW7eBJjiNrqrop/j/21BDqpy3XWdiCXLUBr6w+BYEghdBssv8f6/wjAlllWT1gE8bSSVf9OtUcSnOuk65udJpLq25hzm4KRW5KlE2qqU/xMRCyiGUdRdYOALcVFFYW7+nsMWlA7mryC9FxBQO8GrwR2pGKqF12OVJf8ocU8n4ui903nRKaHa1dxKFbobBfZ1XwZVlFh4g8/BO9m3PypNMkFrxYFdUekcwcTU1NLoaYL6n+5H1YTxSV/aibMXTlobaAPzjLJHjG0/uevk5OS1Pw55QWT6SKyyjvFd6HgRaeX9e6I2MZYsSkx+7a+7qP7ri2NBKB9bWcjOmK+OklQ4/bSfCKWyGHef9cexKEbV2LPvwgthzb5FqKqM55xhUgd4KtFMUWq1DqvP/RdgAIKzmaQYfDdUFyxcgujwv7I0kX1SDJRFAeHwj8ZARmvDx0MsQuD8/g2iizpnrVZMAQNt5DsbKp47Bhj57fdApBS61hDzUym85k+hyqSO7K6PO57G24Ao6aR6f/jzbYQY02D4kSX52dI/vvGwqixDac55QilK7o/fe/5YXHTzhBFJH/TUiRhzcuZ8Z/k8uqw47kDS/h+xPCoTX/vmdgCLdCoaV3qSj5ynH033NfZYgdrNxVUaa/avn2pEcKdz4xN5weQ2TF1HWrD7dGzXHyivYl/xR0WyDZwy7p6H5ZEhjC4s+LVLs8SKBe309EOdpSoyFvNW56Ew0ER0ZWnknTtwZscl7drjp+B4QQjjWSF918lcDSfW43RpwSnDCSD22B+bJdR7KrWigQoB60xUVoHHJ/KMArIHFKdrWxiFRgTCJnwWFJSaEXzbFqZiAQxLOsnM2GuDyFSR7PEhurpY+K1JUJFF1HRmohycwEXnrN72wX8kMT9oX5sdCr/Cs3A1V91E6G4IvKuEig7UEkeHRMTAbb+4E+BX3sxPAi7FMwu8BHXmzo7bbiV6l0McHsqDhJAq6Ad32/zJW8Hc7FNTMT9gRX9UVsZJE/IOPAZu/9sEtVCk5zhyPlqrgUuX/RHME5yXXuKen2HNMWQm5t9DOo+BTV+4G9UDPJZ8VO/3pCqyD8nkz/ZfLGP2wMFvSchflU9hWSGNpXHHWHfGY8GojRn90K0Zavfjnxbtw+AZHnNT5OZXD6OsArfR1t3g0T8dCCZqZcqdY8avX4ypDR/c4Z6XxT6xkUDmxrUzwcEjBjff/6HbkFErxVBb3K0XYLQ1Pu2RfFVN5RtLrhDZi1X34CSIeMGPLplomlE71Srwoak9lSLwDHfPxY2xV51KrkLsSd93337T505bBBj1VRz6yT5Sip1XeczBI9O3nsmAKR9nk+q9Pzx1CAgStXZwPmmNAx5yzy4aq67YjJGz8Nqfv3w/wEzU6qB3e0Lm0XZceJ/LKaaZqMNKZeyOZ+dXnghGEcU4Rv0Wc3Ync+ecg5DoXa3x6mlCRq7Jo2jQwxqHPw5XZjxWoYeR5p2Fk3m0d9DDCL7k5JiEX2I9TP9RD0fPIerigHoV2Utv90iOrm9K9KrG2Tg5Rq1cRM9iHHOvYh7OrYgeNXDqQxJ5ir0bqCeRsdPXPJLzwGAvIgNOXDWVkK9YNtJzyAxs4GUPuHtOMDREbykOoIO/MzbtSW7ynY5DvYTAgpO+fuEmd4+eymMWwAS9pFD/+lcBRGSkdaOldzSnlzBctkchugXSC/5HdESHkX17CKFrm/pSEOkdLv3qyDffD0zFdLAT3isIzfeqr3Tq7vTftPEDg2847N7Nb5nC04i7UK9gON8PglNRFHDE785eaMbs5SctTAUJPaPDC1U1AFyAEQQo3/TLUQAFa4T54yjdYO9guHqoEiggZgcz0+Pezj9sAaOlaS7pnQPwXgG8dRsvfiNu+z+s/gfCAyOaKjpgnrQKHE0MaeBRelxDSg0fhyuFh6l/9BTGGAdwAQoKaArj9PkYaRi7Ce8hnmXT2/AO7phSryQ431Easae5eiRjj9vpdHQevXLgEx5DKjG6EPVGUv//R5QKnF7ZOHnSRXqfme6VAs/zSGolK777CLE3Mp4e3dO4sfOh9MrGaTtSRcPGY88kzfmHJ608gft/tg5ir4TDG9QXEUUd1T+uBtE7i8Q3baRm+da3eATRSwurb9RL50/te2IzYOixBeiND08G4AjdHVZQOCCuUgAAsOUAnQEq/ABUAT5hKI9FJCKhFyzmBEAGBKbuSspGgWYx/GmGAYDFDe/r+46j+Tfa383zruXe/p9ns/7e83HqLz0f831bf1/1C/2E8+T1keYD9uP2993b/qesj+7+oJ/Pf8h///a59Uj/Jf+H2Ef5v/gv/b69/7l/CN/c/+p+2/wE/y7+4f/D2AP/f6gH/g9hL+Adi9/Zvxv/Wn5deFf5j8kvN38d+gfzv95/y3/K/xnuMY5/RP6jzT/lf4Q/g/4P2n/yP7OeNfyF/0/UI/KP6P/t/To+h/7Pb47v/pf+3/ofYI9sPsv/H/yXjlalPhH/v+4D/Mf65/1v8L7Zf7P9j/KZ+8f77/z/434Av53/df+p/jvy3+mD+0/+P+p/3Xpc/Rf8v/6/9H8A/8y/sn/a/wf+p98j/ye5z9yP/R7on69f9f890794h0C45LFuAMOuOXRK/pgXzrcPfjjsVyMqIrcMA90DRh938i+GuVppusiaP9LtJP8de40WC+8Q69ahwfC1CdkQnVALTz3LT2tUrKGvpwSgIDyb9CPoV0vTuFjNaw7Q1dZgecCv7yXvUNyXAH/BMrwaAwro3z5i57gLkmxL9YIyqdNkOYibg7M296NdgdiYJJph5RwcFIhn1UUm4/zLZwpniEu9hn6ImvuOSwfWnt5JuBjVEnP8ncCvSSWdZ0fcLn8DBMjyaDL4gpAHvm7gW0oftv1AQYCmpWqtHfvO+zsrBDL8f+GbuN7ksteueME59j/KKF2Luv0GG55aNOgW++S84LHKhHZCfTd14NJGkr6hAoBSw7dmE6e3oqBpR6irR2dNMixI9TT+xgIfyrxl0xpwRi8n5HNV2USfR0fEFdYCo2lGODr7Q1Hzz86mNyO1DsoES8X8IiHkSwAmQxpXSN+uje4SjT9LP6qDFgL+F0M9oFQ2hyD5VWF9T5gDq/ajELHGUl/jS+ZFYpIp1NAvW3mbct7IC0BycxrkUEuuVGG0LfZe4Zbeg8i6FzIJGzgNe3HIaxD6bS5YNrtgJ2CjGUY5G/92mJZ/+O3zzLXayUSaABdQ2p0QQ9uATDoiUlZamMTNq39ZAVJ8k1dYWxcmZhqmQeij1Bodp56mcpxr/kL79mTGcX6voz9IUYCk/h9ZBdcvQ3fCSoOQi10CuBCzEjUJTl0YaNE7mbgDl5rVZ1bAirPMOsD6TVaEVd2Fy4t8Vm2Dow1f0FcJM/09PEHeahpdX8pzC1iZDpwlywRkWzmk/xa7dfPDg1nvZBojKyW1sqzEujj7frWndZUe7wgLzUAjVMhSspcnEBWx74uqjKWsO4dp5m5lBNdrNEiQfjFCRivk/gKmBNXydncDfpmKtc5w3yKc057lhkNmYS9GEedqcTdpUrGSjf7KPTLdfTMVhvkHR7b06Q1/P/rsCv/0pNH+/rLUqZA6jmGlVSTMweRdzZ4GKLCqSUZDfoUC2ll0LP899L8N14Kz7GYc3OILaF2Tc1ICsVF6aVbSf3MI/GvGRANScqUP69cIIO/jDsQ4vcNGlhZjbFjGvgeTgFqqW0HYhQwY0xd4yw67tg2AD/6ElOJ2s1eEY6S0520yT2vBBQ1p0VLLZVR8npNOaUAIf7c8segYt9Z3qUsM/YGaA20AEJwYRjHtKgXjvR8rlXJ/qt6oju57ktL3ZXvdQhe9FTOKXlMVjCE7AhePuGI75meuN+XpzMIn6562uVEyy43hOpDYWTblMAQd/KirjjCFsW6Vd88+TJOIzaf3gNiAPXZePb9DnY6V4PqtqcgvOoPRI8QJuKDg7wosWTXTkM+TOVvO7PAbSn3MG+rt94M+81/pJXYoyGFZ/zpz9+QHxQGwTj1qQ++LcXoIfNiGSkzuFPHYS3ULG4wQrgmKMj2EwQy5V3012HhzIRukyTnFv62db4vIwX7hlsvyG/0B1Qd3Q7pG+WGxsaSwHbkEEIdAoHMdIEgm6aBvEs7hyhOXeMRDbWrYI5jRDnJ0YWFB0bShcts8h/r6sbpbq2UyfX3l97WP9oxhi8E7ghtdvTphKOzvSJW7fx/QTQKDYSzb/b8h+m20tqUyQKtIXSRVsbh4yrGUqLqAEbLbXfTvta/5GV69PyGKR89RhHNX3ZpoxWsvXom6RmIojHRu+YHeCcy1Ekn6krvT6GMuiXRmf2hYgoVV3s6B1gZnMaM5CFO7KYQGyEVKHoH+FMaAO/vf+qEw7Y96BW2Ba92En+a1kT5Z27iK5h6GrkZV5pAp+AqQ/d68oXfB3vBfVDoVkW5FiKIgN5uDWVEJ6azpSQmxxB9cDvXEbEvEqBXjXlM4h1NlCPShTv6TXpBfgZTocyZacfVdbX/3+nQcdfvYpHEE3nm/H6sputt76+h6MpmxyVGRm20OarY/RUorRxmn10WHij6wgsmb/fOTn4FW2bftLHKfs5gkZOw7toYey+HQ9H2MMmQGBDhJiI/ksaK3vL0BLbCMDofegAD+TqoJ/bAOQiLYeoX2hXOV4FTyu6wVmdNCU5MqQwjdd2Gkd6tCv3sTSslEqIel/3zLyZkGfeeA+DWgO5/o96zo64r2rG/rjfglguZGNw5Gqrn5TS0M4DifuL11QjpC/h1KJ3/1ZAdQjOubLZtkGs7kO+YqZV2nz8wo40k3+s6LnCZIH0k9HK0DfIKIP8UfAGA9zKHn1NPFZV+jDRkd/feqiTnrGXpdQVpoaPh+FUB60BLACNsue2KN5WqHxiOoNYxfQt99i56fWiOrSDl6quhdL6hjcwuLvCZXx6wetn0e46SPwuDVBpqWkkmYOQ4oWewHAChj+Ml/eqkV++5OgGlxn4QeKmbOw1c8r9lPKyrKmXQjnhgX+PuvGKSv5VgZPSIP89wmSoI0iuK4lYWTpQxS7791jQHj7Dw4NSlQs2uf/g9AfaU4b3LKl8/qfALIk8xQ90UP1fLJYl0IffxVg/c9xcmmXjeHJYE+6xJl0prdyUv83wTalOE/4KL/2qZ3q4oun1p+YniiETmSj/U+I53vyf9e5IXVi64TsB4P5U5jnTuC19MMAonqyKV2V/KxEvmeorg4aOYZE9ZFqFf7rkNJZxpRRhGD8WbTnfyCTFAdoNuBYUnd7IT4qjKVu69WbjmNQQbiZl92DV0LpX6l0KAYURlIaVV5JioA79TtoBk/oxgaSK3PHQygu9Q0ac2sgoCI/JQs3uqplJprPYyPiMnUl+DlfDknin67zKnA6vzOz8qhLHpvnZOZ4ydQ8IxS94BbQn4BKwqwbrE7aaSFV7WTA9mpsM6FCsvvEC67Q/6s/6IWaXoy9MpI0/8vs4loN4UGmt6wdojZpkwKQC2paeKrdunTsKsr8VGy4tRnoe9rFxKwQ3eLVUACW9oB7lzJ07ucFf9nhIXnZ8ZmdgWmSKSzM153U6bsrhyG/+XJaaU26yodrrWzx1mJq9gxQcP/MxDe8QB6Kq6eyX5nyrXbwBNW+OLQv+9VRXdSfvtP/hzS77t2lLPNZSHNfw0qb5PWsR+EfvHRFeTNF2KTQuBJ/H37v8Hh4f/70g//esf//vSfn9D3J8zvE7d6LErr+2PoW2aM9IaazM7izt86AAJmOfoffXZib/luYzuLZzgqDlwD71VA+UsvYRLAp2zJGgb4tg1rsIkmqRgDSVav+IMZpKlT1PeMK+cXL0v6L+smO0171EVs5KAb+X6bauWigI5NW1D6NpTFm6iOpFWBr1AcWaQLe9SInWVUmJke9pi+SsWhagfKLI1l9FyWSkQazw8IsXRk6sKK8m2MVJNNvyd8ouPaqUT8fPv3rZhQ6AwP0BnuwpmL83lM9PFmJdJkU/75DE5T14NJeGsIpKNWq7dT8cZNfsAWPPofE5QI35hvXPDGhU6jWKnl92TmniOdnKkSsW5qN8nn/YulB3y/8YGca6DsGVpbwPopoPD79ZamRha0L6XHKrtbPltIUp7Y+5nuQlT495IYGW/jegNbFfU2yI6AeGPsUg9OvjW8DX33u1OsEue50cjiVd8f6rCmDjSaJZkKO6PppaUhgN5Pmt12rOalQvW7hos7Jc1y9sJ/Nbdty2VJnpRNZAHmCJe1JAmCeNfUrTX+K7+KDT0fNsNpZdqRdOIZoqqlcZOuARlvbBrimd8YBV+3hQFKzD0GV78yJp45Z6ie+RBhC3wXK4/JNJ1pnntvePEdIMzFjcG5Cp6cFUWEs8GqE15xQEeJVWu8fmptCRoyL9qfESb/NqCkuSEzEIWNQmsgsdVu5RP37rbO48Wl7LRQJXRO6/Dvgad4mOIONzZ8RVhXaoxARWy1HWHWLDG/0u265EDNpmwNtZg3EGHvCyZ4O4WjFVxqA0PNTMQKqdXXhakRxmqhYipoPCpt/+FhoPTjQT/e/ZBrt2JMQhNTxBrDaLv5LuEMH6IxogjEQtSCrFHLc/VGiv1wRYQVvJTkkJccEP1eNlZm8Y9vlfsQhed5sM4t/mNHm5VkqD4ELR1WqMqsRlG2mHntlxPLYl4mTWthUQic5WNNZ4kjr8Na0TgeXRFls5s8Offz6Np+juFRhsE2GTbWYF8Ec0RWFiTmBFkXaJQiGSdpE0uLRr45MP6Et780vMckZDrBC41ffRKpp1p2Hzp5IPU1+QY8TI9q/p6pDocEaojfjJxvCJnTcHOWmAv5A50wZW+ZrRHNGdR1OwWV4j7zH2kawaR7P8tu45Oz4cJSRknU43bEWzCXrMqfYLeKaDO/G2cTIPkJvcGup+3yKLDlvCDOYozMSFcSMeqLWSrmneJ7ISkzNrJ91QF/qi+YwKT/HOh7yI2YeVqdyAuYPt3zb/z+FgFij6x71a6ZnHif92SKB57XJFhJutb5USQ8IR2BanXg5Gji5wPr9qy7IQGfwYDAoG7y8SSL/3UFw4QjTvxi/mF7RUbTp37FvAXHcVZqiyVf2r31CXkXH4uR7KQe4/yPrN5h+rA+rbdEYeX5dD3amjAs00Iy/vq+LzxIeTEYLksgFRnfVO2wjnHwz6zPvvLZVv/PGpctnTunbc5S7tt8vxN/lUgH3aVfwC9KNANYMbP3XfKtw/pT6oVOk18zJxgL5eAlLd8E+e3+TdKasa64hrrLcDfHgsKbNTfZ/e8rBkr7HzduzcLWwKRQj1IOYG2zR78DC0X7sudsEld3gk/hv0FFVX4vjorC/kQXIiPVS6hQXT5rvzUVfhbio48WLT+dRnVWmUmkXCwQbhZ/3PRSnYmJzimNvQ876Yn/RqQMdhy2yyfyNjyOyIEu5iZLFCs2VkzBS4eV26apkgQ7qfFq2aqCJ+RlqB5jOXaMO1IRIz5+zU0kxjQ6fm+NJIvE2CJIo+6faSMJ9eYroW57yhR/tu+JcDDJXf9eLfwtZA7yAeUdYWpoj2iq4jywna4wFp8LeHeEJaLV6DJRJFabXNY1gNGFs06VfWQLBfO/hKlb3As8AtY0m4nhXW6cwy4cyPghmB2eAvfq6PSm7bcafT8CiS/h6O7P+NvrlRBz4piNuGfQy7Yp+Z5WT8HgpvHU4hPCinRrQN5rHjt1Fhol/VvH0+VS+aext9nrtZNxUtFU4JWpGPqWFM6jhfX7fU8ZVVH0Ih5xiRKZjDM2LGdPWA0WC+0vP5ahRoude7AryJEbrtaAlM8Pv+/QhUNft3FsBLuwu36bScLc7+YbWwKl2yAsFpFC4e1+Tl7uyEynnpLbHe9U044tj4HGHz+/GqKJ7V0dqb0pBC53ccuiJivzNygo4OdmyaK5o9qslZokJXzFjX19UBEKuyKKmKMHc0bQ4bpg9/zMtkAd+R2TtSS+FupFTHBJeGTCO8QKdSrTifyCyOGWeP2nCGgCKRnuwOTkHX/p9UwRB+LBK9bb4eVncqIgjC9VRwMSxcj8rcA95d29t+ukCd8BhY7b5D/Erq9oczexu0cSrA5QJukeZT78IvyfGr0j5HeSmcfX4YOJeOuovPlIxZvb/AwTrcHLAjKhRrjrg5rHaIXTXjPS4jwpI9nQuWzWn83yYBzcXUV1KrbQJPLARp93nogq9TYAfCGgNnyIoiqHP7cbB+1ihN4/J549RpFGLtyattEbA62Yn0g/58RSF35sIjWZ3YZFDvR2scs/mHWi+VGP64FdYYQNTmqbXBBSYC9+VBF23L4d6C54T2LKMlEv4t+Mh7jO0Cf754rhRHHN2tkwx50cRT/Wo9ycTuqsrZ9iESaF/JDw+GQqRPGBOpbCbJh7dk9Q07+En4z1j1oMKGid11q2+EK5huIJYIfx5BrOZwmmUIR2hdNsh1EJ7aF7kjsruCA8kpiifnROUQ234VdgRy/6e/EJdQWsx+qP52I0uQeM6KYi8ZquWRReqWZM9BPBZuRZ/uuvb2whR25gmofB+JBh/hSD+YGQPHFg8z4xMdBnNYetkfQ/GO231P1YytHGvQsikFTZMmG6iiSVzQhvvPQKsha6YL0ni5f1IgkwNkvt7ZPAYegzUgxYGQ0jM6VjZ/mk5VONer5FqEikH4hg2crjKD9RPqEQQVudLnbZCLkH2S44nuJlD8g20BvXF1qmpOsZpTbxXD9PJ0YL+vldIbUouSc9Umv5+aeQNRIhJM4fdKTIq4FGqTs5iUkaH7ZJHDv+b7u66+H73RbMEITo7PoG0uAjA3KmdAvWiRlreWh5+j9rJWfTW3PQyACCOtaIWwZH57xAj+XIb6P8xcoYk/X+xMeVo0UC2cBkMpg1Dvr3QA8hjbNQqFMW1b+uAz6nPoMcIUO/I3koZ5JQgH45xIvMPJUhzOOZi0CF4eohzZ/17YV+IK/Zw/HtEgcPHgHvywmiQFBoKuK7c+Cpnab3Ms/gS/D1wPJ/hnwwITVivywzkQIbdTXgKBiDDk19+mKanZhG47nNnsJXM47A/cene8iuJMyzWgErXVVQwRKHEJ5txV7RNsxYlh9CDRIprmbTKeTMRoEvhhedREKuhnng3b3KUPRo6E4j1k2h82doSVX6hia1iAUxePq59tK4XQcp/yZTbn5LtNtJeax7k7oSIWgfThWNpNWfknRq7BmgXElw5pRqGONVTRqLf66DMSkE3TLuPLM5DD093N7jF+dDWAP5SMLMokf1/l3cqxsw7ZwQIVVNdrDtq60qgJ5kSBUfjIPOdJtGoDFuV8R8lC+L90+EF7J+PIyn8TcvYmhR7o6EMTREYOIXdN9ecUJ/FObi7hi8L0/+L2umrVtg+OINcIgpzw1M4nPnlMvIzAzlKKrM61R8RSY//57lkiKv4Y7K8+XxjSpjn9NRoCTwLGuOiybr9M9pC0jq7aHh3k6IQW8tbAdP+wwlHV4AVboifuPZ1b49F7Pf7NtWmVED1P7H53jDy4iyboWRzzBR8caMgJ5iAbGvn5eY3rXwsV8mXzYFUt/u+kCww4HxShc6/sr4UTMESBXEBR+rg35cd7aU8g6flQ0gkNik223K+YDyqBrdy8qmwD2bMpXEcCNyfsNKQekqSYUqvnd/zK0LYi1K9HJssjJfZD5bCZnqX/gs5BdVJl5Xno1YlOpErZVz81ZH0odV2MxWA7tkDw70X59B7q0MomdBGLk6Bm+AYxn7bvXbiYyR/dqUT5hbkY1/KX6WJg+vKOgTGy86eHELhSad05Enq6iGVWqbPhTO6CF524qif72pU9ePHJ1BtNXxM/3zYu6zYjBo6D9kcHbSSqLzLFZ8FOtvf+g10KCK93NoXArdoHlkm31zAR+8xVQ3Sy38B3H7MNSdITdDG3sNM6gYukrW+1SofRAwvVvVKNB0ISubDw5/MFcvkr8NBz950PjIdqPBQ90a60ZR6mIJ2kyB3VeLPNg7aJXz6qkjpt9jLQI5q3TzLc1DQAu6E5qjy1VruvfxTydpw5GzB8a5pA3HA/KVRjth6aMxIPjC2Fgw7i8voJOy3mAYAVaPNnFhrl6yqXcW+C8RCTprlUVNNobWKak1rmanV9+6EKJ31fsPn0IiUdoHtNni3l3ywqV/TayDyKl4+iOQjgdvRWaBjzwPak4cbiOw9EafCxg/m/JhJiU9hxZkAylmq5EpoTa72cXU5Kts3iNyTR3A6A7QVqos31j8RcpSUM7XojtLbH806lAOCoc/rtM07cgDTTvr9jBc22KCOAXgwKsffPlvwVVSl8bPFBS2lMinkEGwpGSego7CTNA/JPkmKbEDVTG/DKRmpvpOQl415evhh/0n/fdAPKVV9D8pMDADY8uMetqkL9RI3YgH2QRkkHSLpTmjpLwlG+LKggKu2XDaMnfsJfRPPCINmTI8gHPUtslQ+fwqxYkWO1UcES1Gm/8FW75oT0UsVPo1punQYl0fyQY7iNz0rSD2+KQZJf1JOANWD2jXw8Y5PcwLlcDFoo7Gbora41iQne4/LDzEhPXa0U/f36ubhGVEnOfIPsSihqEnSSWKQhlgb4XXvHVe6yMfyCzIVn0vaVuA0aEG9xoDyRGV2c5DgHm4AIUzEScuyJaQMgGtGJ9OcWvAWmfSMNsB+1ZGVm8HbgJD/5rYpanBE6WQ5IwtrX87qZKYoiDAL2nyfY2+/1Y1oYtT+ajm4gI81taO77u3d+QgyUPb1yXA05RwEDKmCBwWE5njRnSP0lIvJ8odIgRAulsXlHBLsRXXvFPzBX5ohi9/EEkQl1xI/fHb+Gsz737M+jo7zjIl8F7HEU5LyoZ5O5PeIN766/uz909Mv1LDvxr7Q8990XlkZuyPbW75eYYX4HpYaXZxPjnN+Flg6vwAVThEZeQqiXNT/4t7zDUnL5MabjNEFTL/rm5FbzuOjJ/Kh9t4dcc/Bgf2ZKWu5n3VFjGzuICkzOR0zXq3eUMmKyzZSHpqZy96C0JMmqRjzj39VUPLvoK87Ltf2i6W6JNQztMEMHzE2nbSZBQqh4iUMR3/HjDBj2Q65aEAqIXzZi9ClVc6cTw74MQ+hMJ/WTytHt+jNuqPpe39Ki8hkWIpPCdDA/rKmEBrAnbA4bwo+uwrIS1xerqhUunY5h2qFf/mQUe2lnzKE0DFPBmwjUo56JWjhn+2T93HGj4kU9LBnv5qi+DVSa/vzhe0VVQI//gja3ezWlyt+6TkPMdl0Oe3TrHkfU0UQ7evsB+5WiCenq3eg02oJSLakXKaHDvERgrxoYJr+4EWhELct01OmTnCFaVaTZJABBZEVCHENGzM9nhxao9rGUJgRePdjd/okn5j2Ky6vWqjwV93ifL0RyE2pHPTKShwCYuq1M6Pu3ynSrGeui6YfTYrh8jdi1qWQGwK5On7qfgBa9MB0r7U+A0JdsdP8oZSf0qJiiu+KWdYUfy3+TrUIa4fgnVzCVmKM+u8xfolTL6goSu8CJqq4+N6JCCvaYrp16LCVmA2jfTlx2QhyADfueO/8e7t8rBp0pFKcGsMdVdz3ic9s3vrxmnfwzMczmxPDk023Mnx4/8TJ4B6qWUR4541coYlRrg/GWap4/PSIQp5oNXFgCSZ3sADpxkGTfurLdRbrU6dmDI4QhM9UcA5YjusfKQE9mY/l+kp8knU0veOuoVTlOVeoswvzjWhe7CpZbEeO04ejNy3KPhRs2ewLbvdGOZWsDhWqmWvtyzg1xfr2T/qC7Zeqp8EWRXYkK6RNk3g1mLwCROBxo3TdSNC4iGkVijzGc+OSgdsUl9tf9l4CM9sPtWWaGMwpmX8jComAXkNwo3XcG+ysUnx1X92bIlnwKjSYbBXRoK2XroClSGuSRX15GgqciFBoqYaRViAmaQ0zWbbNF/kDgy9fd8zdQtYv+8j9O9AkoU3RjOEkzKot/aDemWU0pven2y9j1sDSW8uNfvG3leyE7aOmbGnPGDZCoaXDseQyNAYFmsV9rFT/0KJz2Hsl0Q51DVTLYlNmpLSIeXqxp9KterbyFLYwfoE3OMRHLUVZAhPyWR6rwCIeWMg9iIDBwO4tyYNQB+2TuhDk1RN4J1FIfcO5GGVnvLNZmA8Vk7rWPqVKqjgXVNlfsAV12UdmmnMjcG8JdnUjvSnrtL5nBGcy7ISdDrbl5PHkuI33ELIApNH82rPx6ih0XXyHfqAxvBgcMvkrRGq/577fYwXpIh4E8vOefJcodkPBz9wAPC0JtppZUsodUMUkADYsxwM+XjL0cXDKyhQ54xXvFV+RNqiCTZHXsBUEMVuPr2tDsKKGUik8b0Fx1WJK6AOhiaylytEfyc8Qa0CuPOu8X+k/RnoYnnn8p/NwqeNZx8N34GxyfbaU6veR05fJS4QCaFkWqlhx3L+s1By8NMEtW3nZVO3YRd16F58Bl/xQHvBrPyunifoAVTPIgjJxcW79p7kyjdJQr1/eXI2sxpAPx3v0t44ZY43u/8j0wOqQYgvVryDQtsQsxB4YxdsPMJr2WGWc7s7cBT+endiFCDDEnCJVtKbk+Nu3FrQxIFYJtnfrjoDggzGiTPtRHOx5SIJPi/GoWAsFn9fpK8XQZrPneqCZ+PupYvNWrHinTxwJFTUAyIXBOvW0n1OD2jy3Da3JQIp6Sy4/cjtviPdtJ+zvu4Ob9qozywvG3Ah1iKcKXrHEhoK9jFdrdE8on51mouM7zhpfQL1VvYvqcX8/ujVBrZKgv9950PfA+LDmTwBto28ZXI7j1U6Ied7r5n45fmXK02s2Qgne8zCCaY0ipPWSoEZYrS6CCoRwTupZx0oQrO1DxfOpyspLBKnSFRoTUcn/OywRMb9XaqLaUuI3JZ/WNeWn1aCznuqL0Lemhz/6o/m2/GR/D8dTrA1KvV8mCX3ga2Noa3wTYwsMEpGH4Gh3HIVtehMs7ywkozEYqePFRtvWB+NQM1+75juaTzR29ZlQs5sFLUozY1I6Tj8WN7A0Bi7hcdfRfKxAc2A2yOsPmuUszq9mEI9DE7td99JmNLKCwlp+ETFwr13e5AdfhYpkfur0j8Gn/9Ke9+RGC7R1xTfKUAL2/0wB5Ohgm8d0Ltwa1iBJcui7zhv0hLPlCUuYjLI8BeQFtG6Vc/ttvO6QsUX7/poF8VUvgkRuxtVcYyy/efb7kIaji+NGmaVzn3TBbqWS2qxC4KSOTMgEnGn1mWutyBD0V8icDNdMk+rhKrs0kUHxvvsHbo3BRCGylIvS9s6nsO50Dbu30uzzdMmA0Q/WoL4+2ZEenuGCRh7w6C0ln+ucMONVsElFhUSFR1jXOanv2t4FdoPgUCa8i8j6PVJxscJ3mFiWS6T53TKLlPW9oNtCYZYokMsiSQNFDgtaH04bfmT5lsqpNaDZcTJH52M/GrESB7CiBUX2OctOiB6srWLkYp/5Qw8QwyveyeZVzAUs6tSjAxAXJE1/klMrygyvKalFd9Tos5YUJvTOOKcCWUilaeY4InwOsCczY0Uzz8nHvDDKEC8E8KH3qLS8PQfImrE4nbPHIaq+uHXcXL4QAydW8NVrZxPwejMSiYkTT783Sbyc9EDojqyuLckA4Gx2fOirhhUPlf/TtA3tmjdcp57yOKBw0PtolNcfz95DpwMz9STMFPjjw/wNdAzIpP89R5wt5uE8jn9BpI68pNoO/RR21DUpkeqWGMaksYL79ZeH2MXscok0W2w3aYOMbnOzdXQ1DLuqEkW6Uq7rsbh1XQoyIBXzrJ+A8lZD9g5ZiWFyYwSPwmxXre03U1UaiCmZhDphuBuz2cuI3bk8Uq+y3iXJUIjBt7t4sTsLVhJeOHDxOmHdTG9fRfNO0VA6MALEpS6MgpA0z2XmhwbJjkIUZRu45lvawZmB+WJcPAwm0QVRXXGrnhdzYNahMuwazXy0TfytiNhrmRVZVu1n1MPzIrCnqC7DrjqKm/A743fdSm/vfNrVs6qdTEC69sfdYVtxtGFZ0ltL5cgvJ9T6sSWiD2U/fOqHhDC+8/TGgCACcGYM8SMgUFf8WWEhtzq+qWnbBxFPUFOWCBrnkrM+ar6Ae81dZZFX3PlrfTPQRVLROY5ZzAJLbeoN0Q001dyvTaETAI4fqq9ugm922he2FS41QJbfut8pXKwieNoM8c9SCpEYhsaCfG7etYE0R0LCqAMIOiscfmge7g3TRAl7DCaG0va6ZqGFnTfmOrIxx4iyr9jFSAi4ZhLwbZVYGshMNYfYD0bSN/BmzsxNPGiTaB7euGuAv2OyG/wT4WZEiVhcSFNCD3am0RSJqKwOox+NwI6ycYmcjuHW0n2RI7V8Cm5aOiFotpJVCp0ndNnKYKNXcDVkqomgM3WAEYvw72IsB6IddDzVWnpYacp5PSsXEMctQSbkTHqQ6bVnS10/uZwwFRr5Z9+va6lgnG6yazeH9Pk9LCa6WehNjg20+ICjCF7XGGM+dxnxppagfOxkhah48r2FiTbf/dnP/7sX//+6zA1DUkh/w3NB2TW7YeSzMeaoGahzNaa4g62ERCqSj83t1HcgQrzv4N4DG+B7IbckSYgyzNEevaZfgmVGaA9/Flg07NwJ09n85xuWEVzFcflF/6IlhDMVOJi66o27qYdvHOZGQEKU5kKk5c1CsPhClrJpRCraGlZP2TV2/GW23m8Wy3k2tHdAThxcIgDxdDYzugb1pEbPiU9DWMJoS5hb6whM70cB4Gm1UBu1GT+jYtgA+kjCQnfREUuT7emc8V9kdPBizqWgFWeZQFHH0UrZq3w4ZAD1lF6/4Udpg6uggD8hKJ7mi8os0kYDzmOTWCYPlwbyHm+MPa+4O6LnFH7JHDBO5JsPrz3OLvsxo4EX038f8/aUEW86/l/estpaPgojALBmBktWC3DlOvvo6CA1fqKNTbefl1y/k5WWDkHf4abGns15rwVjUZNpT2q3fO8IsPfotkbtGsy83szPyInd7YM4ASHVqeBYdluhul9IF3yzGVjJpI3ab2DQtdqtHp3H7r/5X5yJZ4SownSxJcmHcf0xMB7kXdXawn4rGoRAdlJq7daUI/2EWoSDNJhXmyeOro4ddiHT9aUd0kyrgo57p5BHFyc6wDzvXDFSpD/aZcFbf3GcWfdmXvuFNFi++/V9r0EEiHAPu8yZ9z1sHgNMp3hw5zDp5sAfvvASJTvTbz0vxlR1PKAabL0ZcbQcInGZF9pEj/fdP2DCKqFSn6vcmVrJWfE3MsLQj541qmH6r+xbkEQf7n5wXOp/MIbB0epO0Dr8lwivqYYmTXlrzHuLDcNGzkOR9d0RzuJ7sGofZsWbr0WdzrZiSAMNa3FNI0wrfrFcnCSUjIzCdJzXCLY9VTaoU/0pBqdmlaz21QDH4x91ORedopgsKew4R899a2fPuwVd76N8z0O4uiUffRj2sahA6ZKDikrU8vMIxagtmUJws47yrd+VV5CKlDdp/z+YsL3+OFpILyyNTJrtNrsZeDsh6aBnnSFItw0jaNbJvM6+bZFeRZgnQeV3hBiybas8R2e1ko6JJpm10AOt3zcVGzBk6HAFF7gIPJCGivbkyRmGlBMRiEhgWrxUesv0Dm8p2KGXFBYhARE9GVaokN/CaMVmZUm5xKMTY2QyY8Syrn8ouZcvy7BKO+y5A69EL9qmVeaCqdbUqQdCjFI4Nodt6+L2YwmINaceVEOS004E3Wwj7hR4W/SETCrcEyga2jOf6DGJFqfhSPP6uTmKBHAoQeZr4Dc9fjBFoAxRBM+JAt6D1S3TtEJY6hqs29oCF8pJI380SZ0CfyLNFQWwgipb+X/H9JRedab6AeN/NHC2n57V1Q5oyzTzOhrQ7eUH4CW81SHAC9KSwYGziGVJPn/T01y8bJOeOUd9eslG1/GOm2cRP03AMOm/0rqOYO0ytR9cahaNeRjwMDIImqcrqNpuZ/m8v1oXJzSWBLMFrRuDk8iLP2oveiNEAWbg79M55fQio7R0oSl2x4RhG1d6ahz+MPXFtmWFUGyuA15qHmQwHkI8cKyleHXg2+oE9WOujAea7OQLH1iWkPCCvz3H8aXaku/cBduNodzyWNVlhmbVAokXqtP6xK7hIsOokkt33Wlja55Myn+3zgX6gRhqwed72JNra8fM0DVSbq4Mq4ZJq20P6wYU6/WNsiAC6LNhXIQAArhpwEC8gNa1mAdWejIiX5mldgAaf1NoNMipc7Fnp10hjXv436YT+ESqJA9qLBFPd1iX4aZ6rBdqBYhsDwL4UKGaxJg4HCteW7rcOpcR8fWy1yH9ItmIYt6EX8CkJhvW2O36rnRCZzCgEASoNS52phxe0pT+WbwW0jpJ7qVbpNp3a4WGdi55VsaMCF1zUYeObu6XcMwZ/o7Z2pklWsUfu47rg1Bw/qBoWiuQvd2TyYOJujrI4Y1CmaciQfqTSDkNvq5qGIxQT/GZu9u56sp7hC12SNq9mStFmvEMTTuWVO3r0KvNLGEPY8T+DOpqLZrb33panaWOjUua7VEZSG9AnJcazfyfoxoRbpNJBQzhoVfx+XmX5YfFnDSybdBWvJRCuttmcZcTO+5uT1Ft9wq6K4JYWTPJUMMWVmucMW6LfaLYWaHAdlTmk6p+DNN9Lvy2Cn6GuGfq7Lsp35NouPzRjXbkylDlTmC9F/xjUNCXVe/q9NfSn3LFwYmN3hVMQzscRGMtxv8F3e2+c8g/ICbhtf5mHDVxgZM7qDAD187+Cy62ZgJl9x0hYoALk5p76CA6ktHs0PQr2hBiQv997Q6j0byvBAgE9xcBDUnkVuoNoJiMyNvX6ehV6gctDpCwHfdpuv2XoC4nU/4vrdLK/RU4vVaxBAd6vkSTqB2pvCSDrlgUqzI4fL+wsn3BDAXyRKfhDASLC3lLgRCjxbI/I7/v82Otn/PdGK5yZ0q43Bx4buH3G8Gyy5H5UJmzorSd7yPMRHjIcHf4aZYGE3dP/hHc+hg7VwBqMSpCM6+ONyglE0HYiNnom5DC934RPGRCPyOY8ENVKnphA35xA7n0f67mfbHM8+atsKOPHGiP0qfJHJjyQgkbJm5hsA6c4NssSYHZBmZn/NKhNQsmpW3CTSr5+0oMq3slz8dFbHI7ikxXEmSZAVsQnYBxHQiDnWSDMyqDtTtYobL89HOE5gRKMXlKniijpFj7MsgaB/wCSXWy/jYKqjOp5qWcfZ1gnYJ/A1Wbs1IpysDNosIehmuORzMm214RMwpzBibPSDeCwVQc/VgtiQHSolXUtfLsJs4VURllU5bPNu7I4Cy7glT6v93cUN/pyywTmadWzmDLZe791j0V8MiLHRuAWzdgmpo1twQ5QjXQJ8YNBKkEG5khdC22OZ/TdJ7I1LsEZHs9WX6Qf2nIgFF6/s+nRVQgQp6ERsyhuNJTBbCGmgg7GVUcDtY3DU0e7gpWj0KqEgd2gyJbYPbP1s+O421cDz1qeWkZ3N9wCoMnVpAe3s8wLOJvNW/Qym4X3gmJrp0KjP8gr++T/xmMDdTCysrS8o6CnlDr7FjZum11hWsUsyZryS5EVC+GjaCRkOnSoZyE+D5gHWm158Up1cx0YBEgFuA80w2cAaVHrv3PuIXxYt1bAcB4r/ij+86WHik6w4MM9WsRhWmHeFUoJpNcdjacoxhxHbav0OwRwf6iGy/0Rtrnc6DDy/t8nvNPSXMLPM5sWSNptHR3N78CyghpgSxDbIPemLj8eMWQtJLKgWdaWo6ChPZ35QOGH40UcAOaIp842QMvRRKUrWEve3VCo51+VA5ZTTyC8zZvWuuVFW7+s8srrKtZlQcUm8WrkTXmi+0YyB8pZKlmgnMK4ORoEQ6gBfmFfu0T0af992Bbve59qz2g0atJcEmeEleezFkWRGetfY5ngJq84a6Bp1bAq0ZaJ9vXdKNqypnFrrbVpWl88Lk0Qje/0gYkz83luUc/+dMqWYutlH80vuf4s24J19a4ogKaqWvyx7ZSNrpXVxI8MPaT/GHL16bOSUIFrqAqxI0asV//ndibBIjqmBx9EYmJkVp+rfJYG9Q6TiKZCOqNEjVFEymRqm844bshDVACP3dx0uLGyLH7nlAC7pC5Qf4+SLHLVsvmBelldiNwzgaOfG4C05C2z34ed4RhPptrIJ+fwWIma0jpKg+eJ7du4M/aCEt1JfL9hgJdk/k9Ji3/SnJ9UXIPEs4MvsKhwrfWVyOdPmzpX1oh2mork6eLqNmivFcSsbDVXADC1E3KIwqL/YPKfw8Z9dJQhofwutObYsU3kv4itMohEO5ggayUMKfFNnxUiumGSEzcceLX2/euVvksd5UZp19WVrBHz8z1+PyW/s3igyLq8hbqUFzGnJsChH9H3ffHlJbrmM1a1Qr555eNkoUYQ1z5gZoV8VXYQe13bWiwM6zPmbN2x77GbolTREu/azaElhAT93Vt1XzjASskoRx34faD+MUIkJEpPYH+nREryTLdk/AbZgNOksMArkqYC8ejMZBssGibrfiYEzd2AOkUx3yCciAitGVTugurYykOre7hDXPF2LbmMnP31K1TNP0LZBHjB8erNRD4mt9afgR7sS47oYfs+xjUubN/SwDLnM65bcPdFtSjzjXaAP2FZFeiAMygiTsV4H+LngK3/5cN11SRXdaMVbDSGPcliqrqgLQgF4OHt+eP6BDYFCrRAuUG4g58RqCFKhOE9Fj1EdzpAPADdMSSESxlyf6GDHI9DOkx4EOzHSBlPZLl15Jc+Gq3Wsi19eGT0IJtQIsfqt6KiZWLwnmsV6MUMaIVHB/5Aq9+rgNRMdAsAJcO36xRRVMNivRVI+2n+FNsbsPFj1hVMZkb0dDOg8A1Tz8YU7JYGRm2p476zj8qPbOTq3pXuOZ4SUxgFfuAhW8GiXEnJE6wMhddMDnL8l/NDz6Is7J1CdLNXDjcHjOk0iTWAy5ZZhlFsKTlVC4inGZXhZLQj7kHguxKsuHs/jpghBihGE9zeGx84bq1n55NbVKI2CbZaQXagCuelpcyrnfoYiRGulmt4DWfysf3Q/WoOuvhsRzSvx/vADcNL7DOrmQqN+wHaHGEow3qcqtlg4S2fc8Hrkq2V1yHHlrBwAJ7Pv+mBnyTrTxBFg8CH4U2BD+NrS3DgJOwEKtNh6WivmEmC8yUlMM08aiw7kh+roBD5eZ2zuAk9Zigiy4JXGjPpYC+ny6eFwvd3DZ/AOsEx/ZV/BlcKF3SAtn5w56vG6oc7IUJ4a63Ru8EkebOQLhb9e/F5CLirtLiMW3F0E4VJ6A7vPERuv6jOQqrbIGhen6khjPGt+N8GCVnwfM36G+cM7X2Q0BMuFjdWgcRDQicet1lCm6qkjYkDJk5QtwRAW1GEz8bhXfnZyanraWTzWZ+cV1W7g3qPe/KFP99Z6DSS7x9u4hXDP0xwDli1yB9/p19kQD0HokdOCkomkRT34Q+SefNTezdOcgChqukjdchZUvqwPV6Vq6CgjnmjP6AJnUHE5gr242vpOZceI8tXcBFFGy4sd7uzaOOJknittxuq/srSgXcID4Ps5fpRlJA5/FvqpKHAJe6fZjCSniIN7rlOJpO5fO3MFr3xco+q5ytNIBXSI/dPyIc7FzYa36QrHYRoMWrSLFMZCeOLFn+jldW+S9vCNsuOH6uooKc+EFC0wiu0pLDW/3DS+4atMw4XuOO6ZOyww40g11fgUwhjaEp4Rl/RkGVymDjkGB9/15EocGU3VG8nUOKVzMIo33hJnhk1c9iEp916mDwQsEsbK81F9qYkk1+eI89UJpDmwCIx9m1EAP3ff6OoITITOn8dvdLbNDpKQQAdh2R/W5GhXiPwJwMQyVJMTb6iILLDVR00/FttseHHh0EHmSHrHYmkTA5XkmzdVtM2Alk62p2cVVN018bCfzoi2h5EDBPskrj6ANMBT8SKQzlU4UtjXXGwsxhRqZtsxTEAKP29JzXQ0HjVL4NKlUyepG6gli49d0/anxWZSP6H4YetaU0RGpT0TMUyiZzPjWxCK/wShhph759vFw7TnwYjt4cdKpc7BcInh+UiDJ/AYxYf5k6fc49pM3/HZ8LVXeDjvw99+wq9FR6dyCv1s0HQKl7mwyf7AemQWMIfuivpuzCnt7qy603Dx77l8Od2OV/QRFFlPecAXX2tjRsxb7PaJV1Bs3xlqRmiI3npO6f+Xs0ZLvHS+fDyMEm/ovJhIZM4G2NYA3oIB6gymyz9IY/L9MDkT1oZsEbsG05CXtDHbmoeCv1LwvRon+NHz+VQp2PJxJCgWGRdfb4XcQrKrJmSJfyzFvV3vhJ5sV5rSyXx1s08JJ545lGepoVc5SXfrAPTrsgcSj9UspWaGZ89XSyKFjTcqzP6KIDzDSZbymUhcw9a408IK/KsYz3tTHb0FjRJyaUmaAIZoQBhhGv4l5U/H8FOsTQccHgEqNPwwOaCr7uC/2q5QH0USyRi5Dpy/PiFSZgF3UCq88ZoZVPWB+RkBG7XiG/G3eIY6qy2jwHEsvkZRydubiub+E7UcaF6IyxUD9a3lQ/M1rsyTI3rDO6xtizpsGXJdqrf8TqPfE9r5nRlB9IvWSrbP5HlvKTvYNXaRUQeTbfiFYjL/O3DgfDloqmVA9WgQYrpwtcqvta9BU+GhF8C6MVVbaEQV0t03hQS952FuFcZowLvvaZHPbrPDaTwP8kAE0cy57ya3lwsvC+ANePUw0/khDcJM8Y9oza68YTyV8LuUBrk/AUGDuzjqOTxNvgpcnPXuWGkvCZVHAmMv3+TfJt2bD4hbEtcecly9F31LGtlFL07wq4V3FgTS5PLLG/UOyK0aEWSbt671TY5Fp9r8vIvmjtPyhlINh23/cPz501Tthus0eW4aFHsYDzH9SzALg1pVpL6A0E9+uKrsqEjjA435vyhL4zzaaRMEwnu87jcIjRLWswgohUfrvVbcGbJnuS0/pD5WbJCNaADJ9i+0CDF6nY+95RalZsjkV5fAZvD/9/53agTN/CUyNedm4t14vgJCVaoefI/gMap9EJgi6ZvESpT4AcGeWP+26lnBVUkWQvbe8q9i5WypuY5tEv+CG/nWJQCZaE2nJoAu3ok6YKVAIa/YLIkQ6Vefa7Bc8jHvDmhy2WA0x3wrRGD9Ei+N7c0W60dTAvfNcCo+fTQbvCUy0T4stMVH1msPUQIPoY37MNxRPJzI0IKi01vnsmxAftfnDPehteISa19bZD/ZWHDAA269sB/Bk1Whd75+R6iJKgNHLDRd69xr2luVfsNGS1QdbxwdyVsiQg6u1XC55P1OVHCT18FHKEH786jaNmSkTZVR4YVdKkM/bygAdgs3ota7OhEWJmfUlckMoqVHZO2051tinxQ5eajdiix9t3UtEDl7r3XjQYsLjxpmPPnOQl6nVviGw0OUnTIaxIU/742dtHrrQXaPaxZB8WP7TCoShpWcqY4R+AZEmMiITGzUH74G6JpnmC4Se4QjqCOq1R2hsoA3x6kdZZJKglMjEAEcX50e9CzYau2KY89Naq1UaMD0E1Pm9yw6JdNMMJwnMkX39rd6cm8vFsUDfAFk/eGSAUQd1m9QGXWChCEzgJNR7oY3LzgGqmQNEuEX2PTnyq+iH1clsuWWOY/yWdxCjN4iBv9UAbLrztkNb+n/jYKopCKNtzFRAukVncd7ICo1MqqGws6RIPJMlN3e9JPUBQjWMtWdPOjyNvpGYcpW5w6F7m+5NbN8dYHJ3BgG+2VCs/8SyAS3Mp9tIfEBxGdPubX4ajhuYhpLF1jCu3ksJwoSrwQ19i700OTcxrlFvAdB6J06nsmyaaoMNZGhEte9g5u9lqoDwvJaCgqAW+ebq6T5gAkeGYTSbLxK+3IQh2uPGcFqk6f/Q/XCJd6C9AhWuKQTyQ8H2iGfC4ArIT5YEVBm4RUgoUX+9drh11zoCEICvBM29aSuIqWWjHttNuLUdbIpWwHCkxyns/puGq5zHWKcQxWsSGYUMC+6vW9pGviqs+TFvCLy9tSaBMSNRJxfQm/vL/HCfbfglw+lv3WJAydMKUUzYCfaY+UO3fftxZ3kIF1yMcvV5p4O2CmxWFsk68TXrzymm5rM1isqFS3KYVxTzw8YR7ZzgyAMwOdo0nxigdVUJ6hDff/i3j0Apz0aKCG1vUtZckvoGU/pjk+bDUMtpzBVIIgsLfhci2SqYjVUJIx1DMFQXPd/FPlBJowzoyCRw8HtbhjfkRS7zjX0+ZFmS/PI4fLLr4nVfWaodlnYrQYWLU5rBgRUj5GEqvmUDpdMJz5P3419I84bhkoxKC1JYUY4UTisHclK+7VJUR5TQ1oeS1SBeRrp0n15VXFrFlpoRb8LESOjoIuzG67Heg01loYb+OxdKyPZQmpYDOl2tzLY19h0uY9h+z4h6N4CojpDpaOONzVTFcn63XQcIp/i8pmfUwid5oV2+BeNmATDMKojWp/G2im4vLavlrENd4WsBTKrVMGjOg5lnuUU2igmhHyzVPdt/2g+YoQZ1M0EGuk3E0T7X8kUOPBYbrW5rg6NUKBVx8mNPvfE+IOZBEMBM5km5vaQXQXDhnpOH2gb7FkOOH09/f+DjEhullaQU+aJ7t6hrUtQoKuo8nJqBFfMH9jpiBmnR17RCeGR++nUVJw5SRI9U1KYG4GmINERs1K0VzVOTQKIm7ewH8wFu4mNiF8T1Un/Nd9Ov7Rxnnn7BL878A0t+XSvdHxMyXsHZVeURXJKcwh/vmnfmjB6TRZNqPWmUJfNN9/l/1SZTpByT3PFmkVFNjlLk8Wmi4rAMD2utais/0jpTSEqL9lQzNSr2SQTDmB0/I6YqJaTIJ+pMR+3VsXySdCBirJsnQ4ohENI/2ip2Mz6R2+tdU3pv2uF2QV+FIEz3oiSJ6N85AmGHzr9kxmE1STFk8hqpB0zDkOdrj4BqPeaq8VbB5QUQl1Bz55bbfKUYcmF0cRe1xri+n4pzd00tpJxS+ucNMRXycZnqo7DVyYnLhGtA8MMWZDLQO5XpxVhT/t5cly5fkACieZ/gig9p4vnqGOYGpt/0YvecB377yG42bXZFxFVH4cTpnu2CXSzmD99CeEHPBNEsydZasLqfB13pifQoUc52EkE6lyEDIsfbRTjXOfNfY1+wpOZ/q9F8mvqhdZdkd1ppiAc5fPkCN85QwhqzzqAYMxHdCc7WMDiLLLIPkGq5qU3sbuPSBt2gbuIK1Dg8ts6BHn5N+Qd6dbZ9bvmmL47SIIUoVQq5wriAcqzH/1UN1DZPyCKxMx1VzP5zc0jm49l0kkwxeZFChEl+IhKgqvMp125GYvWt/ks9cwinun1EJJkhOylF0Z3mzJQrvWExuSQi/Rvzxz+qItH2l11qAP3azP7SpiHovM94vAtci6IfXw4Au26E9BOk4DEoKvkwpUgOerQAFeGCnz6b0W6mSuIGqjvJS/HtWD1lZ82RlPry/ljpE+R8n5HwYpZegzOc8kTXB5NyL3Zk1z56hmC8ej6x/pj5VD15Rr/4HnIOsCynF2/m0zAGCZKFE2ZdPgXWc3CoOHuQ5Ss8/aY9oj2Nzrvj4J+ynI/rmKTSSSVY/5ZTVOWx6zLHMxFvL6Nd9jFUifv0DE7rybyyRRSmpVSoKSIWj98F/LO+8ZgekepK68zN5J4iOHB5fbtgKluwuWzgOLtQ+rryf42/sM08WSUh+nZHF69z870gQYfDr4mNtJvdjhQSmBP/viGewv5HXnedEFs/qVCvaVbYabQboGpP+GzEN+BB+LJWfNZCABb9zX95RSAXAabOjvoh/PJZRXzBbduf6rLhs+s+hx24/t8cGNqfNavtdzDaSFr/ZJwekJf//iHDJgIFPfPPNyJemEvn1JDbHUyYrb87I4rRqDV84tht5/+ELWz/0k1bz4PQF8X09lMyQr/zlbLQLNDzfTNYPycvYv4Ej3hcQNvKDTPrtpYLIpTJl/9762c3KXlwG8AbngxXbkYyhkEh+KvT3fcrhzYtz0zWz1ZyClLJTStUrGGWQoIZZZ8EW5tTt+a+jzowIkslk75UPoHBu0ACAd/vpBAXAR8UYawmrTuxpiPbzVpakNGrPDlctHZnfoTi4mbSzeUngyRoeGHbn3m+YKSAPtdifW2T2uvdnMGlrMVxu4ypU3fOsINAZvYwdCSYzUA+lnvtDZVid64J40SCM1SBDizMiq7LSoC18TGMMcHnP7x4uxRHVWGWqvAj8CXg9Ue527yUYKRjIG/zTNuEunTTsLpQn/mm43rgwq4UBqmtOnxhl/iTZ30qRYHHU8I2KT6LyBPzJj1ByADk4qa1t+BSPMQMmu6xYTiEvnJ8DHF0W1NE8zSuY7aJoDwTR3jxRzFBl/ejlEsFccO9MYcPwfpMYp8NKbr1RjSaFKBlUi2vPCRty0U2MMy5CDtp+/5MaSC3DUeaWk//NA197LMjUuceHI4jZVRVy0ykAbXAtxPRpjtHhMpBy+Nbf+V6Ky+JAmJT3/mdM0V4uAQ39sRnYRHz2THX2MaZInZR7xR0kRPHSOqd0JeW7N8oqY9YdeNgZfsGRBA1PcRRw34wscCgOPTYeERT3oEkCr/3l+TpCwt8GvjAXbLnJBGMGN8KI1RtqmryZwIZjdcFY7wauM+3y4hpVK59OlpF8BjtUfDufRqixQ/7//5Eg7Jb5f/J38+Oet3/epARV7STWSFa7WjveOTMERKlmJ1exsE7ywo9ls3hM51OfqVXCFcWuI85mWR3o2T+nhtLjLRcD/d0835bXqU2PnqpE8YPUwHCSlA/rV3h4AmFjlXC2LCfu+610clY35NTDuzV9oN8ZSlI4Bijh6s92FKovHUVov9DRoMgnaah51mDNQqSn28WWhkeyZSbWbGaL/TpxAGYG5jGUaX0GIVZFDXq5VpIiVtRdGE8Cp3gY1wlSOE5ZRlVkDOrtP1VwLwFficANQTTt8W9Pk05mX67Of85rGzgnP5PoSFSftOnVapwZKJm6+4KT4tfXaeR8QLD7Pqi5P0bocm2LAQtenBTu+mbmh1uOEkjFawxNt57Gmz2bXu4lK4PDPNMas2V89F7Ib2NoNaX9YftC3NtiG+Rv3oIPnNUJy6DTdUG12x25Gxq9232FcleDyz7McQc9nrBBt7IUXVwPe5aeeCzn+RdjpQAB5eWLgow63WcX6L91pkt8ARKnmuVo6Wi+uIinMlxid+GBiXPNfqhKPp4ctWy46ngYU3bQPK/9AnhuKSiL0pwXxTEtyGkWon3BLSWWrnAYy4Qy6Kafu+k64jgMYWK7hp7qXj2YPwzOykA5dC9Jwv/MnfIZuWGM/De3DOScXMVWRiYkaTlCl6s55r6czxKDat7g4K7V509kqbXaFyAHiUR/rmWrs4PlLQp6nIZ7sOFnd3cIBtBbWXeORUsMxt2AZBEHdmmTLyaB81XEXL3jg11f6JBMRt5X9Kx+Z/PIgE+TfuZp4SL4VlF/K+9PZkht6O7kHQvCn8ypf4nptYbSuGbZbE9x54ac5vp2DUS3q4bmq0QFqbqfDkNVA12qcyNjOXOLDmJKo0nC/44PT9jLnK5b9+W3tI55VDdwms2NLnOlMFizdH3rpyf6eqBml9Ih6RSZAVIQSq3aeyWRYGrSh855xwfSBrrYBpcip++LCgDAggSfHE0Nh22PN55qW9mjZQJIdtO5+gO4W0zoADt/yqI2D6c75BCzbIvsn6HpvcA/PfklgQsSVYYAs1pDFse3717dEKWUb3ZHYa95EoYMRM3kumkky0MmAnf90htl4pROF6O441EO5yKZd7gqspzHfdQvGCiAGZqT+kx3rgKSOjofYH6WQYJENUBeVne3fcZYnpMF6d9fW3Nk7p9LQDYtL5tQ+kv99TMasuA569gH+W6ATAX77L6gCPeprMUJTZpRtl7OYJdKMZyUSAXrLLeOKha9/+NDBeMF8ODwSDDQgS7PpPsRUr0NnHdc+UyLjeoa+dH9tqs9LhrZxlCZzKZdQ1VHBe17EPuSXYSje4PZChmxJ2atj7B6tczZBYdp30yUS5PVfdWcK600C+mBLPp/w6pQO0V3e7vfVCtscbpk4y1HR0jngTlzU6PGWjvbtrylHK2EOYDxlEnrPkYiiKHqFVuwElIeb79ZdaW4YjZLyY96G6y44CnRwVFsECSS4kAhUvFiINDiJkeqOXcX6RAAIMxUMxTnPf+vqQ2zi07wj195BYGvkPvSgUps9YsRheDEwrMaXFat9zY+EWYil7YaOqCbYXinqNMHhMfxG5I6VA29RX8Squ6udj1CXWYA9e6b1lCoLHoxbpP/5lDrpjQpTNFygm0oQggL97mL5zJLMHyhTdlPNe/4MdVDjoWb+8JlG8C4xS4OK+dPLvVVVS6n7HeIRE/zE3FQwmp+XVPmKoUdwft5NcnDN9Hz2Efzp25TmBwdhBXl+PTq2QnJES+6Ddh3p9G9pSLQT0ytRRO2ksLO/0fQe+DCYugEmoYBPjlWCJfXZu9QfgudSAiMtb9qNLS1p2iSulTiGT85LOVT4Npq3pi/Vsr1UuM4I6GTeTJwaKm8IO0zVGwUjjbTxbt7qHNTzpNTbwB7bWniEop73Dcf/gLD53ivoMYhUlj7BIozPsiLDtIX4ThVmrcDwhNRYUk0HALhWrfIgCh7ZSDtPYhDH2hJalgJoClSnHPnBv0ZiBVWJ9EV4hVXy6eudjEcluY8UjPJlhW9QUzuv6WFuk+Ed3AhdRmLuk7aPAKkWVKLa9Ib9+9IFi85byPZO9lyBrUieJ0pbEHoZsM/N13WHdkZ4tFxC52DpJbz7mD6OjROPJwqEWmEgkLcRNKtWtvcjv2ZbckIid1piLG2vjY9ukFc8H1i22nV+/pFR+fVTbtRdS61EGA5gROYNs9G84HxVpfW6vTRsRgPtA1uuXnayGGCUQTKRdvqMm/NQCYNajXH7CrmhdFTuC0JD1mGQbE7W3URLPbNv47lxLbXeqgFajOZ34Sntf76js4LJxek8fm17DVKccvjwIJ71oFxQFBXTRtxGsxeRrqN/qBxAfePI7RTecYwMOSAfU0nyqYkiB5McoAy/VBH9/bIT+h6dbXYP9jgSJyyBP2sNwmNvdOQsl0ABJ1BcPlUYISwtn3RTmVKfjhduvFXBnAFZcj62h+mMjyvgntrgY5YUKqQePiqz1MwJZuaolAB8gIlemDljIoe2b4QkpqYb0Bv6p/w4xqbhiln1PhWcnof7stBd8BbfyEbiIN4hr1g0YXhuxNNvgD59eKn5iXVyS35Hc5FAgYKu/SdvI+GtGRIHqCYfDXCY8j31cr6NSsMyyAQOcWh3qcFbZ/OjFhFry2VkawAFip+/X0/M6mQR6VlnNBAL4TpAmXNkj27Jk8hNOddJYoKNR3aExgTP6Y4+hfHXuSh4fJKYpiZVwbfzPeu10SXsYl2UBDeGiMWmJqroS+YR4L0ZD1M8t8xSsCnVZr/9BoZDC/HZ0dKOvNN5V7x9SdRl+JXbe3dGNforh+N4SxsrviEEh2FtXkpZQ4/cDSERoy9u+ZL82tLJtVMEzG43KMv4QzQMhhduIe4X1Ec/GW6FLj5R9uPOCpVJpk9iYaNNpIbb50eFq7w2bQuTHXHtCnFMfbMEkjPCGCohgHpvhyD7o/IEFTpPatklSFrK5OKX8qeXvFYbc3ikK/5dYcUG7bh/zWz0IPCEK3IaU9PCWu2e4NMs0QQ9huzRpL1rzJ6ye9guiRmgB1jar1ftpGVfx9R3I5M6ZEeHE3Lxaol/KBr7rK4ZW5lhfkTA8ZYdkEKMEx/RQqCljDu8y0pF8bgPaebItZq2wg/sKJbjYkaN3Qb5xZhRYC4X53XBDqEKDVNDUHBzAeGNp2ySUHfW0DMpY2ilicIzn3RLRnKEKCPe0eoB/2eemRxi4HonTIEEytTB0DDIxly4L8JjMdJmvqLCkfND6PjeP4TcUEB6CyHv/8lHI32kqDKWYV5HRcYaaQ0uLjJJet5CO3GL3ZnUxtxIlKnHaWIMZtRSPUE48czo9eZt5ovtWbj8Z3yp92DAGT+yPf1FxD1SY4dtVQ4sC5LaSMU99QDV1qI18Se+x05qDrsPQ/lGxCT3ma9JxzwHnQenf8k+cHHHZSMVwwvCh2HTy1pkcKwnXCX+5fD7pyd5HoqfTvHgmhcINGNqGlw576xJ0vCXPZeXjkBeayKHe9ge3deui9wBylKkMrK4JqiVzI6MtK0tObRyVFTiCbozAL7dwTaLMVVtNYNHfbACm69NK9dacy7sjYJ6S7BlUUfnE8wR5kL2+wCbNxqbecRSmStlubTa2c10LMB0CWQ4h4cWKoNYF95tBp+Z3S9/BMLxRONM4sSIraUMVTdC1Ex5rQ2InAmlepy5MON1eS73XLiZc4bqx9MMoYIFkck2fQSBgLF/XzYR4LnQlQBq/J64DXLpuIcusTwLk95w4iHD7807vLWIC1rNUBOJEyjOiOiMv1YFOwSClGsMsb7xckpP8P9Z8xW9hOrRgIXd7KqWYwaFFb3/ruonmMlYCLf3cKfa+oWAE7GkZRir/m0v2gw/O1Pyy+K2OkJxipKtbv0/9rGY03zKt9RN7RwEjKdbs3K6RoxxZEJLWQMAcy3glVU9BwusW89Aq0eMjVN75l5hLXpC0WmbljJNmog2NMMG/MWTCMCYzGxessnIVNl8FRKTPQncaVFLjmQuAhMuFz1p8SOn99OmnsIPwhZToWllv3T5TF2Hs6yH0a5gaPfvyUbOVIXHHqwjxKIW4/8n9ESfQzLBBkJRW7b7D2chAH+sgbwh3lwE5RQEX0XeFMcXfDXKaKpjSPAz+yOJoeTbhqQLiwmxDsrdZyl+PHeLBJGhLpGzqbLB0NckiT+VvCIV6FpKj+auWdKud0jqOAw2cXWKwVqVmVSoJF7FJp7rZ3TPnGqe4ARsNIfHFDi6sS+kgL/EE6466G/cIvLb6moC1UkM77R19ZQ/Q989NEzJ0zhNPInIdhPVqhXDVrAEWQ5OCrT1JvxZSBlEwnPpyG1r8vIZhquGA+HBvcf86ntDDb65kcndiH5tdHFqh+hFms7gC9U9FhXP+PWdKdq4U6hU15hOJQY7LiwkbBwAAAAlg9yQ8rPDdNlaKSBJ4TzFgTOZ+akphaNUJ0+SjtCx2NaRxfYQ4MpkURXQ1xxHm+mfX/4tsFczQmjZF1IxXFCIFK+w4QGDCf5VzOGqSKrWK+liK/8jCe86LgnzVEz5VxQhYCkY9MVFgHNO8cgYp7yrUJoipsT8vb1EsRmhmpjKfupyUV+9EAN4F/zhVH1sqvpofpbLzodzXS/EGpI+RreYa1ZmUv0O2dZuFgzPSK8P5ptz6kR0Mft5O5axLQna5gIMxd9SWMmUOFlcHpG+nZVw3xCnCOcMaaysncw9iTx/lMthMNAj/FmKZJRk4EUo7WjUjYaPmOtPz49hr5jyfoIKpuo2/d+LHmQVQs6DBzB3l3y//0LFFDPt7X0menQ7Bbq+adzH+dP2fwWT3BnFUOjgpsjhrtVyQdZAjoI6lUFWSreTF55ibXfofBEjdcRqjoGLKrUjogO1lJUhFXTNnzJLYz24Gw3N1g48T5qYES5vDi4BP/BrUrr2ZAEOm4X4zmLsCUCmw4AsixaqRgUIUxV015TWEtbo0y4AQQYnE6dhVgYRVwwAADCjQLP00Olfh6j1EoJcbLyt+O0BN+d6UW1nkupeDpUuhAA575eFS9+FEcLstzme33Nzuf/fxfhtEuWkmSBo/KG1Q6evdu3j/9CTVzvTSig9hg7FbuWw7n1YSs3CB0CNXYjFEuVwEYWDD/oZTvFLqfllP88gNKU9k6TsqKFQrOy9XOT1UCaZPm/QcEh6ih3a+nJxbgsagCO1isKfTasCa0FxGS3gukcVLUkfex4a/IOsOvLvku9WoomqucNo/5sOiNilDOUDpDrLMlR67E4DNKEew02NACJpXktwfpvMFletxSfdua2SXH/DWd0mu7wwXFViPpl6aMAAAAAAAD0ids3X/P9rTP4exhx0zkWJjKkCq3aIOB9YAX8kuYk8rTfi5mj3vtwen1+UfnUc6QDtp5piRu/8EobDE91BLPliJD+C/TIzDRORSAkEmnVxPK/vlp/a8eC9x+lii0kNHt+0CHNB85kM2B0b78YCm0n4GfEmPiuTnuxgGkabPDTyDyYJpYP2vNRT/D/HbroJyCQZW/HEZu21/OW5eypuaO0oeAOHbtfPVpfFPHduHkGPcxQHjxB7cGH44hNjY2v+EFn1x31PhNzdVWoSY2DN3vHtqAWIk8ICNpilwBJubxcuYEYyNAI8u/gds5tMiaQf4a7x75KlbxCAJT63CH9E5lrNFWYycAAnKuVvFnrXaIMbCz9y0uVBZ5VfUAbaRxC6N4B1WDm316PXP2OHn/xu8EPVHixE+u69Q7D4xILgPmVE6OzBbsiNGBSHSawwlUlm/AeV5gd16fb7noatDpE85YNb7V6ZkRiJXB+AIy807bZ/sw05W9ZvAufogGhEGNUJNwx/WtrtepSUqIgkKHpAdVSqsKpeWIq3y6sJNzaE5IuQLLayw+JPAgAA=="};
+PETS.push({id:'shijin',name:'拾烬傀',type:['火','幽'],emoji:'🕯️',art:'shijin',passive:{ppSpentHits:{per:4}},base:{hp:104,atk:48,def:92,spa:86,spd:78,spe:74},own:[
+    {name:'薪火连击',star:1,cat:'物理',power:10,pp:5,type:'火',flatHits:{base:3,flat:12},desc:'专属 · 基础3段，每段10威力火系物理+12点固定伤害；对手全体每累计消耗4点PP，段数+1（无上限）'},
+    {name:'断供',star:1,cat:'变化',power:0,pp:4,spd:9,type:'火',spreadDrainPP:{skills:2,each:1},debuff:{k:'spe',lv:-1},desc:'专属 · 先手+1 · 随机削去对手2个技能各1点PP，并令其速度-1级'},
+    {name:'回收炉',star:1,cat:'变化',power:0,pp:5,type:'火',heal:0.26,cleanse:true,desc:'专属 · 回复26%生命，并清除自身全部负面'},
+    {name:'引燃残响',star:1,cat:'魔法',power:90,pp:4,type:'火',emptyPPBoost:{per:20,cap:60},desc:'专属 · 90威力火系魔法；对手每有1个PP归零的技能，威力+20（最多+60）'}
+  ]});
 /* ============================================================ 引擎 */
 const $=(s,el=document)=>el.querySelector(s);
 const rnd=(a,b)=>a+Math.random()*(b-a);
@@ -776,7 +800,7 @@ function buffLockOwner(){
 }
 function applyStat(p,k,lv){ if(p&&p.clearMindT>0&&lv<0) return; const _lo=buffLockOwner(); if(_lo){ logLine(`　↳ 🔒 ${_lo.name} 的【禁锢】：双方强化被锁定，能力等级不再变化。`); return; } if(p&&p.bless&&lv>0) lv*=2;   // 祝福：获得的增益翻倍
   const cur=p.buffs[k]?(p.buffs[k].lv||0):0; p.buffs[k]={lv:clamp(cur+lv,-6,6)}; }
-function cur(p,k){ let v=p.stat[k]*bmul(p,k); if(k==='spe'&&p.status.par)v*=0.5; return v; }
+function cur(p,k){ let v=p.stat[k]*bmul(p,k); if(k==='spe'&&p.status.par)v*=0.5; if(k==='spe'&&p._wxSpe>0)v*=Math.max(0.1,1-0.1*p._wxSpe); return v; }
 function offStat(cat){ return cat==='物理'?'atk':'spa'; }
 function defStat(cat){ return cat==='物理'?'def':'spd'; }
 function canUseMove(mv){ return mv.pp>0; }
@@ -808,7 +832,7 @@ function capDmg(p,d){
   }
   return out;
 }   // 被动：单次受伤上限
-function healMul(p){ return (p&&p.healBlock>0)?(p.healBlockMul||0.5):1; }   // 受到的治疗削弱（涡轮重碾）
+function healMul(p){ let m=(p&&p.healBlock>0)?(p.healBlockMul||0.5):1; return m*weatherHealMul(); }   // 受到的治疗削弱（涡轮重碾），再乘天气回血修正
 function passiveName(pet){ const pv=pet&&pet.passive; if(!pv) return '被动'; if(pv.onEnterDotTick) return '孢子回响'; return ''; }
 function passiveDesc(pet){ const pv=pet&&pet.passive; if(!pv) return ''; const a=[];
   if(pv.revive){ const _rv=pv.revive; if(typeof _rv==='object') a.push('首次死亡复活并回'+Math.round((_rv.hp!=null?_rv.hp:1)*100)+'%血'+( _rv.teamDR?('，全队获得'+Math.round(_rv.teamDR*100)+'%不可驱散最终减伤'):'')); else a.push('满血复活1次'); }
@@ -846,7 +870,10 @@ function passiveDesc(pet){ const pv=pet&&pet.passive; if(!pv) return ''; const a
   if(pv.onEnterVsDot) a.push('上场时若敌方带持续伤害则回'+pv.onEnterVsDot.heal+'血、恢复'+pv.onEnterVsDot.pp+'点次数');
   if(pv.onFirstLow) a.push('首次血量<'+Math.round(pv.onFirstLow.below*100)+'%时削去对手'+(pv.onFirstLow.skills||2)+'个技能各'+(pv.onFirstLow.each||1)+'点次数');
   if(pv.faintPP) a.push('倒下时，把剩余技能次数的 '+Math.round(pv.faintPP*100)+'% 分给接手上场的队友（每个技能最多 +3）');
+  if(pv.weatherExtend) a.push('自身释放天气技能时，天气持续 +'+pv.weatherExtend+' 回合');
+  if(pv.weatherProtect) a.push('自身释放的天气前 '+pv.weatherProtect+' 回合不能被顶掉');
   if(pv.ppDebuff) a.push('每从对手身上削去 '+((pv.ppDebuff.step)||2)+' 点 PP，随机一名敌方随机一项能力 -1 级，并回复自身 '+Math.round((pv.ppDebuff.heal||0.07)*100)+'% 生命');
+  if(pv.ppSpentHits) a.push('对手全体每累计消耗 '+(pv.ppSpentHits.per||4)+' 点 PP，「薪火连击」段数 +1（无上限）');
   if(pv.slowDR) a.push('速度低于对手时，受到的伤害 -'+Math.round(pv.slowDR*100)+'%');
   if(pv.copyBoost) a.push('每次临摹成功，威力永久 +'+Math.round(pv.copyBoost*100)+'%（最多 +25%）');
   if(pv.finalDR) a.push('最终减伤'+Math.round(pv.finalDR*100)+'%');
@@ -869,7 +896,7 @@ function ppDrainPassive(A){ const pv=A&&A.def&&A.def.passive; if(!pv||!pv.ppDebu
     const _hp0=A.hp; const _hl=Math.round(A.maxhp*(pv.ppDebuff.heal||0.07)*healMul(A)); A.hp=Math.min(A.maxhp,A.hp+_hl); const _hg=A.hp-_hp0;
     logLine(`　↳ 🔥 <b>熔炉吞蚀</b>：${_txt?(_txt+'，'):''}${_hg>0?('自身回复 '+_hg+' 生命'):'自身生命已满'}。`);
   } }
-function drainPPMulti(pet,count,each,attacker){ if(!pet) return []; const idx=[]; pet.moves.forEach(function(m,i){ if(m.pp>0) idx.push(i); }); for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; } const names=[]; let _rm=0; idx.slice(0,count).forEach(function(k){ const _b=pet.moves[k].pp; pet.moves[k].pp=Math.max(0,_b-each); _rm+=_b-pet.moves[k].pp; names.push(pet.moves[k].name); }); if(attacker&&_rm>0){ attacker.ppDrained=(attacker.ppDrained||0)+_rm; ppDrainPassive(attacker); } return names; }
+function drainPPMulti(pet,count,each,attacker){ if(!pet) return []; const idx=[]; pet.moves.forEach(function(m,i){ if(m.pp>0) idx.push(i); }); for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; } const names=[]; let _rm=0; idx.slice(0,count).forEach(function(k){ const _b=pet.moves[k].pp; pet.moves[k].pp=Math.max(0,_b-each); _rm+=_b-pet.moves[k].pp; names.push(pet.moves[k].name); }); if(_rm>0&&S){ try{ const _vs=(S.me.team.indexOf(pet)>=0)?S.me:S.foe; _vs.ppSpent=(_vs.ppSpent||0)+_rm; }catch(e){} } if(attacker&&_rm>0){ attacker.ppDrained=(attacker.ppDrained||0)+_rm; ppDrainPassive(attacker); } return names; }
 function checkLow(p){ if(!p||p.fainted||!S) return; const pv=p.def&&p.def.passive; if(!pv||!pv.onFirstLow||p._lowUsed) return; if((p.hp/Math.max(1,p.maxhp))<pv.onFirstLow.below){ p._lowUsed=true; const os=(S.me.team.indexOf(p)>=0)?S.foe:S.me; const t=os.team[os.active]; if(t&&!t.fainted){ const nm=drainPPMulti(t,pv.onFirstLow.skills||2,pv.onFirstLow.each||1); if(nm.length) logLine(`　↳ ${p.name} 血量首次告急——削去了对手「${nm.join('」「')}」各 ${pv.onFirstLow.each||1} 点使用次数！`); } } }
 function onEnter(p,swiftOK){ if(!p||p.fainted) return; const pv=p.def&&p.def.passive;
   try{ /* 【遗赠】结算：接住上一位队友留下的强化/PP */
@@ -947,6 +974,156 @@ function livePowerVals(side,p,sk){   // 技能「实时威力」：把动态加�
   return vals;
 }
 const CRIT=0.05, CRIT_MUL=2;   // 基础 5% 暴击，暴击 ×2（克制×2 + 暴击×2 = ×4）
+/* ================= 天气系统框架 =================
+   数据驱动：在 WEATHERS 里加条目即可；技能用 skill.weather={id,turns} 触发。
+   天气是全局唯一（S.weather），不是场域那种分侧。
+   当前 8 种天气为阿琳 2026-10-20 19:26 定的正式表。 */
+const WEATHERS={
+  sunny:{id:'sunny',name:'晴天',emoji:'☀️',color:'#f0b24a',turns:5,
+    powerMul:{火:1.25,水:0.8},
+    desc:'火系伤害 +25%，水系 -20%'},
+  rainy:{id:'rainy',name:'雨天',emoji:'🌧️',color:'#5aa9e6',turns:5,
+    powerMul:{水:1.25,火:0.8},
+    desc:'水系伤害 +25%，火系 -20%'},
+  sand:{id:'sand',name:'沙暴',emoji:'🌪️',color:'#c9a45c',turns:5,
+    powerMul:{石:1.25},
+    dot:{type:'石',pct:0.04,immune:['石']},
+    shield:{types:['石'],amount:15},
+    desc:'石系（岩）+25%；非石系每回合 -4% 最大生命；石系每回合 +15 护盾'},
+  snow:{id:'snow',name:'雪天',emoji:'❄️',color:'#9fd8ff',turns:5,
+    powerMul:{冰:1.25},
+    slow:{types:['冰'],max:2},
+    statusBonus:{frz:0.10},
+    desc:'冰系 +25%；非冰系每回合速度 -1（最多 -2）；冻结概率 +10%'},
+  mist:{id:'mist',name:'薄雾',emoji:'🌫️',color:'#c7d3e3',turns:5,
+    powerMul:{普通:1.2},
+    dodgeMul:0.5,accBonus:0.10,
+    desc:'普通系 +20%；闪避效果减半；命中率 +10%'},
+  poison:{id:'poison',name:'毒雾',emoji:'☠️',color:'#9d6bd8',turns:5,
+    powerMul:{毒:1.25},
+    dotAll:{pct:0.02},
+    healMul:0.8,
+    desc:'毒系 +25%；双方所有宠每回合 -2% 最大生命；回血效果 -20%'},
+  electric:{id:'electric',name:'电场',emoji:'⚡',color:'#e8d24b',turns:5,
+    powerMul:{电:1.25},
+    statusBonus:{par:0.15},
+    parDot:{pct:0.02},
+    desc:'电系 +25%；麻痹概率 +15%；麻痹宠每回合 -2% 最大生命'},
+  starlight:{id:'starlight',name:'星光',emoji:'✨',color:'#f4e6a0',turns:5,
+    powerMul:{光:1.25,暗:0.8},
+    ppRegen:1,
+    desc:'光系 +25%，暗系 -20%；每回合末出战宠随机 1 个技能回 1 PP'},
+  reverse:{id:'reverse',name:'逆序',emoji:'🔄',color:'#b58cff',turns:4,reverseOrder:true,
+    desc:'先手值与速度顺序反转：先手+1变-1，速度慢的先出招'}
+};
+function weatherNow(){ return (S&&S.weather&&WEATHERS[S.weather.id])?WEATHERS[S.weather.id]:null; }
+function weatherReverse(){ const w=weatherNow(); return !!(w&&w.reverseOrder); }
+function weatherPowerMul(type){ const w=weatherNow(); return (w&&w.powerMul&&w.powerMul[type]!=null)?w.powerMul[type]:1; }
+function weatherTakenMul(type){ const w=weatherNow(); return (w&&w.takenMul&&w.takenMul[type]!=null)?w.takenMul[type]:1; }
+function weatherStatusBonus(n){ const w=weatherNow(); return (w&&w.statusBonus&&w.statusBonus[n])||0; }
+function weatherDodgeMul(){ const w=weatherNow(); return (w&&w.dodgeMul!=null)?w.dodgeMul:1; }
+function weatherAccBonus(){ const w=weatherNow(); return (w&&w.accBonus)||0; }
+function weatherHealMul(){ const w=weatherNow(); return (w&&w.healMul!=null)?w.healMul:1; }
+function resetWeatherPetState(){
+  if(!S) return;
+  [S.me,S.foe].forEach(function(sd){ (sd.team||[]).forEach(function(p){ if(p) p._wxSpe=0; }); });
+}
+function weatherChipHTML(){
+  if(!S||!S.weather) return '<div class="weatherchip">🌤 无天气</div>';
+  const w=WEATHERS[S.weather.id];
+  if(!w) return '<div class="weatherchip">🌤 无天气</div>';
+  return '<div class="weatherchip on" style="border-color:'+w.color+'">'+w.emoji+' '+w.name+' · '+S.weather.turns+(S.weather.protect>0?' 🔒':'')+'</div>';
+}
+function setWeather(id,turns,src){
+  const w=WEATHERS[id]; if(!S||!w) return false;
+  const t=Math.max(1,turns||w.turns||5);
+  if(S.weather&&S.weather.id===id){
+    S.weather.turns=Math.max(S.weather.turns,t);
+    logLine(`　↳ ${w.emoji} 【${w.name}】持续时间刷新为 ${S.weather.turns} 回合。`);
+    return true;
+  }
+  if(S.weather&&S.weather.protect>0){
+    const _old=WEATHERS[S.weather.id];
+    logLine(`　↳ 🔒 【${_old?_old.name:S.weather.id}】被锁定，无法被顶掉（剩余 ${S.weather.protect} 回合）。`);
+    return false;
+  }
+  if(S.weather) resetWeatherPetState();
+  S.weather={id:id,turns:t,src:src||'',protect:0};
+  logLine(`　↳ ${w.emoji} 天气变为【${w.name}】（${t} 回合）：${w.desc||''}`);
+  return true;
+}
+function clearWeather(){
+  if(!S||!S.weather) return false;
+  if(S.weather.protect>0){
+    const _old=WEATHERS[S.weather.id];
+    logLine(`　↳ 🔒 【${_old?_old.name:S.weather.id}】被锁定，无法被清除（剩余 ${S.weather.protect} 回合）。`);
+    return false;
+  }
+  const w=WEATHERS[S.weather.id];
+  resetWeatherPetState(); S.weather=null;
+  logLine(`　↳ 🌤 天气结束${w?'（'+w.name+'）':''}，恢复为无天气。`);
+  return true;
+}
+function weatherTickSide(sd,od,w){
+  const p=active(sd); if(!p||p.fainted) return;
+  const tys=Array.isArray(p.type)?p.type:[p.type];
+  const has=function(t){return tys.indexOf(t)>=0;};
+  if(w.dot&&(w.dot.pct||0)>0&&!(w.dot.immune||[]).some(has)){
+    let d=Math.max(1,Math.round(p.maxhp*w.dot.pct)); d=capDmg(p,d);
+    const pre=p.hp; p.hp=Math.max(0,p.hp-d); if(!isFinite(p.hp))p.hp=0;
+    p.turnDmgTaken=(p.turnDmgTaken||0)+d;
+    logLine(`　↳ ${w.emoji} ${w.name}：${p.name} 受到 ${d} 点${w.dot.type||''}系伤害。`);
+    S.fx.push({on:(sd===S.foe?'foe':'me'),txt:'-'+d,shake:true,hpFrom:Math.round(pre/Math.max(1,p.maxhp)*100),hpTo:Math.round(p.hp/Math.max(1,p.maxhp)*100)});
+    if(p.hp<=0){ tryFaint(p); logLine(`💥 ${p.name} 倒下了！`); S.fx.push({die:(sd===S.foe?'foe':'me')}); return; }
+  }
+  if(w.heal&&(w.heal.pct||0)>0&&(!w.heal.types||w.heal.types.some(has))){
+    const pre=p.hp; const h=Math.round(p.maxhp*w.heal.pct*healMul(p)); p.hp=Math.min(p.maxhp,p.hp+h);
+    if(p.hp>pre){ logLine(`　↳ ${w.emoji} ${w.name}：${p.name} 回复 ${p.hp-pre} 生命。`); S.fx.push({on:(sd===S.foe?'foe':'me'),heal:true,txt:'+'+(p.hp-pre),hpFrom:Math.round(pre/Math.max(1,p.maxhp)*100),hpTo:Math.round(p.hp/Math.max(1,p.maxhp)*100)}); }
+  }
+  if(w.shield&&(w.shield.types||[]).some(has)){
+    const amt=w.shield.amount||15; const before=p.shield||0;
+    p.shield=Math.min(120,before+amt); p.shieldT=Math.max(p.shieldT||0,1);
+    if(p.shield>before) logLine(`　↳ ${w.emoji} ${w.name}：${p.name} 获得 ${p.shield-before} 点护盾（${p.shield}/120）。`);
+  }
+  if(w.slow&&!(w.slow.types||[]).some(has)){
+    const max=w.slow.max||2;
+    if((p._wxSpe||0)<max){ p._wxSpe=(p._wxSpe||0)+1; logLine(`　↳ ${w.emoji} ${w.name}：${p.name} 速度 -1 级（天气，最多 -${max}）。`); }
+  }
+  if(w.stat&&(w.stat.who==='all'||(w.stat.types||[]).some(has))) applyStat(p,w.stat.k,w.stat.lv);
+}
+function resolveWeather(){
+  if(!S||!S.weather) return;
+  const w=WEATHERS[S.weather.id]; if(!w){ S.weather=null; return; }
+  weatherTickSide(S.me,S.foe,w); weatherTickSide(S.foe,S.me,w);
+  if(w.dotAll&&(w.dotAll.pct||0)>0){
+    [S.me,S.foe].forEach(function(sd){
+      (sd.team||[]).forEach(function(p){ if(!p||p.fainted) return;
+        let d=Math.max(1,Math.round(p.maxhp*w.dotAll.pct)); d=capDmg(p,d);
+        const pre=p.hp; p.hp=Math.max(0,p.hp-d); p.turnDmgTaken=(p.turnDmgTaken||0)+d;
+        logLine(`　↳ ${w.emoji} ${w.name}：${p.name} 受到 ${d} 点伤害。`);
+        S.fx.push({on:(sd===S.foe?'foe':'me'),txt:'-'+d,hpFrom:Math.round(pre/Math.max(1,p.maxhp)*100),hpTo:Math.round(p.hp/Math.max(1,p.maxhp)*100)});
+        if(p.hp<=0){ tryFaint(p); logLine(`💥 ${p.name} 倒下了！`); S.fx.push({die:(sd===S.foe?'foe':'me')}); }
+      });
+    });
+  }
+  if(w.parDot&&(w.parDot.pct||0)>0){
+    [S.me,S.foe].forEach(function(sd){
+      (sd.team||[]).forEach(function(p){ if(!p||p.fainted||!(p.status&&p.status.par>0)) return;
+        let d=Math.max(1,Math.round(p.maxhp*w.parDot.pct)); d=capDmg(p,d);
+        const pre=p.hp; p.hp=Math.max(0,p.hp-d); p.turnDmgTaken=(p.turnDmgTaken||0)+d;
+        logLine(`　↳ ${w.emoji} ${w.name}：麻痹的 ${p.name} 受到 ${d} 点伤害。`);
+        S.fx.push({on:(sd===S.foe?'foe':'me'),txt:'-'+d,hpFrom:Math.round(pre/Math.max(1,p.maxhp)*100),hpTo:Math.round(p.hp/Math.max(1,p.maxhp)*100)});
+        if(p.hp<=0){ tryFaint(p); logLine(`💥 ${p.name} 倒下了！`); S.fx.push({die:(sd===S.foe?'foe':'me')}); }
+      });
+    });
+  }
+  if(w.ppRegen){
+    [S.me,S.foe].forEach(function(sd){ const p=active(sd); if(!p||p.fainted) return; const rm=restoreOnePP(p,-1,w.ppRegen); if(rm) logLine(`　↳ ${w.emoji} ${w.name}：${p.name} 的「${rm.name}」回复 ${w.ppRegen} 次 PP。`); });
+  }
+  if(S.weather.protect>0){ S.weather.protect--; if(S.weather.protect===0) logLine(`　↳ 🔓 【${w.name}】的天气锁定解除。`); }
+  S.weather.turns--;
+  if(S.weather.turns<=0){ resetWeatherPetState(); logLine(`　↳ ${w.emoji} 【${w.name}】结束，天气恢复为无。`); S.weather=null; }
+}
 function calcDamage(A,D,skill,dmgMul=1){
   const type=skill.type||A.type; const e=eff(type,D.type);
   let power=skill.power; if(skill.variance) power=Math.round(power*rnd(1-skill.variance,1+skill.variance));
@@ -975,6 +1152,7 @@ function calcDamage(A,D,skill,dmgMul=1){
   { const _ap=A&&A.def&&A.def.passive;
     if(_ap&&_ap.fasterDmg&&cur(A,'spe')>cur(D,'spe')) dmg*=(1+_ap.fasterDmg);                      // 【罡风裂空】：快于对手时增伤
     if(_ap&&_ap.burnDmgBoost&&D&&D.status&&D.status.burn&&offStat(skill.cat)==='spa') dmg*=(1+_ap.burnDmgBoost); }  // 【焚曜灼心】：特攻打灼烧目标增伤
+  { const _wm=weatherPowerMul(type); if(_wm!==1) dmg*=_wm; const _wt=weatherTakenMul(type); if(_wt!==1) dmg*=_wt; }
   dmg=Math.round(dmg*RAND());
   { const _dr=drOf(D); if(_dr>0) dmg*=Math.max(0,1-_dr); }   // 被动：最终减伤
   if(D&&D.def&&D.def.passive&&D.def.passive.slowDR&&A&&cur(D,'spe')<cur(A,'spe')) dmg*=(1-D.def.passive.slowDR);   // 被动【负山】
@@ -1114,7 +1292,7 @@ function openRoster(sel){
   showRDetail(sel!=null?sel:S.me.active);
 }
 function startBattle(myCfg,foeCfg){
-  S={ me:{team:myCfg.map(makePet),active:0}, foe:{team:foeCfg.map(makePet),active:0}, turn:1, log:[], busy:false, over:false, pendSwitch:false, fx:[], banner:'你的回合', queue:null, qi:0 };
+  S={ me:{team:myCfg.map(makePet),active:0}, foe:{team:foeCfg.map(makePet),active:0}, turn:1, log:[], busy:false, over:false, pendSwitch:false, fx:[], banner:'你的回合', queue:null, qi:0, weather:null };
   S.foe.style=(foeCfg&&foeCfg.styleKey)||(RANK&&RANK.active&&RANK.aiStyle)||AI_STYLE_KEY||'read';
   S.foe.bpSystem=(foeCfg&&foeCfg.bpSystem)||(RANK&&RANK.active&&RANK.bpSystem)||null;
   S.foe.roles=(foeCfg&&foeCfg.roles)||{};
@@ -1253,6 +1431,7 @@ function doSkill(sideKey,side,other,mi,who){
   const A=active(side), D=active(other), skill=A.moves[mi];
   if(!skill||skill.pp<=0){ logLine(`${A.name} 的「${skill?skill.name:'技能'}」次数已用尽！`); return; }
   skill.pp--;                                    // 消耗一次使用次数
+  if(!S._copying) side.ppSpent=(side.ppSpent||0)+1;   // 【拾烬傀】统计对手全队累计消耗的PP（主动使用）
   if(!S._copying) side.lastSkill=skill;            // 记录本方上一招（供【临摹】使用）
   if(skill.copyFoe&&!S._copying){                  // 【临摹】：复制对手上一招，以自身属性释放
     const _src=other&&other.lastSkill;
@@ -1266,6 +1445,12 @@ function doSkill(sideKey,side,other,mi,who){
     return;
   }
   const _sTp=skill.type||(Array.isArray(A.type)?A.type[0]:A.type);
+  if(skill.weather){
+    let _wt=skill.weather.turns||4; const _pv=A.def&&A.def.passive;
+    if(_pv&&_pv.weatherExtend) _wt+=_pv.weatherExtend;
+    if(setWeather(skill.weather.id,_wt,A.name)!==false && _pv&&_pv.weatherProtect) S.weather.protect=Math.max(S.weather.protect||0,_pv.weatherProtect);
+  }
+  if(skill.weatherClear) clearWeather();
   const _mcp=A.def&&A.def.passive&&A.def.passive.mechCharge;
   if(_mcp&&_sTp==='水'){ const _c=A.charge||0; if(_c<_mcp.max){ A.charge=_c+1; logLine(`　↳ 🔋 ${A.name} 注入械水充能（${A.charge}/${_mcp.max}）。`); } }
   const _hadCharge=(A.charge||0)>0;
@@ -1291,7 +1476,7 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.debuff){ applyStat(D,skill.debuff.k,skill.debuff.lv); logLine(`${who} 令 ${D.name} 的${SNAME[skill.debuff.k]} ${skill.debuff.lv} 级。`); S.fx.push({bside:(other===S.foe?'foe':'me'),k:skill.debuff.k,lv:skill.debuff.lv,dir:'down'});}
     if(skill.debuffs){ skill.debuffs.forEach(function(db){ applyStat(D,db.k,db.lv); logLine(`${who} 令 ${D.name} 的${SNAME[db.k]} ${db.lv} 级。`); S.fx.push({bside:(other===S.foe?'foe':'me'),k:db.k,lv:db.lv,dir:'down'}); }); }
     if(skill.addMark&&D&&!D.fainted){ const _cap=5; D.leimark=Math.min(_cap,(D.leimark||0)+(skill.addMark.n||1)); logLine(`　↳ ⚡ ${A.name} 在 ${D.name} 身上叠加【引雷印】（现 ${D.leimark}/${_cap} 层）。`); }
-    if(skill.status&&Math.random()<(skill.status.ch||1)) applyStatus(D,skill.status.n);
+    if(skill.status){ let _sch=(skill.status.ch!=null?skill.status.ch:1); _sch=Math.min(1,_sch+weatherStatusBonus(skill.status.n)); if(Math.random()<_sch) applyStatus(D,skill.status.n); }
     if(skill.burn){ D.status.burn=skill.burn; logLine(`　↳ ${D.name} 陷入<b>灼烧</b>（${skill.burn} 回合）！`); }
     if(skill.teamShield){ const _side=(S.me.team.indexOf(A)>=0)?S.me:S.foe; _side.team.forEach(function(t){ if(!t||t.fainted) return; const _b=t.shield||0; if(_b>=120) return; t.shield=Math.min(120,_b+skill.teamShield); if(skill.shieldTurns) t.shieldT=skill.shieldTurns; }); logLine(`　↳ 🛡 <b>全队</b>获得 ${skill.teamShield} 点护盾（每人上限 120）。`); }
     if(skill.shield){ A.shield=(A.shield||0)+skill.shield; A.shieldT=skill.shieldTurns||0; logLine(`　↳ ${A.name} 获得 ${skill.shield} 点护盾（${skill.shieldTurns?skill.shieldTurns+" 回合":"永久"}，现有 ${A.shield}）。`); }
@@ -1307,6 +1492,7 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.bless){ A.bless=true; logLine(`　↳ ${A.name} 进入【祝福】状态：获得的增益翻倍。`); }
     if(skill.selfDebuffs){ skill.selfDebuffs.forEach(function(sd){ applyStat(A,sd.k,sd.lv); logLine(`${who}的 ${A.name} 的${SNAME[sd.k]} ${sd.lv} 级。`); S.fx.push({bside:sideKey,k:sd.k,lv:sd.lv,dir:'down'}); }); }
     if(skill.cleanse){ ['burn','par','frz','bind'].forEach(function(_k){ delete A.status[_k]; }); A.status.fear=0; if(!buffLockOwner()){ for(const _k in A.buffs){ if(A.buffs[_k]&&(A.buffs[_k].lv||0)<0) delete A.buffs[_k]; } } else { logLine(`　↳ 🔒 能力等级被【禁锢】锁定，负面等级无法净化。`); } A.dot=null; logLine(`　↳ ${A.name} 净化了自身所有负面状态。`); }
+    if(skill.reverseWeatherBonus && S.weather && S.weather.id==='reverse'){ const _rb=skill.reverseWeatherBonus; if(_rb.heal){ const _p0=A.hp; A.hp=Math.min(A.maxhp,A.hp+Math.round(A.maxhp*_rb.heal*healMul(A))); const _g=A.hp-_p0; if(_g>0){ logLine(`　↳ 🔄 【逆序】加成：${A.name} 额外回复 ${_g} 生命。`); S.fx.push({on:sideKey,heal:true,txt:'+'+_g,hpFrom:Math.round(_p0/A.maxhp*100),hpTo:Math.round(A.hp/A.maxhp*100)}); } } if(_rb.dodge){ A.dodge=(A.dodge||0)+_rb.dodge; logLine(`　↳ 🔄 【逆序】加成：${A.name} 获得 ${_rb.dodge} 次闪避。`); } }
     if(skill.clearMind){ A.clearMindT=skill.clearMind; logLine(`　↳ ${A.name} 进入【清醒】（${skill.clearMind} 回合）：无视除 DoT 外的负面效果。`); }
 
     if(skill.sacrificeSupport){ const _bench=side.team.filter(function(t,i){return i!==side.active&&!t.fainted;}); if(!_bench.length){ logLine(`　↳ ${A.name} 没有可支援的场下队友。`); } else { const _hp0=Math.max(0,A.hp); const _pp0=A.moves.reduce(function(s,m){return s+Math.max(0,m.pp);},0); let _hpPool=_hp0, _ppPool=_pp0; const _hpGot=[], _ppGot=[]; let _guard=0; while(_hpPool>0&&_guard++<300){ const _cand=_bench.filter(function(t){return t.hp<t.maxhp;}); if(!_cand.length)break; _cand.sort(function(x,y){return (x.hp/x.maxhp)-(y.hp/y.maxhp);}); const _pick=_cand[Math.floor(Math.random()*Math.min(2,_cand.length))]; const _amt=Math.min(_pick.maxhp-_pick.hp,_hpPool,Math.max(1,Math.round(_hpPool*(0.2+Math.random()*0.4)))); _pick.hp+=_amt; _hpPool-=_amt; _hpGot.push(_pick.name+' +'+_amt); } _guard=0; const _ppRatio=function(t){ const _mx=t.moves.reduce(function(s,m){return s+m.ppMax;},0)||1; return t.moves.reduce(function(s,m){return s+m.pp;},0)/_mx; }; while(_ppPool>0&&_guard++<600){ const _cand=_bench.filter(function(t){return t.moves.some(function(m){return m.pp<m.ppMax;});}); if(!_cand.length)break; _cand.sort(function(x,y){return _ppRatio(x)-_ppRatio(y);}); const _pick=_cand[Math.floor(Math.random()*Math.min(2,_cand.length))]; const _mv=restoreOnePP(_pick,-1,1); if(!_mv)break; _ppPool--; _ppGot.push(_pick.name+' '+_mv.name); } logLine(`　↳ ${A.name} 将 ${_hp0} 点生命与 ${_pp0} 点PP随机分给场下（优先残血/残PP）——回血：${_hpGot.slice(0,6).join('、')||'无'}；回PP：${_ppGot.slice(0,6).join('、')||'无'}。`); } }
@@ -1336,11 +1522,14 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.clearbuff&&!D.fainted&&!buffLockOwner()){ let _cn=0,_lv=0; for(const _k in D.buffs){ if(D.buffs[_k]&&(D.buffs[_k].lv||0)>0){ _lv+=(D.buffs[_k].lv||0); delete D.buffs[_k]; _cn++; } } if(D.thorns){ delete D.thorns; _cn++; } if(D.drain){ delete D.drain; _cn++; } logLine(`　↳ 消除了 ${D.name} 的全部增益${_cn?'':'（本就无增益）'}。`);
       if(skill.clearbuffDmg&&_lv>0&&!D.fainted){ let _cd=_lv*(skill.clearbuffDmg.per||35); if(D.shield>0){ const _ab=Math.min(D.shield,_cd); D.shield-=_ab; _cd-=_ab; if(D.shield<=0){D.shield=0;D.shieldT=0;} } if(_cd>0){ D.hp=Math.max(0,D.hp-_cd); D.turnDmgTaken=(D.turnDmgTaken||0)+_cd; logLine(`　↳ 💥 消除 ${_lv} 级增益 —— 对 ${D.name} 造成 ${_cd} 点固定伤害！`); S.fx.push({on:(other===S.foe?'foe':'me'),txt:'-'+_cd,shake:true,hpFrom:Math.round((D.hp+_cd)/D.maxhp*100),hpTo:Math.round(D.hp/D.maxhp*100)}); if(D.hp<=0) tryFaint(D); } } }
     if(skill.siphonHeal&&_foeActed){ const _H=(A.turnDmgTaken||0); const _bench=[]; side.team.forEach(function(p,idx){ if(idx!==side.active&&!p.fainted) _bench.push(p); }); _bench.sort(function(x,y){return (x.hp/x.maxhp)-(y.hp/y.maxhp);}); const _low=_bench.slice(0,skill.siphonHeal.bench||2); const _rec=[A].concat(_low); if(_H>0){ const _w=_rec.map(function(){return Math.random()+0.01;}); const _sum=_w.reduce(function(a,b){return a+b;},0); let _rem=_H; _rec.forEach(function(p,i){ let _amt=(i===_rec.length-1)?_rem:Math.round(_H*_w[i]/_sum); if(_amt>_rem)_amt=_rem; if(_amt<0)_amt=0; const _pre=p.hp; p.hp=Math.min(p.maxhp,p.hp+Math.round(_amt*healMul(p))); const _g=p.hp-_pre; if(_g>0){ logLine(`　↳ ${p.name} 吸伤转化，回复 ${_g} 生命。`); S.fx.push({on:sideKey,heal:true,txt:'+'+_g,hpFrom:Math.round(_pre/p.maxhp*100),hpTo:Math.round(p.hp/p.maxhp*100)}); } _rem-=_amt; }); } const _poor=_low.filter(function(tp){return tp.moves.some(function(m){return m.pp<m.ppMax;});}); _poor.forEach(function(tp){ restoreOnePP(tp,-1,skill.siphonHeal.pp||1); }); logLine(`　↳ <b>${skill.name}</b>：对手先手伤害→治疗，按随机比例分给自身与场下 2 名残血队友，并各回其 1 点 PP。`); }
+    if(skill.spreadDrainPP && D && !D.fainted){ const _nm=drainPPMulti(D,skill.spreadDrainPP.skills||2,skill.spreadDrainPP.each||1,A); if(_nm.length) logLine(`　↳ <b>${skill.name}</b> 削去了 ${D.name}「${_nm.join('」「')}」各 ${skill.spreadDrainPP.each||1} 点使用次数！`); }
     applyTianqiu(A,D,other);
     return;
   }
   if(skill.power>0&&skill.cat!=='变化'){ if(skill.cat==='物理'){ S.fx.push({lunge:sideKey}); } else { const _t=(skill.type||A.type); S.fx.push({atkfx:true, type:_t, from:sideKey, to:(other===S.foe?'foe':'me')}); } }
-  const reps=skill.triHits?skill.triHits.length:(skill.multi?(skill.multi[0]+Math.floor(Math.random()*(skill.multi[1]-skill.multi[0]+1))):1);
+  let reps=skill.triHits?skill.triHits.length:(skill.multi?(skill.multi[0]+Math.floor(Math.random()*(skill.multi[1]-skill.multi[0]+1))):1);
+  const _psh=A.def&&A.def.passive&&A.def.passive.ppSpentHits;
+  if(_psh&&skill.flatHits){ reps=skill.flatHits.base+Math.floor((other.ppSpent||0)/(_psh.per||4)); logLine(`　↳ 🕯️ <b>薪尽火传</b>：对手全队已消耗 ${other.ppSpent||0} 点 PP —— <b>${skill.name}</b> 提升到 ${reps} 段！`); }
   const _foeHpBefore=D.hp;
   let _mechMul=1, _consumeAllN=0;
   if(_mcp&&_sTp==='机械'&&skill.power>0&&skill.cat!=='变化'){ if(skill.consumeAll){ _consumeAllN=(A.charge||0); A.charge=0; if(_consumeAllN) logLine(`　↳ ⚙️ ${A.name} 消耗全部充能 ${_consumeAllN} 层 → 枢核溃震威力 +${_consumeAllN*skill.consumeAll.per}。`); } else if((A.charge||0)>0){ A.charge--; _mechMul=1+_mcp.boost; logLine(`　↳ ⚙️ ${A.name} 消耗 1 层充能 → 机械技能威力 +${Math.round(_mcp.boost*100)}%（剩 ${A.charge}/${_mcp.max}）。`); } }
@@ -1358,12 +1547,14 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.dotScale&&D.dot) _pw += (D.dot.layers||1)*skill.dotScale.per;
     if(skill.armorScale) _pw += (A.armor||0)*skill.armorScale.per;   // 【引雷印】：威力随印层成长
     if(skill.hpAdvMul&&A.hp>D.hp) _pw=Math.round(_pw*skill.hpAdvMul);        // 【天白·斩】：自身血量高于对手增伤
+    if(skill.speedGapPow){ const _gap=Math.max(0,cur(D,'spe')-cur(A,'spe')); if(_gap>0) _pw+=Math.min(skill.speedGapPow.cap||45,Math.floor(_gap*(skill.speedGapPow.per||0.25))); }   // 【逆流冲击】：自身越慢威力越高
     if(skill.revenge&&skill.revenge.pow&&_foeActed) _pw+=(skill.revenge.pow);
     if(skill.burnBonus&&D.status.burn) _pw*=skill.burnBonus;
     if(skill.ambush&&skSpd(skill)>8) _pw*=skill.ambush;
     if(skill.vsStatus&&D.status[skill.vsStatus.n]) _pw*=skill.vsStatus.mul;
     if(skill.dotBonusPow&&D.dot&&D.dot.turns>0) _pw+=skill.dotBonusPow;
     if(skill.ppGapPow&&D.moves.some(function(m){return m.pp<m.ppMax;})) _pw+=skill.ppGapPow;
+    if(skill.emptyPPBoost){ const _ez=D.moves.filter(function(m){return m.pp<=0;}).length; if(_ez>0) _pw+=Math.min(skill.emptyPPBoost.cap||60,_ez*(skill.emptyPPBoost.per||20)); }   // 【引燃残响】：对手每有1个空PP技能威力+20
     if(skill.absorbBonus&&A.absorbTypes&&A.absorbTypes.length) _pw+=skill.absorbBonus;
     if(skill.lostHpPow) _pw += Math.floor((A.maxhp-A.hp)/A.maxhp*100/(skill.lostHpStep||5))*skill.lostHpPow;
     if(skill.hpScale&&D.hp>0) _pw += Math.floor(Math.max(0,1-D.hp/D.maxhp)/skill.hpScale.per)*skill.hpScale.add;   // 对手每损失5%生命，威力+
@@ -1379,9 +1570,16 @@ function doSkill(sideKey,side,other,mi,who){
     if(A.def&&A.def.passive&&A.def.passive.firstCrit&&!A._firstAtk){ A._firstAtk=true; _sk.critBonus=(_sk.critBonus||0)+A.def.passive.firstCrit; }
     const {dmg,e,crit}=calcDamage(A,D,_sk); const preHp=D.hp;
     let _dmg=dmg;
-    if(D.dodge>0&&!skill.sureHit){ D.dodge--; _dmg=0; logLine(`　↳ ${D.name} 闪避了这次攻击！`); }
+    if(D.dodge>0&&!skill.sureHit){
+      const _w=weatherNow(); let _dodged=true;
+      if(_w&&_w.dodgeMul!=null) _dodged=Math.random()<_w.dodgeMul;
+      if(_dodged&&_w&&_w.accBonus&&Math.random()<_w.accBonus) _dodged=false;
+      if(_dodged){ D.dodge--; _dmg=0; logLine(`　↳ ${D.name} 闪避了这次攻击！`); }
+      else if(_w) logLine(`　↳ ${_w.emoji} ${_w.name}：${D.name} 的闪避没有生效。`);
+    }
     else{
       if(skill.flat) _dmg+=skill.flat;   // 固定伤害（残月羽斩 +100）
+      if(skill.flatHits) _dmg+=skill.flatHits.flat||0;   // 【薪火连击】每段固定伤害
       if(skill.burstDmg&&(D.status.burn||D.dot)){ _dmg+=skill.burstDmg; if(D.status.burn) delete D.status.burn; D.dot=null; logLine(`　↳ 引爆了 ${D.name} 身上的灼烧/持续伤害！`); }
       if(skill.breakShield&&D.shield>0){ _dmg+=skill.breakShield; D.shield=0; D.shieldT=0; logLine(`　↳ 无视并击碎了 ${D.name} 的护盾！`); }
       if(skill.shieldBreak){ if(D.shield>0){ logLine(`　↳ 💥 ${A.name} 震碎了 ${D.name} 的护盾！`); D.shield=0; D.shieldT=0; } else { const _lost=Math.round((A.maxhp-A.hp)*skill.shieldBreak.heal); const _p0=A.hp; const _g=Math.round(_lost*healMul(A)); A.hp=Math.min(A.maxhp,A.hp+_g); const _gg=A.hp-_p0; if(_gg>0){ logLine(`　↳ ${D.name} 无护盾——${A.name} 回复已损生命的 ${Math.round(skill.shieldBreak.heal*100)}%（${_gg}）。`); S.fx.push({on:sideKey,heal:true,txt:'+'+_gg,hpFrom:Math.round(_p0/A.maxhp*100),hpTo:Math.round(A.hp/A.maxhp*100)}); } } }
@@ -1460,6 +1658,7 @@ function doSkill(sideKey,side,other,mi,who){
       if(skill.clearbuffDmg&&_lv>0&&!D.fainted){ let _cd=_lv*(skill.clearbuffDmg.per||35); if(D.shield>0){ const _ab=Math.min(D.shield,_cd); D.shield-=_ab; _cd-=_ab; if(D.shield<=0){D.shield=0;D.shieldT=0;} } if(_cd>0){ D.hp=Math.max(0,D.hp-_cd); D.turnDmgTaken=(D.turnDmgTaken||0)+_cd; logLine(`　↳ 💥 消除 ${_lv} 级增益 —— 对 ${D.name} 造成 ${_cd} 点固定伤害！`); S.fx.push({on:(other===S.foe?'foe':'me'),txt:'-'+_cd,shake:true,hpFrom:Math.round((D.hp+_cd)/D.maxhp*100),hpTo:Math.round(D.hp/D.maxhp*100)}); if(D.hp<=0) tryFaint(D); } } }
   if(skill.ppRestoreOne){ const rm=restoreOnePP(A,mi,skill.ppRestoreOne); logLine(rm?`　↳ ${A.name} 的「${rm.name}」回复了 ${skill.ppRestoreOne} 点使用次数。`:`　↳ ${A.name} 的技能次数都已满。`); }
   if(skill.drainFoePP){ const _df=skill.drainFoePP; const _cnt=(typeof _df==='number')?1:(_df.count||1); const _each=(typeof _df==='number')?_df:(_df.each||1); const _nm=drainPPMulti(D,_cnt,_each,A); if(_nm&&_nm.length) logLine(`　↳ <b>${skill.name}</b> 削去了 ${D.name} 的「${_nm.join('」「')}」各 ${_each} 点使用次数！`); else logLine(`　↳ ${D.name} 的技能次数都已空。`); }
+  if(skill.slowDrainPP && !D.fainted && cur(A,'spe')<cur(D,'spe') && D.hp<_foeHpBefore){ const _sd=skill.slowDrainPP; const _nm=drainPPMulti(D,_sd.skills||2,_sd.each||1,A); if(_nm&&_nm.length) logLine(`　↳ ⏳ <b>${skill.name}</b>：自身更慢——削去了 ${D.name} 的「${_nm.join('」「')}」各 ${_sd.each||1} 点 PP！`); }
   if(skill.revenge&&_foeActed&&skill.revenge.pow) logLine(`　↳ <b>${skill.name}</b> 后发先至：威力 +${skill.revenge.pow}！`);
   if(skill.heal){ const pre=A.hp; const h=Math.round(A.maxhp*skill.heal*healMul(A)); A.hp=Math.min(A.maxhp,A.hp+h); const g=A.hp-pre; if(g>0){ logLine(`　↳ ${A.name} 回复了 ${g} 生命。`); S.fx.push({on:sideKey, heal:true, txt:'+'+g, hpFrom:Math.round(pre/A.maxhp*100), hpTo:Math.round(A.hp/A.maxhp*100)});} }   // 伤害技自回血
   if(skill.turns){ if(A.lock&&A.lock.i===mi){ A.lock.left--; if(A.lock.left<=0)A.lock=null; } else { const rem=skill.turns-1; A.lock = rem>0?{i:mi,left:rem}:null; } if(A.lock) logLine(`　↳ <b>${skill.name}</b> 持续中，剩 ${A.lock.left} 回合（锁定）`); }
@@ -1484,12 +1683,14 @@ function resolveTurn(playerAct){
   const fAct=aiChoose();
   const acts=[{key:'me',side:S.me,other:S.foe,a:playerAct,who:'你'},{key:'foe',side:S.foe,other:S.me,a:fAct,who:'对手'}];
   acts.forEach(function(x){ const p=active(x.side); if(x.a&&x.a.kind==='switch'&&p&&controlled(p)&&!sideOut(x.side)){ const k=p.moves.findIndex(function(m){return m.pp>0;}); logLine(`⚠️ ${x.who}的 ${p.name} 处于控制状态（冻结/麻痹/锁足/恐惧），无法换人！`); x.a={kind:'skill',i:(k<0?0:k)}; } });
+  const _revOrder=weatherReverse();
   acts.sort((x,y)=>{
     const xs=x.a.kind==='switch',ys=y.a.kind==='switch'; if(xs!==ys)return xs?-1:1;
-    const xp=x.a.kind==='skill'?turnSpd(x.side,active(x.side).moves[x.a.i]):0;
-    const yp=y.a.kind==='skill'?turnSpd(y.side,active(y.side).moves[y.a.i]):0;
+    let xp=x.a.kind==='skill'?turnSpd(x.side,active(x.side).moves[x.a.i]):0;
+    let yp=y.a.kind==='skill'?turnSpd(y.side,active(y.side).moves[y.a.i]):0;
+    if(_revOrder){ xp=16-xp; yp=16-yp; }   // 【逆序】：先手值反转（+1→-1）
     if(xp!==yp)return yp-xp;
-    return cur(active(y.side),'spe')-cur(active(x.side),'spe');
+    return _revOrder ? (cur(active(x.side),'spe')-cur(active(y.side),'spe')) : (cur(active(y.side),'spe')-cur(active(x.side),'spe'));   // 逆序：慢的先出
   });
   S.queue=acts; S.qi=0;
   S.me.team.forEach(function(p){p.firstMove=false;}); S.foe.team.forEach(function(p){p.firstMove=false;});
@@ -1555,6 +1756,7 @@ function endTurn(){
   resolveBlackMoon();
   resolveFields();
   resolveLeimark();
+  resolveWeather();
   [S.me,S.foe].forEach(function(sd){ sd.team.forEach(function(p){ if(!p) return; if(p.clearMindT>0) p.clearMindT--; if(p.status&&p.status.fear>0) p.status.fear--; if(p.healBlock>0) p.healBlock--; if(p.backGuard&&p.backGuard.turn===S.turn){ if(p.backGuard.used){ const _pct=(typeof p.backGuard.heal==='number'&&isFinite(p.backGuard.heal))?p.backGuard.heal:0; let _p0=p.hp,_h=0; if(_pct>0){ _h=Math.round(p.maxhp*_pct*healMul(p)); p.hp=Math.min(p.maxhp,p.hp+_h); } const _mcp=p.def&&p.def.passive&&p.def.passive.mechCharge; let _ch=0; if(_mcp&&(p.charge||0)<_mcp.max){ p.charge=(p.charge||0)+1; _ch=1; } if(_h>0||_ch>0){ logLine(`　↳ 🛡 <b>沉甲潜航</b> 成功抵挡：${p.name}${_h>0?(' 回复 '+(p.hp-_p0)+' 生命'):''}${_ch?' 获得 1 层充能':''}。`); } else { logLine(`　↳ 🛡 <b>沉甲潜航</b> 成功抵挡了伤害。`); } } delete p.backGuard; } }); });   // 清醒/恐惧/治疗削弱/沉甲潜航 回合结算
   S.turn++; S.busy=false; S.queue=null; S.banner='你的回合';
   afterTurn();
@@ -1599,7 +1801,15 @@ function aiDmgEst(me,foe,s){
   if(s.buffScale){ const _sd=(S&&S.me&&S.me.team.indexOf(me)>=0)?S.me:(S&&S.foe); pw=Math.min(s.buffScale.cap, s.buffScale.base + s.buffScale.per*teamPosBuffLevels(_sd)); }   // 竹影无痕：随全队增益
   if(s.neutralBoost&&eff(s.type||me.type,foe.type)===1) pw*=(1+s.neutralBoost);                      // 无克制加成（光系恒生效）
   let reps=1; if(s.multi) reps=(s.multi[0]+s.multi[1])/2;
-  let dmg=pw*reps*adf*bm*eff(s.type||me.type,foe.type);
+  let _flatHit=0;
+  if(s.flatHits){
+    const _psh=me.def&&me.def.passive&&me.def.passive.ppSpentHits;
+    let _n=s.flatHits.base||1;
+    if(_psh&&S){ const _my=(S.me.team.indexOf(me)>=0)?S.me:S.foe; const _op=(_my===S.me)?S.foe:S.me; _n=s.flatHits.base+Math.floor((_op.ppSpent||0)/(_psh.per||4)); }
+    reps=Math.max(1,_n); _flatHit=(s.flatHits.flat||0)*reps;
+  }
+  if(s.emptyPPBoost){ const _ez=foe.moves.filter(function(m){return m.pp<=0;}).length; if(_ez>0) pw+=Math.min(s.emptyPPBoost.cap||60,_ez*(s.emptyPPBoost.per||20)); }
+  let dmg=pw*reps*adf*bm*eff(s.type||me.type,foe.type)+_flatHit;
   dmg*=1+CRIT*(CRIT_MUL-1);
   if(s.burnBonus&&foe.status.burn) dmg*=s.burnBonus;
   if(s.ambush&&skSpd(s)>8) dmg*=s.ambush;
@@ -1675,6 +1885,7 @@ function aiPetProfile(p){
     if(s.dodge||s.thorns||s.survive) tags.control+=0.6;
     if(s.burstDmg) tags.burst+=0.8;
     if(s.tidal) tags.field+=2;
+    if(s.weather) tags.field+=2;
     if(s.root) tags.field+=1;
     if(s.cleanse||s.clearMind) tags.cleanse+=1;
     if((s.spd||0)>=9) tags.priority+=1;
@@ -1682,6 +1893,7 @@ function aiPetProfile(p){
   (p.own||[]).forEach(scan);
   const pv=p.passive||{};
   if(pv.revive||pv.faintPP||pv.onSelfFaintTeam||pv.onFaintBlast) tags.combo+=1;
+  if(pv.weatherExtend||pv.weatherProtect) tags.field+=1;
   if(pv.onEnterAbsorbTypes||pv.onEnterDotTick||pv.onEnterDodgeBuff||pv.onEnterEatAllyPP||pv.onEnterVsDot) tags.combo+=1;
   if(pv.teamRegen||pv.teamRegenMissing||pv.startHeal) tags.team+=1;
   if(pv.moonDrain||pv.drain||pv.turnRegen) tags.heal+=1;
@@ -1770,6 +1982,7 @@ function skPpActive(sk,foe){ return skIsPp(sk)&&(!sk.drainPPIfFoeAbove||foe.hp/M
 function aiSkillTag(sk){
   if(!sk) return 'other';
   if(sk.tidal) return 'field';
+  if(sk.weather) return 'field';
   if(sk.power>0&&sk.cat!=='变化') return 'attack';
   if(sk.burstDmg) return 'burst';
   if(sk.reviveAlly||sk.selfKill) return 'revive';
@@ -1794,7 +2007,8 @@ function aiSkillTag(sk){
 function aiSkillValue(sk, st){
   let v=0;
   if(!sk) return -1e9;
-  if(sk.tidal){ v+=(sk.power||0)*0.5+70; }
+  if(sk.weather){ v+=120; }
+  else if(sk.tidal){ v+=(sk.power||0)*0.5+70; }
   else if(sk.power>0&&sk.cat!=='变化'){
     let pw=sk.power;
     if(sk.powers) pw=sk.powers.reduce(function(a,b){return a+b;},0)/sk.powers.length;
@@ -1950,6 +2164,8 @@ function aiScoreSkill(sk, me, foe, st, D, ctx){
   else if(sk.copyFoe){ sc=ctx.turn<=2?24:32; }
   else sc=22;
   if(sk.tidal){ const _up=!!(S.foe.field&&S.foe.field.turns>0); sc=Math.max(sc,(_up?6:160)*((st.skill&&st.skill.field)||1)); }
+  if(sk.weather){ const _up=!!(S.weather&&S.weather.id===sk.weather.id); sc=Math.max(sc,_up?6:175); }
+  if(sk.weatherClear&&S.weather){ sc=Math.max(sc,140); }
   sc*=((st.skill&&st.skill[tag])||1);
   if(ctx.turn===1 && (tag==='dot'||tag==='status'||tag==='debuff'||tag==='buff'||tag==='team')) sc*=st.open||1;
   /* 僵局收束：回合拖长后降低续航权重、提高输出权重，避免互相干耗到 PP 尽 */
@@ -1985,6 +2201,7 @@ function aiScoreSkillBP(sk, me, foe, sys, role, ctx){
   const B=BP_BATTLE[sys]||BP_BATTLE.stall;
   const hpP=me.hp/Math.max(1,me.maxhp), tag=aiSkillTag(sk);
   const guard=foe.shield||0;
+  const _feedFoe=!!(foe.def&&foe.def.passive&&foe.def.passive.ppSpentHits);   // 对面是拾烬傀：少做无意义铺垫，优先解决它
   let sc=0;
   if(sk.power>0&&sk.cat!=='变化'){
     let dmg=aiDmgEst(me,foe,sk);
@@ -2030,6 +2247,7 @@ function aiScoreSkillBP(sk, me, foe, sys, role, ctx){
   else if(sk.dodge){ sc=(me.dodge>0)?10:36; }
   else if(sk.thorns){ sc=(me.thorns)?10:36; }
   else if(sk.survive){ sc=(me.surviveT>0)?8:40; }
+  else if(sk.weather){ const _up=!!(S.weather&&S.weather.id===sk.weather.id); sc=_up?8:165; }
   else if(sk.tidal){ sc=(S.foe.field&&S.foe.field.turns>0)?8:160; }
   else if(sk.stealBuffs){ sc=bpHasPosBuffs(foe)?125:5; }
   else if(sk.clearbuff){ sc=bpHasPosBuffs(foe)?115:5; }
@@ -2050,6 +2268,20 @@ function aiScoreSkillBP(sk, me, foe, sys, role, ctx){
   if(sys==='dot'&&sk.dot&&!foe.dot) sc=Math.max(sc,120);
   if(sys==='dot'&&!foe.dot&&(sk.addDotLayer||sk.extendDot||sk.tickDot||sk.dotBonusPow)) sc=Math.max(sc,72);
   if(sys==='ppDrain'&&skPpActive(sk,foe)) sc=Math.max(sc,110);
+  /* AI 驾驶拾烬傀：段数叠起来后，直接打【薪火连击】比继续削PP更划算 */
+  if(sk.flatHits&&me.def&&me.def.passive&&me.def.passive.ppSpentHits){
+    const _my=(S.me.team.indexOf(me)>=0)?S.me:S.foe, _op=(_my===S.me)?S.foe:S.me;
+    const _hits=sk.flatHits.base+Math.floor((_op.ppSpent||0)/(me.def.passive.ppSpentHits.per||4));
+    if(_hits>=5) sc*=1.25;
+    if(_hits>=7) sc=Math.max(sc,265);
+    if(_hits>=9) sc=Math.max(sc,330);
+  }
+  /* 面对【薪尽火传】：低收益的铺垫/回血会白送段数，压低；输出与斩杀提高 */
+  if(_feedFoe){
+    if(tag==='buff'||tag==='heal'||tag==='regen'||tag==='shield'||tag==='dodge'||tag==='other') sc*=0.82;
+    if(tag==='attack'||tag==='burst') sc*=1.12;
+    if(tag==='pp') sc*=1.05;
+  }
   if(sys==='antiBuff'&&(sk.stealBuffs||sk.clearbuff)&&bpHasPosBuffs(foe)) sc=Math.max(sc,130);
   if(sys==='revive'&&sk.reviveAlly&&bpTeamDead(me)) sc=Math.max(sc,130);
   if(sys==='antiBuff'&&(sk.stealBuffs||sk.clearbuff)&&bpHasPosBuffs(foe)) sc*=2.0;
@@ -2125,7 +2357,7 @@ function aiChooseBP(){
   const doomed=incoming>=me.hp+(me.shield||0);
   const killLine=kill.killLine, nextBestDmg=kill.nextBestDmg, twoTurn=kill.twoTurn, survive=kill.survive;
   const hardCountered=eff(primaryType(foe.type),me.type)>1;
-  const outsped=cur(me,'spe')<cur(foe,'spe');
+  const outsped=weatherReverse() ? (cur(me,'spe')>cur(foe,'spe')) : (cur(me,'spe')<cur(foe,'spe'));
   const sweeperEmergency=role==='sweeper'&&started&&(doomed||(hardCountered&&(outsped||hpP<0.5)));
   /* 收尾模式：对面场上/全队已经残血，优先补刀，不许为了对位再换人亏回合 */
   const foeLow=foe.hp/Math.max(1,foe.maxhp)<0.35;
@@ -2342,7 +2574,7 @@ function renderBattle(){
     <div class="battle">
       <div class="bars">
         ${barsHTML('me',S.me,'你')}
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div class="vsbadge">VS</div><div class="roundhint">第 ${S.turn} 回合</div><div class="turnbanner ${S.banner==='对手回合'?'foe':''}">${S.banner||''}</div><button id="psvbtn" class="pbtn">📖 双方被动</button></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div class="vsbadge">VS</div><div class="roundhint">第 ${S.turn} 回合</div>${weatherChipHTML()}<div class="turnbanner ${S.banner==='对手回合'?'foe':''}">${S.banner||''}</div><button id="psvbtn" class="pbtn">📖 双方被动</button></div>
         ${barsHTML('foe',S.foe,'对手 · '+aiStyleName(S.foe))}
       </div>
       <div class="stage" id="stage">
@@ -2773,14 +3005,14 @@ const BP_SYSTEMS=[
    bans:['jinbi','zhimeng','lvyi','serpent','phoenix'],
    oppCore:['xingyuan','qingluan','shigu','bamboo']},
   {id:'ppDrain',name:'删PP',
-   main:['rongzhu','koi','yhx','yinghuo','zhen','shigu'],
-   backups:['wuzhi','yexun','mingting','wanxiang','mianhua','sandfox'],
+   main:['shijin','rongzhu','koi','yhx','yinghuo','zhen','shigu'],
+   backups:['wuzhi','yexun','mingting','wanxiang','mianhua','sandfox','shijin'],
    bans:['falcon','leopard','gangfeng','turtle','sprite','dragon'],
-   oppCore:['rongzhu','koi','shigu','zhen']},
+   oppCore:['shijin','rongzhu','koi','zhen']},
   {id:'stall',name:'消耗',
    main:['turtle','tiejia','jinbi','canglan','dragon','mingdeng'],
    backups:['mianhua','whale','yeti','golem','shijia','zhongyan','yinhun'],
-   bans:['koi','rongzhu','junmu','cfl','zhen','falcon'],
+   bans:['shijin','koi','rongzhu','junmu','cfl','zhen','falcon'],
    oppCore:['turtle','tiejia','jinbi','canglan']},
   {id:'dot',name:'DoT',
    main:['junmu','cfl','turtle','canglan','mingdeng','fox'],
@@ -2816,7 +3048,7 @@ const BP_BATTLE={
 };
 const BP_ROLES={
  setupSweep:{xingyuan:'sweeper',qingluan:'support',shigu:'enabler',bamboo:'sweeper',gangfeng:'lead',golem:'support',wuzhi:'enabler',whale:'support',yexun:'enabler',mianhua:'support',zhongyan:'support',bian:'lead'},
- ppDrain:{rongzhu:'sweeper',koi:'sweeper',yhx:'lead',yinghuo:'lead',zhen:'enabler',shigu:'enabler',wuzhi:'enabler',yexun:'enabler',mingting:'enabler',wanxiang:'enabler',mianhua:'support',sandfox:'lead'},
+ ppDrain:{shijin:'sweeper',rongzhu:'sweeper',koi:'sweeper',yhx:'lead',yinghuo:'lead',zhen:'enabler',shigu:'enabler',wuzhi:'enabler',yexun:'enabler',mingting:'enabler',wanxiang:'enabler',mianhua:'support',sandfox:'lead'},
  stall:{turtle:'support',tiejia:'support',jinbi:'support',canglan:'enabler',dragon:'support',mingdeng:'enabler',mianhua:'support',whale:'support',yeti:'support',golem:'support',shijia:'enabler',zhongyan:'support',yinhun:'support'},
  dot:{junmu:'enabler',cfl:'sweeper',turtle:'sweeper',canglan:'enabler',mingdeng:'sweeper',fox:'enabler',zhen:'enabler',yeti:'enabler',sandfox:'enabler',eel:'enabler',leopard:'lead',shijia:'enabler',yinghuo:'lead',fenyao:'sweeper'},
  burst:{gangfeng:'sweeper',falcon:'lead',leopard:'lead',cfl:'sweeper',fenyao:'sweeper',yinghuo:'lead',wuzhi:'sweeper',bian:'revenge',yhx:'sweeper',zhen:'enabler',fox:'lead',rongzhu:'sweeper',zhongyan:'support'},
