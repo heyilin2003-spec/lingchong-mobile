@@ -7,7 +7,7 @@
 (function(){
   var REPO='heyilin2003-spec/lingchong-mobile', SUB='desktop/index.html', FALLBACK='https://heyilin2003-spec.github.io/lingchong-mobile/desktop/';
   function fail(){ location.replace(FALLBACK); }
-  var t=setTimeout(fail, 15000);
+  var t=setTimeout(fail, 90000);
   fetch('./version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
     .then(function(v){
       var sha=(v&&v.sha)||'main';
