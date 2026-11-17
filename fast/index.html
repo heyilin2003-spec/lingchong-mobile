@@ -7,16 +7,17 @@
 (function(){
   var REPO='heyilin2003-spec/lingchong-mobile', SUB='index.html', FALLBACK='https://heyilin2003-spec.github.io/lingchong-mobile/';
   var VER = SUB.indexOf('/')>=0 ? '../version.json' : './version.json';
-  function fail(){ location.replace(FALLBACK); }
-  var t=setTimeout(fail, 90000);
-  fetch(VER+'?t='+Date.now(),{cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  var finished=false, controller=new AbortController();
+  function fail(){ if(finished)return; finished=true; controller.abort(); location.replace(FALLBACK); }
+  var t=setTimeout(fail, 12000);
+  fetch(VER+'?t='+Date.now(),{cache:'no-store',signal:controller.signal}).then(function(r){ if(!r.ok) throw 0; return r.json(); })
     .then(function(v){
       var sha=(v&&v.sha)||'main';
-      return fetch('https://gcore.jsdelivr.net/gh/'+REPO+'@'+sha+'/'+SUB,{cache:'no-store'}).then(function(r){
+      return fetch('https://gcore.jsdelivr.net/gh/'+REPO+'@'+sha+'/'+SUB,{cache:'force-cache',signal:controller.signal}).then(function(r){
         if(!r.ok) throw new Error('HTTP '+r.status); return r.text();
       });
     })
-    .then(function(h){ clearTimeout(t); document.open(); document.write(h); document.close(); })
-    .catch(function(e){ clearTimeout(t); var d=document.getElementById('hint'); if(d) d.textContent='切换到备用线路…'; setTimeout(fail,400); });
+    .then(function(h){ if(finished)return; finished=true; clearTimeout(t); h=h.replace(/<head([^>]*)>/i,'<head$1><base href="'+FALLBACK+'">'); document.open(); document.write(h); document.close(); })
+    .catch(function(e){ if(finished)return; clearTimeout(t); var d=document.getElementById('hint'); if(d) d.textContent='切换到备用线路…'; setTimeout(fail,400); });
 })();
 </script></body></html>
