@@ -556,7 +556,7 @@ const PETS=[
     {name:'电磁风暴',star:1,cat:'变化',power:0,pp:5,type:'电',dot:{power:25,type:'电',turns:4},status:{n:'par',ch:1},desc:'专属 · 使对手麻痹，并挂4回合电系持续伤害(每回合25威力)'},
     {name:'雷神之怒',star:1,cat:'物理',power:120,pp:3,type:'电',vsStatus:{n:'par',mul:1.5},desc:'专属 · 120威力电系；对手麻痹时威力×1.5'}
   ]},
-  {id:'sprite',passive:{turnRegen:0.03},name:'森罗草灵',type:'草',emoji:'🧚',art:'sprite',base:{hp:97,atk:63,def:62,spa:106,spd:66,spe:88},own:[
+  {id:'sprite',passive:{turnRegen:0.03},name:'森罗草灵',type:'草',emoji:'🧚',art:'sprite',base:{hp:109,atk:32,def:95,spa:115,spd:100,spe:85},own:[
     {name:'生命汲取',star:1,cat:'魔法',power:78,desc:'专属 · 吸取伤害 50% 回血',drain:5},
     {name:'寄生种子',star:1,cat:'变化',power:0,pp:5,type:'草',dot:{power:22,type:'草',turns:5},desc:'专属 · 对手5回合草系持续伤害(每回合22威力)'},
     {name:'生生不息',star:1,cat:'变化',power:0,pp:5,type:'草',regen:{turns:3,amt:20},ppRestore:1,desc:'专属 · 自身3回合每回合回20血，并回复其他技能各1点次数'},
@@ -3706,7 +3706,7 @@ PETS.push({id:'shiyin',name:'蚀影千足',type:['虫','毒'],emoji:'🐛',art:'
   {name:'腐潮蔓延',star:1,cat:'变化',power:0,pp:3,type:'毒',spreadDotToBench:{pct:0.5,turns:3},desc:'专属 · 把对手场上的DoT扩散给其场下全体（50%伤害/3回合）；若场上无DoT则给场下各挂1层【蚀毒】'},
   {name:'蜕壳回生',star:1,cat:'变化',power:0,pp:4,type:'虫',heal:0.22,cleanse:true,benchDotBuff:{k:'atk',lv:1},desc:'专属 · 回复22%生命并净化自身负面；若对手场下有带DoT的宠，自身物攻+1级'}
 ]});
-PETS.push({id:'zushu',name:'青岚祖树',type:['草'],emoji:'🌳',art:'zushu',passive:{grassCore:{count:3,levels:8,dr:0.4,dmg:0.25}},base:{hp:118,atk:40,def:93,spa:85,spd:88,spe:42},own:[
+PETS.push({id:'zushu',name:'青岚祖树',type:['草'],emoji:'🌳',art:'zushu',passive:{grassCore:{count:3,levels:8,dr:0.4,dmg:0.25}},base:{hp:130,atk:25,def:95,spa:100,spd:105,spe:62},own:[
   {name:'根深叶茂',star:1,cat:'变化',power:0,pp:5,spd:11,type:'草',healAll:0.07,desc:'专属 · 先手+3 · 己方全队回复7%生命'},
   {name:'青岚回响',star:1,cat:'变化',power:0,pp:3,spd:9,type:'草',ppTeam:{active:2,bench:1},desc:'专属 · 先手+1 · 场上宠物回复2点PP（两个不同技能各1点，不含本技能）；场下每只存活草系各1点PP'},
   {name:'寄生汲取',star:1,cat:'变化',power:0,pp:4,type:'草',spreadDrainPP:{skills:2,each:1},drainBonusIfDotNeg:1,desc:'专属 · 随机删除对手2个技能各1点PP；对手带DoT/负面时额外再删1点'},
