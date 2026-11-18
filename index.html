@@ -8089,15 +8089,15 @@ renderMode();
     /* 沉舟客：水/幽 ——「沉舟」机制：抵挡成功锁足 + 沉舟槊永久成长 + 回血（实装在文件末尾 chenzhou-src 层） */
     { id: 'chenzhou', name: '沉舟客', type: ['水', '幽'], emoji: '⛵',
       passive: { sunkenGuard: true },   // 成功抵挡对方攻击：锁足对手2回合 + 沉舟槊永久+40威力 + 回复50
-      base: { hp: 122, atk: 82, def: 108, spa: 40, spd: 100, spe: 34 },   // 合计 486
+      base: { hp: 122, atk: 100, def: 92, spa: 40, spd: 100, spe: 34 },   // 合计 488
       own: [
         { name: '沉舟槊', star: 1, cat: '物理', power: 95, pp: 5, type: '水', sunkenStake: true,
           desc: '专属 · 95威力水系物理；被动每次成功抵挡，本技能永久 +40 威力' },
         { name: '千帆侧过', star: 1, cat: '变化', power: 0, pp: 4, spd: 11, type: '幽',
           guard: { turns: 1, mul: 0.45 }, spreadDrainPP: { skills: 1, each: 1 },
           desc: '专属 · 先手+3 · 本回合布下【定海】受到伤害 -55%，并随机删除对手 1 点 PP' },
-        { name: '覆舟潮', star: 1, cat: '魔法', power: 80, pp: 5, type: '幽', sunkenSplash: { pct: 0.4 },
-          desc: '专属 · 80威力幽系魔法；造成伤害的40%随机波及对手场下 1 只（场下最低保留 1 点生命）' },
+        { name: '覆舟潮', star: 1, cat: '物理', power: 80, pp: 5, type: '幽', sunkenSplash: { pct: 0.4 },
+          desc: '专属 · 80威力幽系物理；造成伤害的40%随机波及对手场下 1 只（场下最低保留 1 点生命）' },
         { name: '泊舟', star: 1, cat: '变化', power: 0, pp: 6, spd: 10, type: '水',
           heal: 0.3, buffs: [{ k: 'def', lv: 1 }],
           desc: '专属 · 先手+2 · 回复自身30%最大生命，并提升自身防御 1 级' }
