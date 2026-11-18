@@ -2065,7 +2065,7 @@ function stepTurn(){
     clearCd();
     CaptainSeal.execute(st);
     const lastImpact=S.fx.reduce((last,f)=>Math.max(last,f.captainAt||0),0);
-    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0);
+    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0);
     const next=S.queue[S.qi];
     const gateApproach=S.fx.find(f=>f.captainApproach?.kind==='gate')?.captainApproach;
     const nextIsGate=next?.a.kind==='skill' && active(next.side).moves[next.a.i]?.captainGate &&
@@ -8084,6 +8084,23 @@ renderMode();
         { name: '月蚀·清算', star: 1, cat: '魔法', power: 125, pp: 3, type: '暗', spd: 10,
           moonSettle: true, spreadDrainPP: { skills: 1, each: 1 },
           desc: '专属 · 先手+2 · 125威力暗系魔法，结算全部剩余【月链】伤害（每回合100），并删除对手1点PP' }
+      ] },
+
+    /* 沉舟客：水/幽 ——「沉舟」机制：抵挡成功锁足 + 沉舟槊永久成长 + 回血（实装在文件末尾 chenzhou-src 层） */
+    { id: 'chenzhou', name: '沉舟客', type: ['水', '幽'], emoji: '⛵',
+      passive: { sunkenGuard: true },   // 成功抵挡对方攻击：锁足对手2回合 + 沉舟槊永久+40威力 + 回复50
+      base: { hp: 122, atk: 82, def: 108, spa: 40, spd: 100, spe: 34 },   // 合计 486
+      own: [
+        { name: '沉舟槊', star: 1, cat: '物理', power: 95, pp: 5, type: '水', sunkenStake: true,
+          desc: '专属 · 95威力水系物理；被动每次成功抵挡，本技能永久 +40 威力' },
+        { name: '千帆侧过', star: 1, cat: '变化', power: 0, pp: 4, spd: 11, type: '幽',
+          guard: { turns: 1, mul: 0.45 }, spreadDrainPP: { skills: 1, each: 1 },
+          desc: '专属 · 先手+3 · 本回合布下【定海】受到伤害 -55%，并随机删除对手 1 点 PP' },
+        { name: '覆舟潮', star: 1, cat: '魔法', power: 80, pp: 5, type: '幽', sunkenSplash: { pct: 0.4 },
+          desc: '专属 · 80威力幽系魔法；造成伤害的40%随机波及对手场下 1 只（场下最低保留 1 点生命）' },
+        { name: '泊舟', star: 1, cat: '变化', power: 0, pp: 6, spd: 10, type: '水',
+          heal: 0.3, buffs: [{ k: 'def', lv: 1 }],
+          desc: '专属 · 先手+2 · 回复自身30%最大生命，并提升自身防御 1 级' }
       ] }
 
   ];
@@ -18784,4 +18801,268 @@ const oldPlay=window.playFx;window.playFx=function(){delayVisual();const acts=(S
 window.TianyanMotion={cast,clear:()=>{clearImpacts();[...running.values()].forEach(f=>f());},frames,durations,release,flight,total,queueEnd:fs=>action(fs)?Math.max(total,release+flight+slashDuration+Math.max(0,...fs.map(f=>f.delay||0))):0,ready:Promise.all(imgs.map(i=>i.decode())),get active(){return running.size;}};
 })();
 
+</script>
+
+<style id="tianyan-battle-aura">
+/* Local moonlight only: two small composited layers, no canvas or animation loop. */
+.pet[data-artkey="tianyan"] .art{position:relative;isolation:isolate}
+.pet[data-artkey="tianyan"] .art::before,
+.pet[data-artkey="tianyan"] .art::after{content:"";position:absolute;pointer-events:none;border-radius:50%;}
+.pet[data-artkey="tianyan"] .art::before{
+ inset:3% 1% 0%;z-index:-1;
+ background:radial-gradient(ellipse at 48% 54%,rgba(184,222,255,.18),rgba(137,178,244,.10) 35%,transparent 68%),radial-gradient(circle at 16% 38%,#e9f8ff 0 1px,transparent 2px),radial-gradient(circle at 79% 23%,#e9f8ff 0 1px,transparent 2px),radial-gradient(circle at 84% 71%,#b9dfff 0 1px,transparent 2px),radial-gradient(circle at 31% 89%,#e9f8ff 0 1px,transparent 2px);
+ animation:tianyan-aura-breathe 3.8s ease-in-out infinite alternate;
+}
+.pet[data-artkey="tianyan"] .art::after{
+ left:2%;top:31%;width:94%;height:42%;z-index:1;
+ border-top:1px solid rgba(222,244,255,.12);border-bottom:2px solid rgba(223,243,255,.72);
+ border-left:1px solid rgba(173,216,255,.48);border-right:1px solid transparent;
+ box-shadow:0 3px 5px -3px rgba(153,212,255,.65),inset 0 -4px 5px -5px #fff;
+ background:radial-gradient(ellipse at 50% 100%,rgba(189,224,255,.13),transparent 55%);
+ animation:tianyan-aura-orbit 5.2s ease-in-out infinite;
+}
+@keyframes tianyan-aura-breathe{from{opacity:.55;transform:translateY(2%) scale(.97)}to{opacity:1;transform:translateY(-2%) scale(1.035)}}
+@keyframes tianyan-aura-orbit{0%,100%{transform:translateY(9%) rotate(-23deg) ;opacity:.55}50%{transform:translateY(-10%) rotate(18deg);opacity:.88}}
+@media(prefers-reduced-motion:reduce){.pet[data-artkey="tianyan"] .art::before,.pet[data-artkey="tianyan"] .art::after{animation:none}}
+</style>
+
+<!-- ===== 沉舟客 机制层（抵挡→锁足/成长/回血 + 覆舟潮波及场下）（纯增量，不改本体逻辑） ===== -->
+<script id="chenzhou-src">
+/* 沉舟客 机制层（水/幽）
+   · 被动【沉舟】：成功抵挡对方攻击（本回合【定海】减伤生效、且生命真的掉了一截）时
+       ① 锁足对手 2 回合（不能换人）
+       ② 【沉舟槊】永久 +40 威力（本场战斗，受 PP 自然封顶）
+       ③ 回复 50 生命
+   · 千帆侧过：本体 skill.guard / skill.spreadDrainPP 直接生效，本层不重复实现
+   · 覆舟潮：skill.sunkenSplash —— 造成伤害的 40% 随机波及对手场下 1 只
+             （走本体 capDmg，场下最低保留 1 点生命，不会击倒）
+   只包装引擎函数，不碰 s2ai / s2link / tleague / data.json
+*/
+(function () {
+  'use strict';
+  if (window.__CHENZHOU_LAYER__) return;
+  window.__CHENZHOU_LAYER__ = true;
+
+  var PID = 'chenzhou';
+  var STAKE = '沉舟槊';
+  var ROOT_TURNS = 2;
+  var POW_STEP = 40;
+  var HEAL_FLAT = 50;
+
+  function log(t) { try { window.logLine(t); } catch (e) { } }
+  function act(side) { try { return side.team[side.active]; } catch (e) { return null; } }
+  function isCz(p) { return !!(p && p.def && p.def.id === PID); }
+  function guardOn(p) { return !!(p && (p.guardT || 0) > 0); }
+  function hpPct(p) { return Math.round((p.hp / Math.max(1, p.maxhp)) * 100); }
+  function sideKeyOf(defSide) { try { return defSide === S.foe ? 'foe' : 'me'; } catch (e) { return 'me'; } }
+
+  /* ---------- 被动【沉舟】：抵挡成功 ---------- */
+  function onBlocked(defSide, atkSide, A, D) {
+    /* ① 锁足对手 2 回合 —— 先走 applyStatus，让别的层的免疫包装能说话 */
+    var rooted = false, immune = false;
+    if (A && !A.fainted) {
+      try { if (typeof window.applyStatus === 'function') window.applyStatus(A, 'root'); } catch (e) { }
+      immune = (A.moonChain || 0) > 0;                 // 天衍月【月链】：异常状态免疫
+      if (!immune) {
+        A.status = A.status || {};
+        A.status.root = Math.max(A.status.root || 0, ROOT_TURNS);
+        rooted = true;
+      }
+    }
+    /* ② 沉舟槊永久 +40 威力 */
+    D.czPow = (D.czPow || 0) + POW_STEP;
+    var stake = null;
+    (D.moves || []).forEach(function (m) { if (m && m.name === STAKE) stake = m; });
+    if (stake) stake.power = (stake.power || 0) + POW_STEP;
+    /* ③ 回复 50 生命 */
+    var healed = 0, from = hpPct(D);
+    if (D.hp > 0) {
+      var mul = 1;
+      try { mul = (window.healMul && window.healMul(D)) || 1; } catch (e) { }
+      var h = Math.round(HEAL_FLAT * mul);
+      var pre = D.hp;
+      D.hp = Math.min(D.maxhp, D.hp + h);
+      healed = D.hp - pre;
+    }
+    if (healed > 0) {
+      try { S.fx.push({ on: sideKeyOf(defSide), heal: true, txt: '+' + healed, hpFrom: from, hpTo: hpPct(D) }); } catch (e) { }
+    }
+    log('　↳ ⚓ <b>沉舟</b>：' + D.name + ' 挡住了这一击 —— '
+      + (rooted ? ('对手被<b>锁足</b> ' + ROOT_TURNS + ' 回合（不能换人）')
+                : (immune ? '对手处于【月链】，锁足被免疫' : '对手已倒下，无需锁足'))
+      + '；【' + STAKE + '】威力 +' + POW_STEP + '（现 ' + (stake ? stake.power : '—') + '）'
+      + (healed > 0 ? ('；回复 ' + healed + ' 生命') : '') + '。');
+  }
+
+  /* ---------- 覆舟潮：伤害 40% 波及对手场下 1 只 ---------- */
+  function benchSplash(defSide, D, dealt, sk) {
+    var ratio = (sk && sk.sunkenSplash && sk.sunkenSplash.pct != null) ? sk.sunkenSplash.pct : 0.4;
+    var bench = [];
+    try {
+      (defSide.team || []).forEach(function (p, i) {
+        if (p && i !== defSide.active && !p.fainted && p.hp > 0) bench.push(p);
+      });
+    } catch (e) { }
+    if (!bench.length) return;
+    var amt = Math.max(1, Math.round(dealt * ratio));
+    var bp = bench[Math.floor(Math.random() * bench.length)];
+    var d = amt;
+    try { if (typeof window.capDmg === 'function') d = window.capDmg(bp, amt); } catch (e) { }
+    var pre = bp.hp;
+    bp.hp = Math.max(0, pre - d);
+    bp.turnDmgTaken = (bp.turnDmgTaken || 0) + d;
+    if (!isFinite(bp.hp)) bp.hp = 0;
+    if (bp.hp <= 0) { try { window.tryFaint(bp); } catch (e) { } }
+    log('　↳ 🌊 <b>覆舟潮</b>：涌浪漫过对手场下 <b>' + bp.name + '</b>，受到 ' + d + ' 点伤害'
+      + (d < amt ? '（场下最低保留 1 点）' : '') + '。');
+  }
+
+  /* ---------- doSkill 包装 ---------- */
+  try {
+    if (typeof window.doSkill === 'function' && !window.__CZ_SKILL) {
+      window.__CZ_SKILL = true;
+      var _do = window.doSkill;
+      window.doSkill = function (sideKey, side, other, mi, who) {
+        var A = act(side), D = act(other);
+        var watched = isCz(D) && guardOn(D);
+        var dHp0 = D ? D.hp : 0;
+        var atkIsCz = isCz(A);
+        var sk = null;
+        try { sk = (A && A.moves) ? A.moves[mi] : null; } catch (e) { }
+        var r = _do.apply(this, arguments);
+        try {
+          if (watched && D && D.hp < dHp0) onBlocked(other, side, A, D);
+        } catch (e) { console.error('[沉舟客] 抵挡结算失败', e); }
+        try {
+          if (atkIsCz && sk && sk.sunkenSplash) {
+            var dealt = dHp0 - (D ? D.hp : 0);
+            if (dealt > 0) benchSplash(other, D, dealt, sk);
+          }
+        } catch (e) { console.error('[沉舟客] 覆舟潮结算失败', e); }
+        return r;
+      };
+    }
+  } catch (e) { console.error('[沉舟客] doSkill 挂载失败', e); }
+
+  /* ---------- 界面：沉舟层数 / 被动名 / 被动描述 ---------- */
+  try {
+    if (typeof window.barsHTML === 'function' && !window.__CZ_BARS) {
+      window.__CZ_BARS = true;
+      var _bars = window.barsHTML;
+      window.barsHTML = function (sideKey, side, label) {
+        var out = _bars.apply(this, arguments);
+        try {
+          var p = side && side.team ? side.team[side.active] : null;
+          if (p && isCz(p) && p.czPow > 0 && typeof out === 'string') {
+            out = out.replace('<div class="strow">',
+              '<div class="strow"><span class="st up">⚓ 沉舟 · +' + p.czPow + '</span>');
+          }
+        } catch (e) { }
+        return out;
+      };
+    }
+  } catch (e) { console.error('[沉舟客] barsHTML 挂载失败', e); }
+
+  try {
+    if (typeof window.passiveName === 'function' && !window.__CZ_PN) {
+      window.__CZ_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.sunkenGuard) return '沉舟'; } catch (e) { }
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[沉舟客] passiveName 挂载失败', e); }
+
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__CZ_PD) {
+      window.__CZ_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.sunkenGuard) {
+            return '成功抵挡对方攻击时：① 对手锁足 2 回合（不能换人）② 【沉舟槊】永久 +40 威力 ③ 回复 50 生命';
+          }
+        } catch (e) { }
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[沉舟客] passiveDesc 挂载失败', e); }
+
+  /* ---------- 自检口子：控制台 __CZ() ---------- */
+  window.__CZ = function () {
+    var p = null;
+    try { p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x.id === PID; })[0] : null; } catch (e) { }
+    return {
+      layer: true,
+      pet: p ? p.name : 'MISSING',
+      type: p ? p.type : null,
+      skills: p ? (p.own || []).map(function (m) { return m.name; }) : null,
+      hooks: { doSkill: !!window.__CZ_SKILL, bars: !!window.__CZ_BARS, pn: !!window.__CZ_PN, pd: !!window.__CZ_PD }
+    };
+  };
+})();
+</script>
+
+<style>.pet.me[data-artkey="chenzhou"] .art{transform:none!important}.pet.foe[data-artkey="chenzhou"] .art{transform:scaleX(-1)!important}</style>
+<script id="chenzhou-art-motion">(()=>{
+const frames=["media/ac17165fd549b45860a78a76.png", "media/04c970b8368ed6a35d8c2773.png", "media/6529c1259a5753c75e8f24d8.png", "media/f228c1c58e785f1e3f31e451.png", "media/ce6682a3c5fbc3df4c74989e.png", "media/07028d82c0f55640a2bd212e.png", "media/50c4202e3afed565f4c8e2cc.png", "media/26c5bc904625f0a744b671dd.png", "media/4d888381b3b1054ce435c298.png", "media/b5b470591ebc3e30ed5a854e.png", "media/6b9e096d1aae9c601abaab0d.png", "media/af7280eb8accc75997d6a5cb.png"],imgs=frames.map(src=>{const i=new Image;i.src=src;return i});
+const durations=[300,130,150,120,90,80,90,300,260,130,150,260],ends=durations.map((_,i)=>durations.slice(0,i+1).reduce((a,b)=>a+b,0)),release=790,flight=170,hit=960,total=2060;
+const anchors=[[140,314],[136,314],[122,316],[114,316],[127,295],[74,292],[60,292],[55,292],[107,291],[120,291],[122,293],[120,294]],running=new Map();
+const pet=PETS.find(p=>p.id==='chenzhou');if(pet)pet.art='chenzhou';PET_ART.chenzhou={idle:frames[0],attack:frames[0],leap:frames[0],hurt:frames[0]};
+const isPet=side=>S?.[side]&&active(S[side])?.def?.id==='chenzhou';
+const source=f=>f.lunge||(f.atkfx&&f.from),action=fs=>fs?.find(f=>source(f)&&isPet(source(f)));
+function box(el){const r=el.getBoundingClientRect(),ratio=(el.naturalWidth||1)/(el.naturalHeight||1),w=Math.min(r.width,r.height*ratio),h=w/ratio;return {x:r.left+(r.width-w)/2,y:r.top+(r.height-h)/2,w,h};}
+const bounds=new WeakMap();function targetPoint(el){const b=box(el);let v=bounds.get(el);if(!v&&el.naturalWidth){try{const c=document.createElement('canvas');c.width=c.height=96;const g=c.getContext('2d');g.drawImage(el,0,0,96,96);const a=g.getImageData(0,0,96,96).data;let x0=96,y0=96,x1=0,y1=0;for(let y=0;y<96;y++)for(let x=0;x<96;x++)if(a[(y*96+x)*4+3]>100){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)}if(x1>x0)v=[(x0+x1)/192,(y0+(y1-y0)*.55)/96];bounds.set(el,v);}catch(e){}}return {x:b.x+b.w*(v?.[0]??.5),y:b.y+b.h*(v?.[1]??.5)};}
+function waterEffects(ctx,t,world,scale,dir,target){
+ const s=Math.max(.65,scale),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const foot=world(170,314),origin=world(300,210),dest=targetPoint(target);
+ ctx.save();ctx.lineCap='round';
+ // Narrow rising eddies gather around the planted foot before release.
+ if(t>490&&t<release){const u=(t-490)/300;ctx.globalAlpha=Math.sin(u*Math.PI)*.75;for(let k=0;k<3;k++){ctx.strokeStyle=k===0?'#c4eee7':'#398f9e';ctx.lineWidth=(3-k*.7)*s;ctx.beginPath();ctx.ellipse(foot.x,foot.y-3*s,(22+u*18+k*6)*s,(5+k*2)*s,-.12,u*5+k*2,u*5+k*2+2.3);ctx.stroke()}}
+ const path=q=>({x:origin.x+(dest.x-origin.x)*q,y:origin.y+(dest.y-origin.y)*q-Math.sin(q*Math.PI)*35*scale});
+ if(t>=release&&t<hit){const q=(t-release)/flight;
+ for(let k=0;k<(reduced?2:5);k++){const span=.20+k*.04;ctx.beginPath();for(let j=0;j<=16;j++){const u=j/16,p=path(Math.max(0,q-span+span*u)),off=Math.sin(u*Math.PI)*(k-2)*4*s;j?ctx.lineTo(p.x,p.y+off):ctx.moveTo(p.x,p.y+off)}ctx.strokeStyle=k%2?'#a5e5de':'#276779';ctx.globalAlpha=.75-k*.10;ctx.lineWidth=(k===0?7:k===1?2:1.2)*s;ctx.stroke()}
+ }
+ // Release spray falls away from the hand; no persistent fog layer.
+ if(t>=release&&t<release+280&&!reduced){const u=(t-release)/280;ctx.globalAlpha=(1-u)*.85;for(let k=0;k<9;k++){const a=k*2.399,dist=(12+u*(25+k*3))*s,x=origin.x+Math.cos(a)*dist,y=origin.y+Math.sin(a)*dist*.6+u*u*28*s;ctx.strokeStyle=k%3?'#74c3c8':'#e2f7ed';ctx.lineWidth=(1+k%3)*s;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-dir*(4+k%4)*s,y-3*s);ctx.stroke()}}
+ if(t>=hit&&t<hit+460){const u=(t-hit)/460,e=1-Math.pow(1-u,3);ctx.translate(dest.x,dest.y);ctx.globalAlpha=Math.pow(1-u,1.3);
+ for(let k=0;k<3;k++){const r=(14+e*(38+k*12))*s;ctx.strokeStyle=k===0?'#d9f7ee':k===1?'#60bcc9':'#2c667c';ctx.lineWidth=(k===1?5:2)*s*(1-u*.55);ctx.beginPath();ctx.ellipse(0,0,r*.75,r,.25*dir,k*2.1+.15,k*2.1+5.5);ctx.stroke()}
+ for(let k=0;k<(reduced?7:16);k++){const a=k*2.399+.2,dist=(15+e*(24+(k%5)*10))*s,tail=(5+(k%4)*4)*(1-u)*s;ctx.save();ctx.translate(Math.cos(a)*dist,Math.sin(a)*dist+u*u*20*s);ctx.rotate(a);ctx.fillStyle=k%4?'#80cbd0':'#f1f8df';ctx.beginPath();ctx.moveTo(-tail,0);ctx.quadraticCurveTo(0,-(2+k%3)*s,tail*.55,0);ctx.quadraticCurveTo(0,2*s,-tail,0);ctx.fill();ctx.restore()}
+ if(u<.22){ctx.globalAlpha=(1-u/.22)*.8;ctx.fillStyle='#f0fff2';ctx.beginPath();ctx.ellipse(0,0,8*s,24*s,-dir*.55,0,Math.PI*2);ctx.fill()}
+ }
+ ctx.restore();
+}
+
+let lastHit=null;
+function cast(side,to=side==='me'?'foe':'me'){
+ running.get(side)?.();const im=document.querySelector('#fig_'+side+' .artimg');const target=document.querySelector('#fig_'+to+' .artimg')||document.querySelector('#fig_'+to+' .art');if(!im||!target||!imgs.every(i=>i.complete&&i.naturalWidth))return;
+ const owner=S,uid=active(S[side])?.uid,targetUid=active(S[to])?.uid,visibility=im.style.visibility,start=performance.now();let raf=0,done=false;const c=document.createElement('canvas');c.className='chenzhou-anchor-fx';c.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:46';document.body.appendChild(c);const ctx=c.getContext('2d');im.style.visibility='hidden';
+ function stop(){if(done)return;done=true;cancelAnimationFrame(raf);c.remove();im.style.visibility=visibility;if(running.get(side)===stop)running.delete(side);}running.set(side,stop);
+ function draw(now){const t=now-start;if(done)return;if(S!==owner||owner.cancelled||!im.isConnected||!target.isConnected||active(owner[side])?.uid!==uid||active(owner[to])?.uid!==targetUid||t>=total){stop();return;}
+ c.width=innerWidth;c.height=innerHeight;const index=ends.findIndex(e=>t<e),b=box(im),scale=b.w/362,dir=side==='foe'?-1:1,dx=140-anchors[index][0],dy=314-anchors[index][1],flying=index>=5&&index<=8;
+ const world=(x,y)=>({x:b.x+(dir===1?x:362-x)*scale,y:b.y+y*scale});
+ ctx.save();ctx.translate(b.x+(dir===-1?b.w:0),b.y);ctx.scale(scale*dir,scale);ctx.translate(dx,dy);if(flying){ctx.beginPath();ctx.rect(0,0,230,362);ctx.clip()}ctx.drawImage(imgs[index],0,0);ctx.restore();
+ if(flying){const hands={5:[188,190],6:[160,195],7:[154,192],8:[200,175]},hand=world(hands[index][0]+dx,hands[index][1]+dy),origin=world(300,210),dest=targetPoint(target);let q=t<hit?(t-release)/flight:t<hit+300?1:1-(t-hit-300)/260;q=Math.max(0,Math.min(1,q));const pos={x:origin.x+(dest.x-origin.x)*q,y:origin.y+(dest.y-origin.y)*q-Math.sin(q*Math.PI)*35*scale};
+ ctx.beginPath();ctx.moveTo(hand.x,hand.y);ctx.quadraticCurveTo((hand.x+pos.x)/2,(hand.y+pos.y)/2+(q===1?0:16*scale),pos.x-dir*35*scale,pos.y);ctx.strokeStyle='#483b2d';ctx.lineWidth=5*scale;ctx.stroke();ctx.strokeStyle='#b3a18a';ctx.lineWidth=2*scale;ctx.setLineDash([4*scale,3*scale]);ctx.stroke();ctx.setLineDash([]);
+ ctx.save();ctx.translate(pos.x,pos.y);ctx.scale(dir*scale,scale);ctx.drawImage(imgs[7],250,155,105,92,-70,-55,145,127);ctx.restore();
+ if(t>=hit&&t<hit+300){lastHit={side,to,anchor:pos,target:dest,at:t};const u=(t-hit)/300;ctx.strokeStyle=`rgba(255,228,176,${1-u})`;ctx.lineWidth=2;for(let j=0;j<7;j++){const a=j*2.399;ctx.beginPath();ctx.moveTo(pos.x+Math.cos(a)*10,pos.y+Math.sin(a)*10);ctx.lineTo(pos.x+Math.cos(a)*(20+u*25),pos.y+Math.sin(a)*(20+u*25));ctx.stroke()}}
+ }waterEffects(ctx,t,world,scale,dir,target);raf=requestAnimationFrame(draw);}
+ raf=requestAnimationFrame(draw);
+}
+const oldCancel=window.cancelBattle;window.cancelBattle=function(){[...running.values()].forEach(f=>f());return oldCancel.apply(this,arguments)};
+const oldImpact=window.impactDelay;window.impactDelay=function(f,fs){if(action(fs)&&f.captainAt==null)return hit+(f.delay||0);return oldImpact.apply(this,arguments)};
+const oldSpawn=window.spawnTypeFx;window.spawnTypeFx=function(type,from,to){if(isPet(from))return;return oldSpawn.apply(this,arguments)};
+let pendingVisual=null;
+const oldSkill=window.doSkill;window.doSkill=function(side){
+ const owner=S,before=['me','foe'].flatMap(key=>['.hpn','.strow'].map(sel=>({key,sel,uid:active(S[key])?.uid,html:document.querySelector('.hpside.'+key+' '+sel)?.innerHTML}))),offset=S?.fx?.length||0;
+ const result=oldSkill.apply(this,arguments);
+ if(isPet(side)&&action(S.fx.slice(offset)))pendingVisual={owner,before};
+ return result;
+};
+function delayVisual(){const pending=pendingVisual;pendingVisual=null;if(!pending||pending.owner!==S)return;pending.before.forEach(v=>{const node=document.querySelector('.hpside.'+v.key+' '+v.sel);if(!node||v.html==null)return;const after=node.innerHTML;node.innerHTML=v.html;battleLater(()=>{if(node.isConnected&&active(S[v.key])?.uid===v.uid)node.innerHTML=after;},hit);});}
+
+const oldPlay=window.playFx;window.playFx=function(){delayVisual();const seen=new Set;for(const f of S?.fx||[]){const side=source(f);if(side&&isPet(side)){if(!seen.has(side)){seen.add(side);cast(side,f.to||(side==='me'?'foe':'me'));}if(f.lunge){delete f.lunge;f.atkfx=true;f.from=side;f.to=side==='me'?'foe':'me';}}}return oldPlay.apply(this,arguments)};
+window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Promise.all(imgs.map(i=>i.decode())),clear:()=>[...running.values()].forEach(f=>f()),queueEnd:fs=>action(fs)?total+Math.max(0,...fs.map(f=>f.delay||0)):0,get active(){return running.size},get lastHit(){return lastHit}};
+})();
 </script>
