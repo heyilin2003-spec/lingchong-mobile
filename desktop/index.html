@@ -2015,7 +2015,7 @@ function stepTurn(){
     clearCd();
     CaptainSeal.execute(st);
     const lastImpact=S.fx.reduce((last,f)=>Math.max(last,f.captainAt||0),0);
-    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx));
+    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0);
     const next=S.queue[S.qi];
     const gateApproach=S.fx.find(f=>f.captainApproach?.kind==='gate')?.captainApproach;
     const nextIsGate=next?.a.kind==='skill' && active(next.side).moves[next.a.i]?.captainGate &&
@@ -8016,7 +8016,26 @@ renderMode();
           desc: '专属 · 随机 1 名队友攻击、魔攻各 +1 级' },
         { name: '安魂', star: 1, cat: '变化', power: 0, pp: 3, spd: 1, type: '幽', teamHealPct: 0.08, teamCleanse: 1,
           desc: '专属 · 先手+1 · 全队各回复 8% 最大生命并净化 1 个负面' }
+      ] },
+    /* 天衍月：暗 ——「月相 / 月链」机制 + 血月天气（实装在文件末尾 tianyan-src 层） */
+    { id: 'tianyan', name: '天衍月', type: ['光', '暗'], emoji: '🌙',
+      passive: { moonPhase: true },     // 处于月链时：攻击附带30%吸血、免疫异常状态
+      base: { hp: 101, atk: 32, def: 85, spa: 110, spd: 88, spe: 61 },   // 合计 477
+      own: [
+        { name: '朔月·涤尘', star: 1, cat: '变化', power: 0, pp: 4, type: '暗', spd: 15,
+          heal: 0.25, cleanse: true,
+          desc: '专属 · 先手+7 · 回复自身25%生命，并净化自身全部负面' },
+        { name: '望月·夺辉', star: 1, cat: '变化', power: 0, pp: 6, type: '暗', spd: 11,
+          clearbuff: true, moonStrip: true, moonChainSet: 3,
+          desc: '专属 · 先手+3 · 消除对手全部增益与减益，并获得3回合【月链】：每次出招收招后追加100点固定伤害' },
+        { name: '血月当空', star: 1, cat: '魔法', power: 70, pp: 6, type: '暗', spd: 9,
+          weather: { id: 'bloodmoon', turns: 4 },
+          desc: '专属 · 先手+1 · 70威力暗系魔法，召唤【血月】4回合：暗系宠物攻击附带30%吸血，受到的伤害-25%' },
+        { name: '月蚀·清算', star: 1, cat: '魔法', power: 125, pp: 3, type: '暗', spd: 10,
+          moonSettle: true, spreadDrainPP: { skills: 1, each: 1 },
+          desc: '专属 · 先手+2 · 125威力暗系魔法，结算全部剩余【月链】伤害（每回合100），并删除对手1点PP' }
       ] }
+
   ];
 
   if (typeof PETS === 'undefined' || !Array.isArray(PETS)) {
@@ -18078,4 +18097,369 @@ const RiftDragonMotion=(()=>{
 </script>
 <script>
 (()=>{const start=window.startBattle;window.startBattle=function(mine,foe){const ids=new Set([...mine,...foe].map(c=>c.pet.id));if(ids.has('fuxian'))SealFrameMotion.warm();if(ids.has('xuntian'))WeatherStoatMotion.warm();if(ids.has('lieyuan'))RiftDragonMotion.warm();return start.apply(this,arguments);};})();
+</script>
+<script id="tianyan-src">
+/* 天衍月 机制层：月相 / 月链 / 血月
+   —— 纯增量层：只包装引擎已有函数，不改本体逻辑，不碰 s2ai / s2link / tleague / data.json */
+(function () {
+  'use strict';
+  if (window.__TIANYAN_LAYER__) return;
+  window.__TIANYAN_LAYER__ = true;
+
+  var WID = 'bloodmoon';
+  var CHAIN_DMG = 100;      // 月链每回合固定伤害
+  var CHAIN_MAX = 4;
+  var LIFESTEAL = 0.3;
+  var DR = 0.25;
+  var STATUS_NAMES = { burn: '灼烧', par: '麻痹', frz: '冻结', bind: '束缚', fear: '恐惧', root: '锁足' };
+  var STATUS_KEYS = ['burn', 'par', 'frz', 'bind', 'fear', 'root'];
+
+  function log(s) { try { if (typeof logLine === 'function') logLine(s); } catch (e) { } }
+  function curS() { try { return (typeof S !== 'undefined') ? S : null; } catch (e) { return null; } }
+  function activeOf(side) { try { return (side && side.team) ? side.team[side.active] : null; } catch (e) { return null; } }
+  function foeKey(sideKey) { return sideKey === 'me' ? 'foe' : 'me'; }
+  function typesOf(p) { if (!p || p.type == null) return []; return Array.isArray(p.type) ? p.type : [p.type]; }
+  function isDark(p) { return typesOf(p).indexOf('暗') >= 0; }
+  function isMoon(p) { return !!(p && p.def && p.def.passive && p.def.passive.moonPhase); }
+  function chained(p) { return !!(isMoon(p) && p.moonChain > 0); }
+  function bloodOn() { var s = curS(); return !!(s && s.weather && s.weather.id === WID); }
+
+  /* ═════════ 1. 血月 天气 ═════════ */
+  try {
+    if (typeof WEATHERS !== 'undefined' && WEATHERS && !WEATHERS[WID]) {
+      WEATHERS[WID] = {
+        id: WID, name: '血月', emoji: '🌕', color: '#b3123a', turns: 4,
+        bloodMoon: true,
+        desc: '暗系宠物攻击附带30%吸血；暗系宠物受到的伤害-25%'
+      };
+    }
+  } catch (e) { console.error('[天衍月] 血月天气注入失败', e); }
+
+  /* 血月：暗系受到伤害 -25%（在整条伤害计算链之后收口，视为最终减伤） */
+  try {
+    if (typeof window.calcDamage === 'function' && !window.__TY_CALC) {
+      window.__TY_CALC = true;
+      var _calc = window.calcDamage;
+      window.calcDamage = function (A, D, skill) {
+        var r = _calc.apply(this, arguments);
+        try {
+          if (r && r.dmg > 0 && bloodOn() && isDark(D)) r.dmg = Math.max(1, Math.round(r.dmg * (1 - DR)));
+        } catch (e) { }
+        return r;
+      };
+    }
+  } catch (e) { console.error('[天衍月] calcDamage 挂载失败', e); }
+
+  /* ═════════ 2. 固定伤害 / 回复 ═════════ */
+  function dealFixed(D, amount, onKey, tag) {
+    if (!D || D.fainted || !(amount > 0)) return 0;
+    var s = curS(), d = Math.round(amount), ab = 0, p0;
+    try {
+      if (D.shield > 0) {
+        ab = Math.min(D.shield, d); D.shield -= ab; d -= ab;
+        if (D.shield <= 0) { D.shield = 0; D.shieldT = 0; }
+        if (ab > 0) log('　↳ 🛡 ' + D.name + ' 的护盾吸收了 ' + ab + ' 点。');
+      }
+      if (!(d > 0)) return 0;
+      d = capDmg(D, d);
+      p0 = D.hp;
+      D.hp = Math.max(0, D.hp - d);
+      D.turnDmgTaken = (D.turnDmgTaken || 0) + d;
+      log('　↳ <b>' + tag + '</b>：' + D.name + ' 受到 ' + d + ' 点固定伤害。');
+      if (s && s.fx) s.fx.push({ on: onKey, txt: '-' + d, shake: true, hpFrom: Math.round(p0 / D.maxhp * 100), hpTo: Math.round(D.hp / D.maxhp * 100) });
+      checkLow(D);
+      if (D.hp <= 0) tryFaint(D);
+      return d;
+    } catch (e) { console.error('[天衍月] 固定伤害结算失败', e); return 0; }
+  }
+
+  function healPet(p, amount, onKey) {
+    if (!p || p.fainted || !(amount > 0)) return 0;
+    var s = curS(), p0 = p.hp, g;
+    p.hp = Math.min(p.maxhp, p.hp + Math.round(amount));
+    g = p.hp - p0;
+    if (g > 0) {
+      log('　↳ 🌙 ' + p.name + ' 吸取了 ' + g + ' 点生命。');
+      if (s && s.fx) s.fx.push({ on: onKey, heal: true, txt: '+' + g, hpFrom: Math.round(p0 / p.maxhp * 100), hpTo: Math.round(p.hp / p.maxhp * 100) });
+    }
+    return g;
+  }
+
+  /* ═════════ 3. 吸血所需的伤害捕获（capDmg 收口） ═════════ */
+  var CAP = null;
+  try {
+    if (typeof window.capDmg === 'function' && !window.__TY_CAP) {
+      window.__TY_CAP = true;
+      var _cap = window.capDmg;
+      window.capDmg = function (p, d) {
+        var r = _cap.apply(this, arguments);
+        try { if (CAP && CAP.on && p === CAP.tgt && r > 0) CAP.sum += r; } catch (e) { }
+        return r;
+      };
+    }
+  } catch (e) { console.error('[天衍月] capDmg 挂载失败', e); }
+
+  /* ═════════ 4. 出招后结算：夺辉 / 月链 / 吸血 / 清算 ═════════ */
+  function postAction(sideKey, side, other, A, D, mv, dealt) {
+    var s = curS();
+    if (!s || s.over || !A || !D) return;
+
+    /* 4.1 望月·夺辉：把对手身上正负两种能力变化一起抹掉（引擎的 clearbuff 只负责增益） */
+    if (mv && mv.moonStrip && !D.fainted) {
+      var lock = (typeof buffLockOwner === 'function') ? buffLockOwner() : null;
+      if (lock) {
+        log('　↳ 🔒 ' + lock.name + ' 的【禁锢】：双方强化被锁定，' + D.name + ' 的能力变化无法被清除。');
+      } else {
+        var n = 0;
+        try {
+          Object.keys(D.buffs || {}).forEach(function (k) { if (D.buffs[k]) { delete D.buffs[k]; n++; } });
+        } catch (e) { }
+        if (n > 0) log('　↳ 🌙 <b>望月·夺辉</b>：' + D.name + ' 的 ' + n + ' 项能力变化被一并抹去。');
+        else log('　↳ 🌙 <b>望月·夺辉</b>：' + D.name + ' 身上没有能力变化可抹。');
+      }
+    }
+
+    /* 4.2 月链建立 */
+    if (mv && mv.moonChainSet) {
+      var turns = Math.min(CHAIN_MAX, mv.moonChainSet | 0);
+      A.moonChain = turns;
+      log('　↳ 🌙 <b>月链</b>成形：' + A.name + ' 之后 ' + turns + ' 次出招收招时各连带 ' + CHAIN_DMG + ' 点固定伤害。');
+    }
+
+    /* 4.3 吸血：月相（连锁中30%）+ 血月（暗系30%），两者都满足时叠加 */
+    var rate = 0, tags = [];
+    if (chained(A)) { rate += LIFESTEAL; tags.push('月相'); }
+    if (bloodOn() && isDark(A)) { rate += LIFESTEAL; tags.push('血月'); }
+    if (rate > 0 && dealt > 0 && !A.fainted) {
+      var hm = (typeof healMul === 'function') ? healMul(A) : 1;
+      var heal = Math.round(dealt * rate * hm);
+      if (heal > 0) {
+        log('　↳ 🌙 <b>' + tags.join(' + ') + '</b>：' + A.name + ' 造成 ' + dealt + ' 点伤害，按 ' + Math.round(rate * 100) + '% 吸血。');
+        healPet(A, heal, sideKey);
+      }
+    }
+
+    /* 4.4 月蚀·清算：把剩余月链折成一次固定伤害 */
+    if (mv && mv.moonSettle && A.moonChain > 0) {
+      if (!D.fainted) {
+        var rest = A.moonChain;
+        A.moonChain = 0;
+        log('　↳ 🌙 <b>清算</b>：一次性结算剩余 ' + rest + ' 回合月链。');
+        dealFixed(D, rest * CHAIN_DMG, foeKey(sideKey), '月蚀·清算 ×' + rest);
+      } else {
+        log('　↳ 🌙 目标已倒下，月链留在了 ' + A.name + ' 身上。');
+      }
+    }
+
+    /* 4.5 月链：每次出招收招后连带一次固定伤害 */
+    if (!A.fainted && A.moonChain > 0 && !D.fainted && !(mv && (mv.moonSettle || mv.moonChainSet))) {
+      dealFixed(D, CHAIN_DMG, foeKey(sideKey), '月链');
+      A.moonChain -= 1;
+      if (A.moonChain <= 0) { A.moonChain = 0; log('　↳ 🌙 ' + A.name + ' 的【月链】耗尽了。'); }
+      else log('　↳ 🌙 月链还剩 ' + A.moonChain + ' 回合。');
+    }
+
+    /* 4.6 月相免疫异常：兜底清理（技能里有直接写 status 的，绕过 applyStatus 也挡得住） */
+    try {
+      var sc = curS();
+      var all = sc ? [].concat(sc.me.team || [], sc.foe.team || []) : [A, D];
+      all.forEach(function (p) {
+        if (!p || !chained(p)) return;
+        var st = p.status || {}, hit = false;
+        STATUS_KEYS.forEach(function (k) { if (st[k]) { delete st[k]; hit = true; } });
+        if (hit) log('　↳ 🌙 <b>月相</b>：' + p.name + ' 处于月链，异常状态被直接抵消。');
+      });
+    } catch (e) { }
+  }
+
+  try {
+    if (typeof window.doSkill === 'function' && !window.__TY_SKILL) {
+      window.__TY_SKILL = true;
+      var _do = window.doSkill;
+      window.doSkill = function (sideKey, side, other, mi, who) {
+        var A = activeOf(side), D = activeOf(other), mv = A && A.moves ? A.moves[mi] : null;
+        var prev = CAP, cap = { on: !!(A && D && mv && !A.fainted && !D.fainted), tgt: D, sum: 0 };
+        CAP = cap;
+        var r;
+        try { r = _do.apply(this, arguments); }
+        catch (e) { console.error('[天衍月] doSkill 执行失败', e); }
+        finally { CAP = prev; }
+        try { postAction(sideKey, side, other, A, D, mv, cap.sum); }
+        catch (e) { console.error('[天衍月] 出招后结算失败', e); }
+        return r;
+      };
+    }
+  } catch (e) { console.error('[天衍月] doSkill 挂载失败', e); }
+
+  /* ═════════ 5. 月相：处于月链时免疫异常状态 ═════════ */
+  try {
+    if (typeof window.applyStatus === 'function' && !window.__TY_STATUS) {
+      window.__TY_STATUS = true;
+      var _as = window.applyStatus;
+      window.applyStatus = function (p, n) {
+        try {
+          if (p && chained(p) && STATUS_KEYS.indexOf(n) >= 0) {
+            log('　↳ 🌙 <b>月相</b>：' + p.name + ' 处于月链，免疫了【' + (STATUS_NAMES[n] || n) + '】。');
+            return;
+          }
+        } catch (e) { }
+        return _as.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[天衍月] applyStatus 挂载失败', e); }
+
+  /* ═════════ 6. 换下即断链 ═════════ */
+  try {
+    if (typeof window.onEnter === 'function' && !window.__TY_ENTER) {
+      window.__TY_ENTER = true;
+      var _oe = window.onEnter;
+      window.onEnter = function (p, isSwitch) {
+        try {
+          if (p && isSwitch && p.moonChain > 0) { p.moonChain = 0; log('　↳ 🌙 ' + p.name + ' 换下，月链中断。'); }
+        } catch (e) { }
+        return _oe.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[天衍月] onEnter 挂载失败', e); }
+
+  /* ═════════ 7. 界面：月链标记 / 被动名 / 被动描述 ═════════ */
+  try {
+    if (typeof window.barsHTML === 'function' && !window.__TY_BARS) {
+      window.__TY_BARS = true;
+      var _bars = window.barsHTML;
+      window.barsHTML = function (sideKey, side, label) {
+        var out = _bars.apply(this, arguments);
+        try {
+          var p = side && side.team ? side.team[side.active] : null;
+          if (p && p.moonChain > 0 && typeof out === 'string') {
+            out = out.replace('<div class="strow">', '<div class="strow"><span class="st up">🌙 月链 · ' + p.moonChain + '</span>');
+          }
+        } catch (e) { }
+        return out;
+      };
+    }
+  } catch (e) { console.error('[天衍月] barsHTML 挂载失败', e); }
+
+  try {
+    if (typeof window.passiveName === 'function' && !window.__TY_PN) {
+      window.__TY_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.moonPhase) return '月相'; } catch (e) { }
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[天衍月] passiveName 挂载失败', e); }
+
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__TY_PD) {
+      window.__TY_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.moonPhase) {
+            return '处于【月链】时：攻击附带30%吸血，且免疫异常状态（灼烧/麻痹/冻结/束缚/恐惧/锁足）';
+          }
+        } catch (e) { }
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[天衍月] passiveDesc 挂载失败', e); }
+
+  /* ═════════ 8. 自检口子：控制台 __TY() ═════════ */
+  window.__TY = function () {
+    var p = null;
+    try { p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x.id === 'tianyan'; })[0] : null; } catch (e) { }
+    return {
+      layer: true,
+      pet: p ? p.name : 'MISSING',
+      weather: !!((typeof WEATHERS !== 'undefined') && WEATHERS && WEATHERS[WID]),
+      bloodOn: bloodOn(),
+      hooks: {
+        doSkill: !!window.__TY_SKILL, capDmg: !!window.__TY_CAP, calcDamage: !!window.__TY_CALC,
+        applyStatus: !!window.__TY_STATUS, onEnter: !!window.__TY_ENTER, bars: !!window.__TY_BARS
+      }
+    };
+  };
+})();
+</script>
+
+<style>.pet.me[data-artkey="tianyan"] .art{transform:none!important}.pet.foe[data-artkey="tianyan"] .art{transform:scaleX(-1)!important}</style>
+<script id="tianyan-art-motion">
+(()=>{
+const frames=["media/8b9cba2d3b264337452a5dda.png", "media/3c34033e2533a3a97725d160.png", "media/22ef018cc978eddb95c61fdb.png", "media/57c610e7a58f71e1b0f65164.png", "media/f2d4d79f1cb4e3819c98e40e.png", "media/0ba47128c1e43dd8c1fde2ae.png", "media/37fa61d42667c1c160f69adb.png", "media/9331fb89011031b35e9a43ee.png", "media/f208f13dc6acd9eaa5de00d3.png", "media/3219c004d835da2806d2cb23.png", "media/b096d4382c660918a55d85ca.png", "media/30e748a41097e7a55c6af25f.png"],imgs=frames.map(src=>{const im=new Image();im.src=src;return im;});
+const durations=[140,120,140,140,150,160,180,900,100,160,170,180].map(ms=>ms/2);
+const ends=durations.map((_,i)=>durations.slice(0,i+1).reduce((a,b)=>a+b,0)),release=ends[7],flight=210,total=ends[11];
+const pet=PETS.find(p=>p.id==='tianyan');if(pet)pet.art='tianyan';
+PET_ART.tianyan={idle:frames[0],attack:frames[0],leap:frames[0],hurt:frames[0]};
+const running=new Map();
+const isMoon=side=>S?.[side]&&active(S[side])?.def?.id==='tianyan';
+const action=fs=>fs?.find(f=>f.atkfx&&isMoon(f.from));
+function point(im,side,x,y){const r=im.getBoundingClientRect(),size=Math.min(r.width,r.height);return {x:r.left+(r.width-size)/2+size*(side==='foe'?1-x:x),y:r.top+(r.height-size)/2+size*y,size};}
+function cast(side,to=side==='me'?'foe':'me'){
+ running.get(side)?.();const fig=document.getElementById('fig_'+side),im=fig?.querySelector('.artimg');if(!im)return;
+ const owner=S,uid=active(owner[side])?.uid;let raf=0,done=false,start=performance.now(),last=-1;
+ const canvas=document.createElement('canvas');canvas.className='tianyan-moon-fx';canvas.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:46';document.body.appendChild(canvas);const ctx=canvas.getContext('2d');
+ const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ function stop(){if(done)return;done=true;cancelAnimationFrame(raf);canvas.remove();if(im.isConnected)im.src=frames[0];if(running.get(side)===stop)running.delete(side);}
+ running.set(side,stop);
+ function draw(now){if(done)return;if(S!==owner||owner.cancelled||!im.isConnected||active(owner[side])?.uid!==uid){stop();return;}
+ const t=now-start;if(t>=total){stop();return;}const index=ends.findIndex(e=>t<e);if(last!==index&&imgs[index]?.complete&&imgs[index].naturalWidth){im.src=frames[index];last=index;}
+ canvas.width=innerWidth;canvas.height=innerHeight;const anchors=[[.84,.55],[.84,.55],[.92,.44],[.94,.36],[.92,.30],[.93,.30],[.94,.29],[.92,.27],[.83,.29],[.84,.31],[.84,.47],[.84,.55]];
+ const tip=point(im,side,...anchors[Math.max(0,index)]);
+ if(t>=270&&t<release){
+ const q=(t-270)/(release-270),radius=Math.max(42,Math.min(90,tip.size*.46))*(.78+q*.22);
+ ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+ if(!reduced)for(let k=0;k<14;k++){
+ const phase=((t-270)*(1+q*.45)/425+k/14)%1,angle=k*2.399+(side==='foe'?Math.PI:0),tail=Math.max(0,phase-.24);
+ const at=p=>{const r=radius*Math.pow(1-p,1.45),a=angle+1.1*(1-p);return {x:tip.x+Math.cos(a)*r,y:tip.y+Math.sin(a)*r*.68};};
+ ctx.globalAlpha=Math.sin(Math.PI*phase)*(.45+q*.4);ctx.beginPath();for(let j=0;j<=12;j++){const v=at(tail+(phase-tail)*j/12);j?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y);}
+ ctx.shadowColor='#bdeaff';ctx.shadowBlur=3;ctx.strokeStyle=k%3?'#d9f4ff':'#fff6dc';ctx.lineWidth=1+q*.55;ctx.stroke();
+ const head=at(phase);ctx.shadowBlur=4;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(head.x,head.y,.8+q*.5,0,Math.PI*2);ctx.fill();
+ }
+ ctx.globalAlpha=.75;ctx.shadowColor='#bceaff';ctx.shadowBlur=6;ctx.fillStyle='#fffbe7';ctx.beginPath();ctx.arc(tip.x,tip.y,1.8+q*2.1,0,Math.PI*2);ctx.fill();
+ }
+ if(t>=release&&t<release+flight){const target=document.querySelector('#fig_'+to+' .artimg')||document.getElementById('fig_'+to);if(target){const r=target.getBoundingClientRect(),q=(t-release)/flight,origin=point(im,side,.92,.27),x=origin.x+(r.left+r.width*.5-origin.x)*q,y=origin.y+(r.top+r.height*.42-origin.y)*q;ctx.globalAlpha=1;ctx.globalCompositeOperation='lighter';ctx.shadowColor='#c2efff';ctx.shadowBlur=15;ctx.strokeStyle='#e8faff';ctx.lineWidth=3;const angle=Math.atan2(r.top+r.height*.42-origin.y,r.left+r.width*.5-origin.x);ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.beginPath();ctx.moveTo(-32,0);ctx.lineTo(9,0);ctx.moveTo(1,-5);ctx.lineTo(10,0);ctx.lineTo(1,5);ctx.stroke();ctx.restore();}}
+ raf=requestAnimationFrame(draw);}
+ raf=requestAnimationFrame(draw);
+}
+const impactStops=new Set(),slashDuration=650;
+function slashImpact(to,from){
+ const owner=S,target=document.getElementById('fig_'+to);if(!owner||owner.cancelled||!target)return;
+ const uid=active(owner[to])?.uid,canvas=document.createElement('canvas');canvas.className='tianyan-impact-slashes';canvas.dataset.count='8';canvas.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:43';document.body.appendChild(canvas);
+ const ctx=canvas.getContext('2d'),start=performance.now(),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;let raf=0,done=false;
+ function stop(){if(done)return;done=true;cancelAnimationFrame(raf);canvas.remove();impactStops.delete(stop);}impactStops.add(stop);
+ const slopes=[-68,23,-10,71,-37,9,46,-81],widths=[17,3,10,2,25,5,13,1.6],delays=[0,20,6,38,12,50,28,44];
+ let seed=(Math.floor(start*1000)^0x7f4a7c15)>>>0;const rand=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return (seed>>>0)/4294967296;};
+ const strokes=slopes.map((deg,i)=>({angle:(deg+(rand()-.5)*18)*Math.PI/180,x:.18+rand()*.64,y:.12+rand()*.76,width:widths[i]*(.85+rand()*.3),peak:.32+rand()*.36,delay:delays[i]}));
+ canvas.dataset.style='irregular-widen-fade-v3';
+ function draw(now){if(done)return;const t=now-start;if(S!==owner||owner.cancelled||!target.isConnected||active(owner[to])?.uid!==uid||t>=slashDuration){stop();return;}
+ canvas.width=innerWidth;canvas.height=innerHeight;const w=canvas.width,h=canvas.height,length=Math.hypot(w,h)*2.6,scale=Math.max(.65,Math.min(1.25,Math.min(w,h)/750));
+ for(const s of strokes){const age=t-s.delay;if(age<0||age>=600)continue;const p=age/600,eased=p*p*(3-2*p),growth=reduced?1:.65+2.15*eased;const alpha=Math.min(1,age/14)*Math.pow(1-p,1.35)*(reduced?.4:1);
+ ctx.save();ctx.translate(s.x*w,s.y*h);ctx.rotate(s.angle*(from==='foe'?-1:1));ctx.globalAlpha=alpha;
+ // One connected blade, already spanning beyond both viewport edges on its first visible frame.
+ const stations=[[-.5,.12],[-.24,.42],[s.peak-.5,1],[.23,.48],[.5,.1]];stations.sort((a,b)=>a[0]-b[0]);
+ ctx.beginPath();stations.forEach(([u,v],i)=>{const x=u*length,y=-Math.max(.7,s.width*scale*growth*v/2);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});[...stations].reverse().forEach(([u,v])=>ctx.lineTo(u*length,Math.max(.7,s.width*scale*growth*v/2)));ctx.closePath();
+ ctx.fillStyle='#fff';ctx.shadowColor='rgba(205,233,255,.8)';ctx.shadowBlur=reduced?0:8+s.width*.25+eased*15;ctx.fill();
+ ctx.shadowBlur=0;ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(1.1,s.width*scale*growth*.12);ctx.beginPath();ctx.moveTo(-length/2,0);ctx.lineTo(length/2,0);ctx.stroke();ctx.restore();}
+ raf=requestAnimationFrame(draw);}
+ raf=requestAnimationFrame(draw);
+}
+function clearImpacts(){[...impactStops].forEach(f=>f());}
+
+const oldCancel=window.cancelBattle;window.cancelBattle=function(){clearImpacts();[...running.values()].forEach(f=>f());return oldCancel.apply(this,arguments);};
+const oldImpact=window.impactDelay;window.impactDelay=function(f,fs){if(action(fs)&&f.captainAt==null)return release+flight+(f.delay||0);return oldImpact.apply(this,arguments);};
+const oldSpawn=window.spawnTypeFx;window.spawnTypeFx=function(type,from,to){if(isMoon(from))return;return oldSpawn.apply(this,arguments);};
+let pendingVisual=null;
+const oldSkill=window.doSkill;window.doSkill=function(side){
+ const owner=S,before=['me','foe'].flatMap(key=>['.hpn','.strow'].map(sel=>({key,sel,uid:active(S[key])?.uid,html:document.querySelector('.hpside.'+key+' '+sel)?.innerHTML}))),offset=S?.fx?.length||0;
+ const result=oldSkill.apply(this,arguments);
+ if(isMoon(side)&&action(S.fx.slice(offset)))pendingVisual={owner,before};
+ return result;
+};
+function delayVisual(){const pending=pendingVisual;pendingVisual=null;if(!pending||pending.owner!==S)return;pending.before.forEach(v=>{const node=document.querySelector('.hpside.'+v.key+' '+v.sel);if(!node||v.html==null)return;const after=node.innerHTML;node.innerHTML=v.html;battleLater(()=>{if(node.isConnected&&active(S[v.key])?.uid===v.uid)node.innerHTML=after;},release+flight);});}
+const oldPlay=window.playFx;window.playFx=function(){delayVisual();const acts=(S?.fx||[]).filter(f=>f.atkfx&&isMoon(f.from));const seen=new Set;acts.forEach(f=>{if(!seen.has(f.from)){seen.add(f.from);cast(f.from,f.to);const hits=(S.fx||[]).filter(h=>h.on===f.to&&!h.heal&&Number.parseFloat(h.txt)<0);if(hits.length){const hitAt=Math.min(...hits.map(h=>impactDelay(h,S.fx)));battleLater(()=>slashImpact(f.to,f.from),hitAt);}}});return oldPlay.apply(this,arguments);};
+window.TianyanMotion={cast,clear:()=>{clearImpacts();[...running.values()].forEach(f=>f());},frames,durations,release,flight,total,queueEnd:fs=>action(fs)?Math.max(total,release+flight+slashDuration+Math.max(0,...fs.map(f=>f.delay||0))):0,ready:Promise.all(imgs.map(i=>i.decode())),get active(){return running.size;}};
+})();
+
 </script>
