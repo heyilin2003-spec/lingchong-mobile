@@ -1368,6 +1368,9 @@ function battleLater(fn,delay){
   return timer;
 }
 function cancelBattle(){
+  window.XianjianMotion?.clear();
+  window.JinyuxiaoMotion?.clear();
+  window.CandleMotion?.clear();
   if(window.ElementFX)ElementFX.clear();
   if(typeof WeatherStoatMotion!=='undefined')WeatherStoatMotion.clear();
   if(typeof SealFrameMotion!=='undefined')SealFrameMotion.clear();
@@ -2065,7 +2068,7 @@ function stepTurn(){
     clearCd();
     CaptainSeal.execute(st);
     const lastImpact=S.fx.reduce((last,f)=>Math.max(last,f.captainAt||0),0);
-    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0);
+    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0);
     const next=S.queue[S.qi];
     const gateApproach=S.fx.find(f=>f.captainApproach?.kind==='gate')?.captainApproach;
     const nextIsGate=next?.a.kind==='skill' && active(next.side).moves[next.a.i]?.captainGate &&
@@ -3415,7 +3418,7 @@ function playFx(){
     const numberLag=0;
     if(f.weatherCast) WeatherStoatMotion.cast(f.weatherCast);
     if(f.captainApproach) CaptainMotion.approach(f.captainApproach);
-    else{
+    else if(!f.customLaunch){
       if(f.lunge) playDash(f.lunge);
       if(f.atkfx) spawnTypeFx(f.type, f.from, f.to);
     }
@@ -3450,7 +3453,7 @@ function playFx(){
           bar.style.width=f.hpFrom+'%';
         }
         captainBars.add(f.on);
-        const showAt=delay+(f.heal?(f.captainAt!=null?0:260):numberLag);
+        const showAt=delay+(f.heal?(f.captainAt!=null||f.candleSyncHeal?0:260):numberLag);
         battleLater(()=>{
           const _cur=(S[f.on]?active(S[f.on]):null); if(!_cur||_cur.uid!==_tid) return;   // 已换宠 → 别把旧宠血条动画套到新宠上
           const chg=document.createElement('div');
@@ -5675,7 +5678,7 @@ renderMode();
       if(!f.fxType && action?.type)f.fxType=action.type;
       if(!f.fxCat && action)f.fxCat=action.lunge?'物理':'魔法';
       /* 受击瞬间（与本体 shake/hitred 同帧）—— 回血帧不算受击，不炸火花 */
-      if (f.on && (f.shake || f.txt != null) && !f.heal && parseFloat(f.txt)!==0) {
+      if (!f.customImpact && f.on && (f.shake || f.txt != null) && !f.heal && parseFloat(f.txt)!==0) {
         setTimeout(function () { hitFx(f.on, f); }, d);
       }
       /* 回血 */
@@ -5683,7 +5686,7 @@ renderMode();
         setTimeout(function () { var b = petBox(f.on); if (b) healFx(b.cx, b.cy); }, d);
       }
       /* 属性技能的中段冲击（避免与 spawnTypeFx 重复） */
-      if (f.eff != null && f.eff > 1 && f.on && !f.heal) {
+      if (!f.customImpact && f.eff != null && f.eff > 1 && f.on && !f.heal) {
         setTimeout(function () {
           var b = petBox(f.on); if (!b) return;
           flash('rgba(255,225,140,0.13)', 240);
@@ -7680,14 +7683,14 @@ renderMode();
         { name: '棱刺突撞', star: 1, cat: '物理', power: 90, pp: 6, type: '冰', spd: 8,
           debuff: { k: 'def', lv: -1 }, shardRush: true,
           desc: '90威力冰系物理，命中后对手物防-1级；对手本场换过人则威力×1.25' },
-        { name: '碎棱布阵', star: 1, cat: '变化', power: 0, pp: 4, type: '石', spd: 7, shardMark: 4,
-          desc: '施加碎棱印记4回合：被印记者换下场时受其最大生命12%伤害、速度-1级；每回合末受其最大生命5%伤害' },
+        { name: '碎棱布阵', star: 1, cat: '变化', power: 0, pp: 4, type: '石', spd: 7, brandAdd: { k: 'jici', n: 2 },
+          desc: '为对手叠加 2 层【棘刺烙印】：永久存在、可无限叠加，只有消除烙印的技能能清；每层每回合末受其最大生命 2% 伤害，被烙印者换下场时受其最大生命 12% 伤害、速度 -1 级' },
         { name: '寒棱壁垒', star: 1, cat: '变化', power: 0, pp: 4, type: '冰', spd: 7,
           buff: { k: 'def', lv: 2 }, heal: 0.2, cleanse: true,
           desc: '自身物防+2级、回复20%生命，并清除自身全部负面（能力等级、异常状态、持续伤害）' },
         { name: '棱晶崩解', star: 1, cat: '物理', power: 105, pp: 4, type: '冰', spd: 6,
-          execute: 0.25, shardShatter: true,
-          desc: '105威力冰系物理，对手生命≤25%时直接斩杀；碎棱印记在场时威力+40，印记延长2回合' }
+          execute: 0.25, brandBurst: { per: 40 },
+          desc: '105威力冰系物理，对手生命≤25%时直接斩杀；消耗对手全部【棘刺烙印】，每层威力 +40' }
       ] },
 
     /* 14. 魇狱魔将：暗/幽 —— 魔域天气的开启者：恐惧控场 + 打恐惧目标增伤 */
@@ -8101,8 +8104,57 @@ renderMode();
         { name: '泊舟', star: 1, cat: '变化', power: 0, pp: 6, spd: 10, type: '水',
           heal: 0.3, buffs: [{ k: 'def', lv: 1 }],
           desc: '专属 · 先手+2 · 回复自身30%最大生命，并提升自身防御 1 级' }
-      ] }
+      ] },
 
+    /* 衔笺鹿：光/普通 ——「托愿」：己方印记队友首触发保留一次、自己触发直接消耗（机制实装在文件末尾 xianjian-src 层） */
+    { id: 'xianjian', name: '衔笺鹿', type: ['光', '普通'], emoji: '🦌',
+      passive: { wishBearer: true },   // 托愿：印记第一次由队友触发时保留，第二次（无论谁）消失
+      base: { hp: 130, atk: 40, def: 83, spa: 96, spd: 88, spe: 40 },   // 合计 477
+      own: [
+        { name: '回墨', star: 1, cat: '变化', power: 0, pp: 5, spd: 10, type: '光',
+          heal: 0.25, xjMark: { k: 'xuxi' },
+          desc: '专属 · 先手+2 · 回复自身25%最大生命，并为己方布置【续息印】：己方场上宠物技能结算后若实际回复过生命，恢复共2点PP（随机两个未满技能各1点；只剩一个未满则补至多2点）' },
+        { name: '安符', star: 1, cat: '变化', power: 0, pp: 4, spd: 9, type: '普通',
+          buffs: [{ k: 'def', lv: 1 }, { k: 'spd', lv: 1 }], xjMark: { k: 'huxing' },
+          desc: '专属 · 先手+1 · 自身防御、魔抗各提升1级，并为己方布置【护行印】：己方场上宠物完整使用一次变化技能后，获得1次闪避' },
+        { name: '拂尘护佑', star: 1, cat: '变化', power: 0, pp: 4, spd: 11, type: '光',
+          cleanse: true, xjCleanseRoot: true, teamShield: 40,
+          desc: '专属 · 先手+3 · 清除自身全部负面，并为己方全体各提供40点永久护盾（可叠加，每人上限120）' },
+        { name: '破障符光', star: 1, cat: '魔法', power: 80, pp: 6, type: '光',
+          shieldBreak: { heal: 0 },
+          desc: '专属 · 80威力光系魔法；命中时先击碎对手护盾，再结算伤害' }
+      ] },
+
+    /* 烬羽鸮：火/暗 ——【噬魂】击杀成长：先手值+1、全属性种族值+25（本场永久叠加；实装在文件末尾 killgrow-src 层） */
+    { id: 'jinyuxiao', name: '烬羽鸮', type: ['火', '暗'], emoji: '🦉',
+      passive: { killGrow: { spe: 1, race: 25 } },
+      base: { hp: 88, atk: 104, def: 66, spa: 40, spd: 68, spe: 104 },   // 合计 470
+      own: [
+        { name: '烬羽刃', star: 1, cat: '物理', power: 90, pp: 6, type: '火', status: { n: 'burn', ch: 0.3 },
+          desc: '专属 · 90威力火系物理，30% 使对手灼烧' },
+        { name: '猎魂俯冲', star: 1, cat: '物理', power: 70, pp: 5, spd: 9, type: '暗', ambush: 1.5,
+          desc: '专属 · 先手+1 · 70威力暗系物理；先手出手时威力×1.5' },
+        { name: '掠火', star: 1, cat: '变化', power: 0, pp: 4, spd: 10, type: '火',
+          buffs: [{ k: 'atk', lv: 1 }, { k: 'spe', lv: 1 }],
+          desc: '专属 · 先手+2 · 自身物攻、速度各+1级' },
+        { name: '焚天啄', star: 1, cat: '物理', power: 120, pp: 3, spd: 7, type: '火', execute: 0.25, killHeal: 0.2,
+          desc: '专属 · 先手−1 · 120威力火系物理；对生命≤25%的目标直接斩杀，击杀后回复自身20%生命' }
+      ] },
+
+    /* 残烛魇：火/幽 ——【灯烬】觉醒宠：本场累计释放 3 次技能 → 用「燃芯」觉醒为【焚心烛魇】（实装在文件末尾 fenxin-src 层） */
+    { id: 'canzhuyan', name: '残烛魇', type: ['火', '幽'], emoji: '🕯️',
+      passive: { lampAsh: 1 },
+      base: { hp: 98, atk: 34, def: 78, spa: 100, spd: 86, spe: 94 },
+      own: [
+        { name: '烛焰', star: 1, cat: '魔法', power: 95, pp: 5, type: '火', status: { n: 'burn', ch: 0.3 },
+          desc: '专属 · 95威力火系魔法；30% 使对手灼烧' },
+        { name: '凝蜡', star: 1, cat: '变化', power: 0, pp: 4, spd: 10, type: '火', heal: 0.3, cleanse: true,
+          desc: '专属 · 先手+2 · 回复自身30%最大生命，并清除自身全部负面' },
+        { name: '蜡衣', star: 1, cat: '变化', power: 0, pp: 4, spd: 9, type: '幽', shield: 70, shieldTurns: 3, buff: { k: 'def', lv: 1 },
+          desc: '专属 · 先手+1 · 70点护盾（3回合），自身防御+1级' },
+        { name: '燃芯', star: 1, cat: '变化', power: 0, pp: 1, spd: 11, type: '火', fxAwaken: true,
+          desc: '专属 · 先手+3 · 觉醒为【焚心烛魇】；本场需已累计释放 3 次技能，否则不发动（次数归还）' }
+      ] }
   ];
 
   if (typeof PETS === 'undefined' || !Array.isArray(PETS)) {
@@ -11561,24 +11613,35 @@ window.__SWITCHUI_INFO=function(){
 
 </script>
 
-<!-- ===== 碎棱印记层（碎棱猬专属：惩罚换人的场地印记 / 4 回合）（纯增量，不改本体逻辑） ===== -->
-<script id="shardfield-src">
-/* 【碎棱印记】层：碎棱猬专属 —— 惩罚对手换人的场地印记（2026-11-03 阿琳定）
-   规则：
-   · 碎棱布阵 → 给对手阵营施加【碎棱印记】4 回合（贴在场上那只身上）
-   · 被印记的一方换人 → 换下去的那只受其最大生命 12% 伤害、速度 −1 级；印记转移到新上场者，回合数不重置
-   · 被印记的场上宠物每回合末受其最大生命 5% 伤害（每一回合末消耗 1 回合）
-   · 棱晶崩解：印记在场时威力 +40、印记延长 2 回合
-   · 与天气完全独立：不会被吹散/顶掉，天气锁与吹散技能对它无效 */
+<!-- ===== 烙印系统层（棘刺烙印 · 永久可叠加的负面烙印；纯增量，不改本体逻辑） ===== -->
+<script id="brand-src">
+/* ===== 烙印系统层（brand · v1 · 纯增量，不改本体字节） =====
+   【烙印】= 永久负面标记（通用骨架）
+   · 可叠加、不限层数、没有回合数：只要没被「消除烙印」清掉，就一直留在身上
+   · 换人不转移：烙印挂在哪只宠物身上就跟着那只（换下去再上来还在）
+   · 净化(cleanse)不清烙印 —— 只有消除烙印类技能能清
+   · 显示：状态行最前面，紫色气泡
+   · 技能私有键（本体不认识，本层实现）：
+       brandAdd     : { k:'jici', n:2 }   出招后给对手叠 n 层
+       brandBurst   : { per:40 }          出招时消耗对手全部该烙印，每层威力 +per
+       brandClear   : true | 'jici'       消除对手的烙印（true = 全部，字符串 = 指定一种）
+       brandClearSelf: true | 'jici'      消除自身的烙印（火系通用「燎印」用这个）
+       brandClearOne: 'jici'              只消 1 层
+   · v1 实装：棘刺烙印（jici · 碎棱猬）
+       每层每回合末：其最大生命 2% 伤害
+       被烙印者换下场（双方都算）：其最大生命 12% 伤害 + 速度 −1 级
+       棱晶崩解：消耗对手全部棘刺烙印，每层 +40 威力
+   · 火系通用技「燎印」：从文件末尾注册进每个火系宠的技能池（追加在池尾，不动老配招索引）
+   公开接口：window.__BRAND.{defs,add,clear,stacks,total,bubbleHTML,list,fireSkill}
+*/
 (function () {
   'use strict';
-  if (window.__shardField) return;
+  if (window.__BRAND_LAYER__) return;
+  window.__BRAND_LAYER__ = 1;
 
-  var NAME = '碎棱印记';
-  var SWITCH_OUT = 0.12;   // 换下场：自身最大生命 12%
-  var TICK = 0.05;         // 每回合末：自身最大生命 5%
-  var EXT = 2;             // 棱晶崩解延长
-  var POW = 40;            // 棱晶崩解增伤
+  var DEFS = {
+    jici: { key: 'jici', name: '棘刺烙印', icon: '🟣', perLayer: 0.02, switchOut: 0.12, switchSpe: -1, pow: 40 }
+  };
 
   function ok() { return typeof S !== 'undefined' && S && S.me && S.foe; }
   function sideOf(p) {
@@ -11587,8 +11650,55 @@ window.__SWITCHUI_INFO=function(){
     if ((S.foe.team || []).indexOf(p) >= 0) return S.foe;
     return null;
   }
-  function act(sd) { return sd && sd.team ? sd.team[sd.active] : null; }
-  function marked(sd) { return !!(sd && sd._shard && sd._shard.turns > 0); }
+  function act(sd) { return (sd && sd.team) ? sd.team[sd.active] : null; }
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) {} }
+
+  /* ---------- 数据读写 ---------- */
+  function stacks(p, key) {
+    if (!p || !p.__brands || !key) return 0;
+    return p.__brands[key] || 0;
+  }
+  function list(p) {
+    var out = [];
+    if (p && p.__brands) { for (var k in p.__brands) { if ((p.__brands[k] || 0) > 0 && DEFS[k]) out.push({ k: k, n: p.__brands[k], def: DEFS[k] }); } }
+    return out;
+  }
+  function total(p) { var t = 0; list(p).forEach(function (x) { t += x.n; }); return t; }
+  function add(target, key, n) {
+    var def = DEFS[key];
+    if (!def || !target || target.fainted) return 0;
+    n = Math.max(0, Math.floor(n || 0));
+    if (!n) return 0;
+    if (!target.__brands) target.__brands = {};
+    target.__brands[key] = (target.__brands[key] || 0) + n;
+    return n;
+  }
+  function removeN(target, key, n) {
+    if (!target || !target.__brands || !key) return 0;
+    var before = target.__brands[key] || 0;
+    var take = Math.min(before, Math.max(0, Math.floor(n || 1)));
+    if (take <= 0) return 0;
+    target.__brands[key] = before - take;
+    if (target.__brands[key] <= 0) delete target.__brands[key];
+    return take;
+  }
+  function clear(target, key) {
+    if (!target || !target.__brands) return 0;
+    if (key) { var n = target.__brands[key] || 0; delete target.__brands[key]; return n; }
+    var t = 0; for (var k in target.__brands) { t += target.__brands[k] || 0; } target.__brands = {}; return t;
+  }
+
+  /* ---------- 紫色气泡（状态行最前面） ---------- */
+  function bubbleHTML(p) {
+    var out = '';
+    list(p).forEach(function (x) {
+      out += '<span class="st" style="background:linear-gradient(135deg,#b06bff,#7c3aed);color:#fff;border:1px solid #d8b4fe;border-radius:999px;padding:0 7px;margin-right:3px;box-shadow:0 0 7px rgba(168,85,247,.75);text-shadow:0 1px 1px rgba(0,0,0,.35)">' +
+        x.def.icon + ' ' + x.def.name + '×' + x.n + '</span>';
+    });
+    return out;
+  }
+
+  /* ---------- 伤害辅助 ---------- */
   function hurt(p, dmg) {
     if (!p || p.fainted || !(dmg > 0)) return 0;
     var d = (typeof capDmg === 'function') ? capDmg(p, dmg) : dmg;
@@ -11599,53 +11709,92 @@ window.__SWITCHUI_INFO=function(){
     return pre - p.hp;
   }
 
-  /* ── 1. 施加印记 / 崩解延长 ─────────────────────────── */
+  /* ---------- 1. 出招：叠层 / 清除 / 引爆消耗 ---------- */
   var _doSkill = window.doSkill;
   if (typeof _doSkill === 'function') {
     window.doSkill = function (sideKey, side, foeSide, mi, who) {
       var A = act(side), D = act(foeSide);
       var skill = (A && A.moves) ? A.moves[mi] : null;
+      var burstKey = (skill && skill.brandBurst) ? (skill.brandBurst.k || 'jici') : null;
+      var burstPre = (burstKey && D) ? stacks(D, burstKey) : 0;
       var res = _doSkill.apply(this, arguments);
       try {
-        if (skill && skill.shardMark && D && !D.fainted) {
-          foeSide._shard = { turns: skill.shardMark, from: A ? A.name : '' };
-          logLine('　↳ 💠 <b>' + NAME + '</b> 铺满战场：<b>' + D.name + '</b> 被标记（' + skill.shardMark +
-                  ' 回合）—— 换下场要付 12% 生命的代价。');
+        if (skill && skill.brandClearSelf && A) {
+          var keysS = (typeof skill.brandClearSelf === 'string') ? [skill.brandClearSelf] : Object.keys(DEFS);
+          var cnS = 0;
+          keysS.forEach(function (k) { cnS += clear(A, k); });
+          if (cnS > 0) {
+            say('　↳ 🔥 <b>消除烙印</b>：' + A.name + ' 身上的 ' + cnS + ' 层烙印被焚尽。');
+          } else {
+            say('　↳ 🔥 ' + A.name + ' 身上没有烙印可烧。');
+          }
         }
-        if (skill && skill.shardShatter && marked(foeSide) && !D.fainted) {
-          foeSide._shard.turns += EXT;
-          logLine('　↳ 💠 <b>棱晶崩解</b> 震裂了场上的碎棱：' + NAME + ' 延长 ' + EXT +
-                  ' 回合（剩 ' + foeSide._shard.turns + ' 回合）。');
+        if (skill && D && !D.fainted) {
+          if (skill.brandAdd && skill.brandAdd.k) {
+            var d0 = DEFS[skill.brandAdd.k];
+            var n0 = add(D, skill.brandAdd.k, skill.brandAdd.n || 1);
+            if (d0 && n0 > 0) {
+              say('　↳ ' + d0.icon + ' <b>' + D.name + '</b> 叠起了【' + d0.name + '】+' + n0 +
+                  ' 层（现 ' + stacks(D, d0.key) + ' 层）—— 没有消除烙印就一直在。');
+            }
+          }
+          if (skill.brandClear) {
+            var keys0 = (typeof skill.brandClear === 'string') ? [skill.brandClear] : Object.keys(DEFS);
+            var cn = 0;
+            keys0.forEach(function (k) { cn += clear(D, k); });
+            if (cn > 0) say('　↳ ✨ <b>消除烙印</b>：' + D.name + ' 身上 ' + cn + ' 层烙印被清除。');
+          }
+          if (skill.brandClearOne) {
+            var k1 = (typeof skill.brandClearOne === 'string') ? skill.brandClearOne : 'jici';
+            var gone = removeN(D, k1, 1);
+            if (gone > 0) say('　↳ ✨ ' + D.name + ' 身上的【' + (DEFS[k1] ? DEFS[k1].name : '烙印') + '】被抹去 1 层。');
+          }
         }
-      } catch (e) {}
+        if (burstKey && burstPre > 0) {
+          var bd = DEFS[burstKey];
+          var nowN = clear(D, burstKey);
+          if (bd) {
+            var per = skill.brandBurst.per || bd.pow;
+            say('　↳ 💠 <b>' + (skill.name || '引爆') + '</b> 炸开：消耗 ' + D.name + ' 身上全部【' + bd.name +
+                '】' + nowN + ' 层（本次威力 +' + nowN * per + '）。');
+          }
+        }
+      } catch (e) { try { console.error('[烙印] 结算失败', e); } catch (_) {} }
       return res;
     };
   }
 
-  /* ── 2. 威力修正：崩解 +40 / 突撞 ×1.25（对手换过人） ── */
+  /* ---------- 2. 威力：引爆按层数加威力 / 棱刺突撞按换人次数 ×1.25 ---------- */
   var _calc = window.calcDamage;
   if (typeof _calc === 'function') {
     window.calcDamage = function (A, D, skill, mul) {
-      var sd = sideOf(D);
       try {
-        if (skill && sd) {
-          if (skill.shardShatter && marked(sd)) {
-            var p0 = skill.power;
-            skill.power = p0 + POW;
-            try { return _calc.call(this, A, D, skill, mul); } finally { skill.power = p0; }
+        if (skill && D) {
+          if (skill.brandBurst) {
+            var bk = skill.brandBurst.k || 'jici';
+            var bn = stacks(D, bk);
+            if (bn > 0) {
+              var per = skill.brandBurst.per || (DEFS[bk] && DEFS[bk].pow) || 40;
+              var p0 = skill.power;
+              skill.power = p0 + bn * per;
+              try { return _calc.call(this, A, D, skill, mul); } finally { skill.power = p0; }
+            }
           }
-          if (skill.shardRush && (sd._switchCnt || 0) > 0) {
-            var q0 = skill.power;
-            skill.power = Math.round(q0 * 1.25);
-            try { return _calc.call(this, A, D, skill, mul); } finally { skill.power = q0; }
+          if (skill.shardRush) {
+            var sd = sideOf(D);
+            if (sd && (sd._switchCnt || 0) > 0) {
+              var q0 = skill.power;
+              skill.power = Math.round(q0 * 1.25);
+              try { return _calc.call(this, A, D, skill, mul); } finally { skill.power = q0; }
+            }
           }
         }
-      } catch (e) {}
+      } catch (e) { try { console.error('[烙印] 威力修正失败', e); } catch (_) {} }
       return _calc.call(this, A, D, skill, mul);
     };
   }
 
-  /* ── 3. 换人：换下的那只吃 12% + 掉速，印记转移 ─────── */
+  /* ---------- 3. 换人：被烙印的一方换下场就要付代价（双方通用） ---------- */
   var _onEnter = window.onEnter;
   if (typeof _onEnter === 'function') {
     window.onEnter = function (p, swiftOK) {
@@ -11655,44 +11804,123 @@ window.__SWITCHUI_INFO=function(){
           var out = sd.lastOut;
           if (out && out !== p) {
             sd._switchCnt = (sd._switchCnt || 0) + 1;
-            if (marked(sd) && !out.fainted) {
-              var d = hurt(out, Math.max(1, Math.round((out.maxhp || 1) * SWITCH_OUT)));
-              if (typeof applyStat === 'function') applyStat(out, 'spe', -1);
-              logLine('　↳ 💠 <b>' + NAME + '</b> 炸开：' + out.name + ' 换下场时被棱刺割伤，受到 <b>' + d +
-                      '</b> 伤害、速度 −1 级。');
-              if (out.fainted) logLine('💥 ' + out.name + ' 倒下了！');
+            if (!out.fainted) {
+              list(out).forEach(function (x) {
+                var dd = hurt(out, Math.max(1, Math.round((out.maxhp || 1) * x.def.switchOut)));
+                try { if (typeof applyStat === 'function') applyStat(out, 'spe', x.def.switchSpe); } catch (e) {}
+                say('　↳ ' + x.def.icon + ' <b>' + x.def.name + '</b> 发作：' + out.name +
+                    ' 换下场时被割伤，受到 <b>' + dd + '</b> 伤害、速度 −1 级。');
+              });
+              if (out.fainted) say('💥 ' + out.name + ' 倒下了！');
             }
-            if (marked(sd)) logLine('　↳ 💠 ' + NAME + ' 转移到 <b>' + p.name + '</b> 身上（剩 ' + sd._shard.turns + ' 回合）。');
           }
         }
-      } catch (e) {}
+      } catch (e) { try { console.error('[烙印] 换人结算失败', e); } catch (_) {} }
       return _onEnter.apply(this, arguments);
     };
   }
 
-  /* ── 4. 每回合末 5% 伤害 + 计时 ────────────────────── */
+  /* ---------- 4. 回合末：每层 2% 最大生命（只算场上那只，每回合一跳） ---------- */
   var _tick = window.tick;
   if (typeof _tick === 'function') {
     window.tick = function (p, who) {
       var res = _tick.apply(this, arguments);
       try {
-        var sd = sideOf(p);
-        if (sd && p && marked(sd) && act(sd) === p && !p.fainted && p._shardTickTurn !== S.turn) {
-          p._shardTickTurn = S.turn;
-          var d = hurt(p, Math.max(1, Math.round((p.maxhp || 1) * TICK)));
-          if (d > 0) logLine('　↳ 💠 ' + NAME + ' 割裂：' + p.name + ' 受到 <b>' + d + '</b> 伤害。');
-          if (sd._shard) {
-            sd._shard.turns--;
-            if (sd._shard.turns <= 0) { sd._shard = null; logLine('　↳ 💠 ' + NAME + ' 消散了。'); }
+        if (p && !p.fainted && p.__brands) {
+          var sd = sideOf(p);
+          if (sd && act(sd) === p && p._brandTickTurn !== S.turn) {
+            p._brandTickTurn = S.turn;
+            var sum = 0, names = [];
+            list(p).forEach(function (x) {
+              sum += (p.maxhp || 1) * x.def.perLayer * x.n;
+              names.push(x.def.name + '×' + x.n);
+            });
+            if (sum > 0) {
+              var real = hurt(p, Math.max(1, Math.round(sum)));
+              say('　↳ 🟣 【' + names.join('、') + '】割裂：<b>' + p.name + '</b> 受到 <b>' + real + '</b> 伤害。');
+            }
           }
         }
-      } catch (e) {}
+      } catch (e) { try { console.error('[烙印] 回合末结算失败', e); } catch (_) {} }
       return res;
     };
   }
 
-  window.__shardField = true;
-  window.__SF = function () { return { me: S && S.me && S.me._shard, foe: S && S.foe && S.foe._shard }; };
+  /* ---------- 5. 界面：紫色气泡插到状态行最前面 ---------- */
+  var _bars = window.barsHTML;
+  if (typeof _bars === 'function') {
+    window.barsHTML = function (sideKey, side, label) {
+      var html = _bars.apply(this, arguments);
+      try {
+        var p = (side && side.team) ? side.team[side.active] : null;
+        var b = bubbleHTML(p);
+        if (b && typeof html === 'string') {
+          if (html.indexOf('<div class="strow">') >= 0 && html.indexOf(b) < 0) {
+            html = html.replace('<div class="strow">', '<div class="strow">' + b);
+          }
+        }
+      } catch (e) {}
+      return html;
+    };
+  }
+
+  /* ---------- 6. 开战清零 ---------- */
+  function resetAll() {
+    if (!ok()) return;
+    [S.me, S.foe].forEach(function (sd) {
+      if (!sd) return;
+      (sd.team || []).forEach(function (p) {
+        if (!p) return;
+        p.__brands = null;
+        p._brandTickTurn = null;
+      });
+      sd._switchCnt = 0;
+    });
+  }
+  var _start = window.startBattle;
+  if (typeof _start === 'function') {
+    window.startBattle = function () {
+      var r = _start.apply(this, arguments);
+      try { resetAll(); } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------- 7. 火系通用技「燎印」：清除自身烙印（追加在技能池末尾，保持老配招索引） ---------- */
+  var FIRE_CLEAR = {
+    name: '燎印', cat: '变化', power: 0, pp: 4, spd: 9, brandClearSelf: true,
+    desc: '通用 · 火系变化 · 先手+1 · 清除自身全部【烙印】（棘刺烙印等）'
+  };
+  try {
+    if (typeof window.petPool === 'function' && !window.__BRAND_POOL__) {
+      window.__BRAND_POOL__ = 1;
+      var _pool = window.petPool;
+      window.petPool = function (pet) {
+        var pool = _pool.apply(this, arguments);
+        try {
+          var tys = Array.isArray(pet && pet.type) ? pet.type : [pet && pet.type];
+          if (pool && tys.indexOf('火') >= 0 && !pool.some(function (x) { return x && x.name === FIRE_CLEAR.name; })) {
+            pool.push(Object.assign({}, FIRE_CLEAR, { type: '火' }));
+          }
+        } catch (e) {}
+        return pool;
+      };
+      window.__BRAND_FIRE_READY__ = 1;
+    }
+  } catch (e) { try { console.error('[烙印] 火系通用技注册失败', e); } catch (_) {} }
+
+  window.__BRAND = {
+    defs: DEFS,
+    add: add,
+    clear: clear,
+    remove: removeN,
+    stacks: stacks,
+    total: total,
+    list: list,
+    bubbleHTML: bubbleHTML,
+    fireSkill: FIRE_CLEAR,
+    reset: resetAll
+  };
 })();
 
 </script>
@@ -13641,9 +13869,6 @@ window.__SWITCHUI_INFO=function(){
     if (sk.teamBuff) {
       team(sd).forEach(function (p) { if (alive(p)) { try { applyStat(p, sk.teamBuff.k, sk.teamBuff.lv); } catch (e) { ANCHERR(e); } } });
       say('　↳ 全队' + (SNAME[sk.teamBuff.k] || sk.teamBuff.k) + (sk.teamBuff.lv > 0 ? ' +' : ' ') + sk.teamBuff.lv + ' 级');
-    }
-    if (sk.teamShield) {
-      team(sd).forEach(function (p) { if (alive(p)) addShield(p, sk.teamShield, 120 / Math.max(1, p.maxhp)); });
     }
     if (sk.window) grantWindow(sd, sk.window);
     if (sk.lowBuff && A.hp / Math.max(1, A.maxhp) < 0.5) {
@@ -19064,5 +19289,2096 @@ function delayVisual(){const pending=pendingVisual;pendingVisual=null;if(!pendin
 
 const oldPlay=window.playFx;window.playFx=function(){delayVisual();const seen=new Set;for(const f of S?.fx||[]){const side=source(f);if(side&&isPet(side)){if(!seen.has(side)){seen.add(side);cast(side,f.to||(side==='me'?'foe':'me'));}if(f.lunge){delete f.lunge;f.atkfx=true;f.from=side;f.to=side==='me'?'foe':'me';}}}return oldPlay.apply(this,arguments)};
 window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Promise.all(imgs.map(i=>i.decode())),clear:()=>[...running.values()].forEach(f=>f()),queueEnd:fs=>action(fs)?total+Math.max(0,...fs.map(f=>f.delay||0)):0,get active(){return running.size},get lastHit(){return lastHit}};
+})();
+</script>
+
+<script id="xianjian-src">
+/* 衔笺鹿 机制层（光/普通）——【托愿】与己方印记
+   · 被动【托愿】：每枚新印记第一次由「其他队友」触发时，效果照常生效但印记保留；
+     第二次触发后消失。若第一次就是衔笺鹿自己触发，则直接消耗。
+     （判定「自己」= 触发者带 wishBearer 被动）
+   · 印记挂在 side.xjMarks 上：随己方整队走，换人、布置者倒下都保留；同名刷新、不叠加。
+     每次己方技能固定顺序：① 技能本身结算 ② 检查此前已有的印记 ③ 放置本次新印记，
+     所以新印记不会被布置它的那次技能立即触发。
+   · 回墨 → 布置【续息印】：技能结算后若场上宠实际回复过生命，恢复共 2 点 PP
+            （随机两个未满技能各 1 点；只剩一个未满则补至多 2 点，不超上限）
+   · 安符 → 布置【护行印】：完整使用一次变化技能后，获得 1 次闪避
+   · 拂尘护佑 → 本体 cleanse / teamShield 直接生效，不布置印记
+   · 破障符光 → 本体 shieldBreak（heal:0）= 命中先击碎护盾，再结算伤害
+   只包装引擎函数，不碰 s2ai / s2link / tleague / data.json
+*/
+(function () {
+  'use strict';
+  if (window.__XIANJIAN_LAYER__) return;
+  window.__XIANJIAN_LAYER__ = true;
+
+  var PID = 'xianjian';
+  var MARKS = {
+    xuxi:   { icon: '🌿', name: '续息印' },
+    huxing: { icon: '🧿', name: '护行印' }
+  };
+  var depth = 0;   // 嵌套调用（陪练獭借技等）只按最外层结算一次
+
+  function log(t) { try { window.logLine(t); } catch (e) { } }
+  function act(side) { try { return side.team[side.active]; } catch (e) { return null; } }
+  function sideLabel(side) { try { return side === S.foe ? '对手' : '己方'; } catch (e) { return '己方'; } }
+  function isBearer(p) { return !!(p && p.def && p.def.passive && p.def.passive.wishBearer); }
+  function marksOf(side) { if (!side.xjMarks) side.xjMarks = {}; return side.xjMarks; }
+
+  /* 恢复共 total 点 PP：随机两个未满技能各 1 点；只剩一个未满时补充至多 total 点 */
+  function payPP(p, total) {
+    var cand = [], names = [], got = 0;
+    (p.moves || []).forEach(function (m) { if (m && m.pp < m.ppMax) cand.push(m); });
+    if (!cand.length) return { got: 0, names: names };
+    if (cand.length === 1) {
+      var one = cand[0], add = Math.min(total, one.ppMax - one.pp);
+      if (add > 0) { one.pp += add; got += add; names.push(one.name + ' +' + add); }
+      return { got: got, names: names };
+    }
+    while (cand.length && got < total) {
+      var j = Math.floor(Math.random() * cand.length);
+      var s = cand.splice(j, 1)[0];
+      if (s.pp >= s.ppMax) continue;
+      s.pp += 1; got += 1; names.push(s.name + ' +1');
+    }
+    return { got: got, names: names };
+  }
+
+  /* ② 检查已有印记（可同时触发） */
+  function resolveMarks(side, actor, sk, healed) {
+    var mk = side.xjMarks;
+    if (!mk || !actor || actor.fainted) return;
+    var hits = [];
+    if (mk.xuxi && healed) hits.push('xuxi');
+    if (mk.huxing && sk && sk.cat === '变化') hits.push('huxing');
+    hits.forEach(function (k) {
+      var st = mk[k];
+      if (!st) return;
+      var info = MARKS[k];
+      if (k === 'xuxi') {
+        var r = payPP(actor, 2);
+        log('　↳ ' + info.icon + ' <b>' + info.name + '</b>：' + actor.name + ' 本次技能实际回复了生命 —— '
+          + (r.got > 0 ? ('恢复共 ' + r.got + ' 点 PP（' + r.names.join('、') + '）') : 'PP 已满，没有可恢复的技能'));
+      } else {
+        actor.dodge = (actor.dodge || 0) + 1;
+        log('　↳ ' + info.icon + ' <b>' + info.name + '</b>：' + actor.name + ' 完成变化技能，获得 1 次闪避（现有 ' + actor.dodge + ' 次）。');
+      }
+      if (isBearer(actor)) {
+        delete mk[k];
+        log('　↳ 【托愿】' + actor.name + ' 亲自兑现，' + info.name + ' 就此消耗。');
+      } else if (!st.reserved) {
+        st.reserved = true;
+        log('　↳ 【托愿】' + info.name + ' 被保留，还能再触发 1 次（第二次无论谁触发都会消失）。');
+      } else {
+        delete mk[k];
+        log('　↳ 【托愿】' + info.name + ' 已用尽，消失。');
+      }
+    });
+  }
+
+  /* ③ 放置本次技能的新印记（同名刷新） */
+  function placeMark(side, sk) {
+    var spec = sk && sk.xjMark;
+    if (!spec || !MARKS[spec.k]) return;
+    var mk = marksOf(side);
+    var had = !!mk[spec.k];
+    mk[spec.k] = { reserved: false, turn: (typeof S !== 'undefined' && S) ? S.turn : 0 };
+    var info = MARKS[spec.k];
+    log('　↳ ' + info.icon + ' ' + sideLabel(side) + '布置了<b>' + info.name + '</b>'
+      + (spec.k === 'xuxi' ? '（技能实际回血后恢复 2 点 PP）' : '（使用变化技能后获得 1 次闪避）')
+      + (had ? '，刷新了原有的同名印记' : '') + '。');
+  }
+
+  /* ---------- doSkill 包装：技能结算后统一处理印记 ---------- */
+  try {
+    if (typeof window.doSkill === 'function' && !window.__XJ_SKILL) {
+      window.__XJ_SKILL = true;
+      var _do = window.doSkill;
+      window.doSkill = function (sideKey, side, other, mi, who) {
+        var A = act(side);
+        var sk = (A && A.moves) ? A.moves[mi] : null;
+        var hp0 = A ? A.hp : 0;
+        var pp0 = sk ? sk.pp : 0;
+        depth++;
+        var r;
+        try { r = _do.apply(this, arguments); }
+        finally { depth--; }
+        if (depth > 0) return r;
+        try {
+          if (sk && sk.xjCleanseRoot && A && A.status && A.status.root) {
+            delete A.status.root;
+            log('　↳ 锁足随净化一并解除。');
+          }
+          var used = !!(sk && sk.pp < pp0);           // pp 没减 = 技能没真放出去（次数用尽等）
+          if (used && A && !A.fainted) {
+            resolveMarks(side, A, sk, A.hp > hp0);
+            placeMark(side, sk);
+          }
+        } catch (e) { console.error('[衔笺鹿] 印记结算失败', e); }
+        return r;
+      };
+    }
+  } catch (e) { console.error('[衔笺鹿] doSkill 挂载失败', e); }
+
+  /* ---------- 界面：印记挂在当前场上的状态行 ---------- */
+  try {
+    if (typeof window.barsHTML === 'function' && !window.__XJ_BARS) {
+      window.__XJ_BARS = true;
+      var _bars = window.barsHTML;
+      window.barsHTML = function (sideKey, side, label) {
+        var out = _bars.apply(this, arguments);
+        try {
+          var mk = side && side.xjMarks;
+          if (mk && (mk.xuxi || mk.huxing) && typeof out === 'string') {
+            var chips = '';
+            if (mk.xuxi) chips += '<span class="st up">🌿 续息印' + (mk.xuxi.reserved ? '·托愿' : '') + '</span>';
+            if (mk.huxing) chips += '<span class="st up">🧿 护行印' + (mk.huxing.reserved ? '·托愿' : '') + '</span>';
+            out = out.replace('<div class="strow">', '<div class="strow">' + chips);
+          }
+        } catch (e) { }
+        return out;
+      };
+    }
+  } catch (e) { console.error('[衔笺鹿] barsHTML 挂载失败', e); }
+
+  try {
+    if (typeof window.passiveName === 'function' && !window.__XJ_PN) {
+      window.__XJ_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.wishBearer) return '托愿'; } catch (e) { }
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[衔笺鹿] passiveName 挂载失败', e); }
+
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__XJ_PD) {
+      window.__XJ_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.wishBearer) {
+            return '【托愿】每枚印记第一次被队友触发时照常生效并保留，第二次被谁触发都会消失；'
+              + '若第一次由衔笺鹿自己触发则直接消耗（自己用一次，交给队友最多能用两次）。';
+          }
+        } catch (e) { }
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) { console.error('[衔笺鹿] passiveDesc 挂载失败', e); }
+
+  /* ---------- 自检口子：控制台 __XJ() ---------- */
+  window.__XJ = function () {
+    var p = null;
+    try { p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x.id === PID; })[0] : null; } catch (e) { }
+    var mk = {};
+    try {
+      if (typeof S !== 'undefined' && S) {
+        if (S.me && S.me.xjMarks) mk.me = S.me.xjMarks;
+        if (S.foe && S.foe.xjMarks) mk.foe = S.foe.xjMarks;
+      }
+    } catch (e) { }
+    return {
+      layer: true,
+      pet: p ? p.name : 'MISSING',
+      type: p ? p.type : null,
+      base: p ? p.base : null,
+      skills: p ? (p.own || []).map(function (m) { return m.name + '/' + m.cat + '/' + (m.power || 0); }) : null,
+      marks: mk,
+      hooks: { doSkill: !!window.__XJ_SKILL, bars: !!window.__XJ_BARS, pn: !!window.__XJ_PN, pd: !!window.__XJ_PD }
+    };
+  };
+})();
+</script>
+
+<style id="xianjian-art-direction">.pet.me[data-artkey="xianjian"] .art{transform:none}.pet.foe[data-artkey="xianjian"] .art{transform:scaleX(-1)}</style>
+<script id="xianjian-art-motion">
+(() => {
+  const pet = PETS.find(entry => entry.id === 'xianjian');
+  if (!pet) return;
+
+  const sources = ["media/edf9de211c01dd9101304d03.png", "media/4f81bb37b041f458c25874d3.png", "media/774f27529c63a6e63a464fa2.png", "media/b37559fdfa78fc90d38ab529.png", "media/89676bdcdac96c54503fa909.png", "media/3a3a74cab1f80dafa6583212.png", "media/a7c509d58117f4bf4b7d17bc.png", "media/c8991da9d9000a001f07f39d.png", "media/e5501ec8d12a7e7b9fba2b06.png", "media/8aed6c6224c25617633d7ab1.png", "media/271d2be2d706af262faa2695.png", "media/db71240c27923fc7329ac977.png"];
+  const durations = [200, 90, 90, 150, 70, 60, 80, 90, 100, 100, 100, 210];
+  let total = 0;
+  const ends = durations.map(duration => total += duration);
+  const releaseFrame = 6;
+  const release = ends[releaseFrame - 1];
+  const flight = 210;
+  const hit = release + flight;
+
+  pet.art = 'xianjian';
+  PET_ART.xianjian = { idle: sources[0], attack: sources[0], leap: sources[0], hurt: sources[0] };
+  const images = sources.map(src => {
+    const image = new Image();
+    image.src = src;
+    return image;
+  });
+  let decoded = false;
+  const ready = Promise.all(images.map(image => image.decode())).then(() => {
+    decoded = true;
+    return true;
+  }, () => false);
+
+  const casts = new WeakMap();
+  const stops = new Map();
+  const letter = { x: 334, y: 78, w: 58, h: 48 };
+  const imageSize = 400;
+  const victimAnchors = new Map();
+
+  function contain(image) {
+    const rect = image.getBoundingClientRect();
+    const ratio = image.naturalWidth > 0 ? image.naturalWidth / image.naturalHeight : null;
+    const width = ratio ? Math.min(rect.width, rect.height * ratio) : rect.width;
+    const height = ratio ? width / ratio : rect.height;
+    return { left: rect.left + (rect.width - width) / 2, top: rect.top + (rect.height - height) / 2, width, height };
+  }
+
+  function visibleAnchor(image) {
+    const src = image.currentSrc;
+    if (!src || !image.naturalWidth) return [0.5, 0.52];
+    if (victimAnchors.has(src)) return victimAnchors.get(src);
+    let anchor = [0.5, 0.52];
+    try {
+      const size = 48;
+      const sample = document.createElement('canvas');
+      sample.width = sample.height = size;
+      const ctx = sample.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0, size, size);
+      const pixels = ctx.getImageData(0, 0, size, size).data;
+      let left = size, right = 0, top = size, bottom = 0;
+      const opaque = (x, y) => pixels[(y * size + x) * 4 + 3] > 150;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          if (!opaque(x, y)) continue;
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+      const center = (left + right) / 2;
+      const height = top + (bottom - top) * 0.54;
+      let best = Infinity;
+      for (let y = top; y <= bottom; y++) {
+        for (let x = left; x <= right; x++) {
+          if (!opaque(x, y)) continue;
+          const distance = (x - center) ** 2 + 1.3 * (y - height) ** 2;
+          if (distance < best) {
+            best = distance;
+            anchor = [(x + 0.5) / size, (y + 0.5) / size];
+          }
+        }
+      }
+    } catch (error) {
+      // A sprite that cannot be sampled still has a usable layout rectangle.
+    }
+    if (victimAnchors.size >= 64) victimAnchors.clear();
+    victimAnchors.set(src, anchor);
+    return anchor;
+  }
+
+  function targetPoint(figure) {
+    const art = figure.querySelector('.art');
+    const image = art.querySelector('.artimg');
+    const rect = contain(image || art);
+    const [x, y] = image ? visibleAnchor(image) : [0.5, 0.52];
+    const scaleX = node => {
+      const transform = getComputedStyle(node).transform;
+      return transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
+    };
+    const flipped = scaleX(art) * (image ? scaleX(image) : 1) < 0;
+    return { x: rect.left + rect.width * (flipped ? 1 - x : x), y: rect.top + rect.height * y };
+  }
+
+  function drawLetter(ctx, origin, end, speed, direction, scale, reduced) {
+    const path = progress => ({
+      x: origin.x + (end.x - origin.x) * progress,
+      y: origin.y + (end.y - origin.y) * progress - Math.sin(Math.PI * progress) * 13 * scale
+    });
+    const point = path(speed);
+    const tail = path(Math.max(0, speed - 0.16));
+    ctx.save();
+    if (!reduced) {
+      const glow = ctx.createLinearGradient(tail.x, tail.y, point.x + direction, point.y);
+      glow.addColorStop(0, '#fff0b700');
+      glow.addColorStop(1, '#ffe4a9da');
+      ctx.strokeStyle = glow;
+      ctx.lineWidth = 2 * scale;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tail.x, tail.y + 4 * scale);
+      ctx.quadraticCurveTo((tail.x + point.x) / 2, point.y + 5 * scale, point.x, point.y);
+      ctx.stroke();
+    }
+    ctx.translate(point.x, point.y);
+    ctx.rotate(direction * (0.2 * speed - 0.26 * Math.sin(Math.PI * speed)));
+    ctx.scale(direction * scale, scale);
+    ctx.drawImage(images[releaseFrame], letter.x, letter.y, letter.w, letter.h,
+      -letter.w / 2, -letter.h / 2, letter.w, letter.h);
+    ctx.restore();
+  }
+
+  function drawImpact(ctx, point, age, direction, scale, reduced) {
+    const progress = Math.min(1, age / 390);
+    const spread = 1 - (1 - progress) ** 2.4;
+    ctx.save();
+    ctx.translate(point.x, point.y);
+    ctx.scale(scale, scale);
+
+    // A gold crescent opens along the strike and fades behind the stamped seal.
+    ctx.globalAlpha = (1 - progress) ** 2;
+    ctx.strokeStyle = '#ffdfa4';
+    ctx.lineWidth = 2.3 - progress * 1.4;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 11 + 33 * spread, 9 + 26 * spread, -0.22 * direction, -2.45, 1.95);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.globalAlpha = (1 - progress) ** 1.45;
+    ctx.rotate(-0.17 * direction);
+    const size = 13 + 5 * spread;
+    ctx.lineWidth = 2.5;
+    ctx.fillStyle = '#a72a25';
+    ctx.fillRect(-size, -size, size * 2, size * 2);
+    ctx.strokeStyle = '#ffb286';
+    ctx.strokeRect(-size + 2, -size + 2, (size - 2) * 2, (size - 2) * 2);
+    ctx.strokeStyle = '#ffe3b1';
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.moveTo(-7, -6);
+    ctx.lineTo(7, -6);
+    ctx.lineTo(7, -1);
+    ctx.lineTo(-6, -1);
+    ctx.lineTo(-6, 6);
+    ctx.lineTo(0, 6);
+    ctx.lineTo(0, 2);
+    ctx.lineTo(7, 2);
+    ctx.lineTo(7, 7);
+    ctx.stroke();
+    ctx.restore();
+
+    // Small torn paper shapes separate quickly, then tumble and fall.
+    const pieces = reduced ? 4 : 11;
+    ctx.globalAlpha = (1 - progress) ** 1.2;
+    for (let i = 0; i < pieces; i++) {
+      const angle = i * 2.399;
+      const distance = 10 + spread * (22 + i % 5 * 9);
+      ctx.save();
+      ctx.translate(Math.cos(angle) * distance + direction * spread * 15,
+        Math.sin(angle) * distance + progress ** 2 * 20);
+      ctx.rotate(angle + progress * (i % 2 ? 4 : -4));
+      ctx.fillStyle = i % 4 === 0 ? '#de6249' : i % 3 === 0 ? '#f9d49b' : '#fff1cc';
+      ctx.beginPath();
+      ctx.moveTo(-5 - i % 3, -2);
+      ctx.lineTo(4, -3);
+      ctx.lineTo(7, 0);
+      ctx.lineTo(3, 3);
+      ctx.lineTo(-3, 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function play(cast) {
+    const { from, to, owner, actor, target } = cast;
+    const body = document.querySelector('#fig_' + from + ' .artimg');
+    const targetFigure = document.getElementById('fig_' + to);
+    if (!decoded || !body?.naturalWidth || !targetFigure?.querySelector('.art')) return false;
+
+    stops.get(from)?.();
+    const layer = document.createElement('canvas');
+    layer.className = 'xianjian-letter-fx';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:43';
+    const ctx = layer.getContext('2d');
+    if (!ctx) return false;
+    document.body.appendChild(layer);
+    const start = performance.now();
+    const direction = from === 'me' ? 1 : -1;
+    const effectMode = localStorage.getItem('lingchong_fxpro_mode') || 'high';
+    const reduced = effectMode !== 'high' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const visibility = body.style.visibility;
+    let request, destination, impactPoint;
+    function stop() {
+      cancelAnimationFrame(request);
+      body.style.visibility = visibility;
+      layer.remove();
+      stops.delete(from);
+    }
+    stops.set(from, stop);
+
+    function draw(now) {
+      const time = now - start;
+      if (S !== owner || owner.cancelled || !body.isConnected || !targetFigure.isConnected ||
+          active(owner[from]) !== actor || active(owner[to]) !== target || time >= total) {
+        stop();
+        return;
+      }
+      const pixelRatio = Math.min(2, devicePixelRatio || 1);
+      const width = Math.round(innerWidth * pixelRatio);
+      const height = Math.round(innerHeight * pixelRatio);
+      if (layer.width !== width || layer.height !== height) {
+        layer.width = width;
+        layer.height = height;
+      }
+      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+      const index = ends.findIndex(end => time < end);
+      const rect = contain(body);
+      const scale = rect.width / imageSize;
+      ctx.save();
+      ctx.translate(rect.left + (direction === -1 ? rect.width : 0), rect.top);
+      ctx.scale(direction * scale, scale);
+      if (index === releaseFrame) {
+        // The source frame's detached envelope is drawn independently below.
+        ctx.drawImage(images[index], 0, 0, letter.x, imageSize, 0, 0, letter.x, imageSize);
+      } else {
+        ctx.drawImage(images[index], 0, 0);
+      }
+      ctx.restore();
+      body.style.visibility = 'hidden';
+
+      if (time >= release && time < hit) {
+        destination = targetPoint(targetFigure);
+        const x = letter.x + letter.w * 0.5;
+        const origin = {
+          x: rect.left + (direction === 1 ? x : imageSize - x) * scale,
+          y: rect.top + (letter.y + letter.h * 0.5) * scale
+        };
+        const bypass = cast.contacts ? 0 : Math.max(18, rect.width * 0.24);
+        const end = { x: destination.x + direction * bypass, y: destination.y - bypass };
+        drawLetter(ctx, origin, end, (time - release) / flight, direction, Math.max(0.45, scale * 1.35), reduced);
+        layer.dataset.phase = 'flight';
+      }
+      if (time >= hit && cast.contacts && time < hit + 390) {
+        impactPoint ||= destination || targetPoint(targetFigure);
+        if (effectMode !== 'off') {
+          drawImpact(ctx, impactPoint, time - hit, direction, Math.max(0.72, scale * 1.9), reduced);
+        }
+        layer.dataset.phase = 'impact';
+      }
+      request = requestAnimationFrame(draw);
+    }
+    request = requestAnimationFrame(draw);
+    return true;
+  }
+
+  function snapshot(side) {
+    const bar = document.querySelector('.hpside.' + side);
+    return ['.hpn', '.strow', '.hpshield'].map(selector => ({
+      selector,
+      before: bar?.querySelector(selector)?.cloneNode(true)
+    }));
+  }
+
+  function delayTargetHud(cast, delay = hit) {
+    const bar = document.querySelector('.hpside.' + cast.to);
+    if (!bar) return;
+    for (const { selector, before } of cast.previousHUD) {
+      const after = bar.querySelector(selector);
+      if (selector !== '.hpshield' && !before) continue;
+      if (before?.outerHTML === after?.outerHTML) continue;
+      const parent = after?.parentElement || bar.querySelector('.hpbar');
+      if (!parent) continue;
+      if (before && after) after.replaceWith(before);
+      else if (before) parent.appendChild(before);
+      else after?.remove();
+      battleLater(() => {
+        if (!bar.isConnected || active(cast.owner[cast.to]) !== cast.target) return;
+        if (before && after) before.replaceWith(after);
+        else if (after) parent.appendChild(after);
+        else before?.remove();
+      }, delay);
+    }
+  }
+
+  const oldSkill = window.doSkill;
+  window.doSkill = function (from, side, other, index) {
+    const actor = active(side);
+    const move = actor?.moves[index];
+    if (actor?.def?.id !== pet.id || !move?.power || move.cat === '变化') {
+      return oldSkill.apply(this, arguments);
+    }
+
+    const owner = S;
+    const to = other === owner.foe ? 'foe' : 'me';
+    const target = active(other);
+    const start = owner.fx.length;
+    const previousHUD = snapshot(to);
+    const shield = target.shield || 0;
+    const result = oldSkill.apply(this, arguments);
+    const frames = owner.fx.slice(start);
+    const launch = frames.find(frame => frame.lunge === from || (frame.atkfx && frame.from === from));
+    if (launch) {
+      const damage = frames.find(frame => frame.on === to && frame.shake && Number(frame.txt) < 0);
+      const contacts = Boolean(damage || shield > (target.shield || 0));
+      casts.set(launch, { from, to, owner, actor, target, frames, previousHUD, contacts, damage, playing: false });
+    }
+    return result;
+  };
+
+  function getCast(frames) {
+    // Captain counters have their own choreography and impact timing.
+    if (!frames?.length || frames.some(frame => frame.captainApproach || frame.captainReply)) return null;
+    for (const frame of frames) {
+      const cast = casts.get(frame);
+      if (cast?.owner === S) return cast;
+    }
+    return null;
+  }
+
+  const oldPlay = window.playFx;
+  window.playFx = function () {
+    const cast = getCast(S?.fx);
+    if (cast && play(cast)) {
+      cast.playing = true;
+      for (const frame of S.fx) {
+        if (casts.get(frame) === cast) frame.customLaunch = true;
+      }
+      if (cast.damage) cast.damage.customImpact = true;
+      delayTargetHud(cast);
+    }
+    return oldPlay.apply(this, arguments);
+  };
+
+  const oldImpactDelay = window.impactDelay;
+  window.impactDelay = function (frame, frames) {
+    const cast = getCast(frames);
+    if (cast?.playing && frame.captainAt == null && cast.frames.includes(frame)) {
+      return hit + (frame.delay || 0);
+    }
+    return oldImpactDelay.apply(this, arguments);
+  };
+
+  window.BattleSpriteGeometry = { contain, targetPoint, snapshotHud: snapshot, delayHud: delayTargetHud };
+  window.XianjianMotion = {
+    ready,
+    clear() {
+      for (const stop of stops.values()) stop();
+    },
+    queueEnd(frames) {
+      const cast = decoded && getCast(frames);
+      if (!cast) return 0;
+      return Math.max(total, hit + 300 + Math.max(0, ...cast.frames.map(frame => frame.delay || 0)));
+    }
+  };
+})();
+</script>
+
+<!-- ===== 噬魂层（烬羽鸮 · 击杀成长）（纯增量，不改本体逻辑） ===== -->
+<script id="killgrow-src">
+/* ===== 噬魂层（killgrow · 烬羽鸮）=====
+   被动【噬魂】：自身每击杀 1 只宠物，本场永久成长（可无限叠加）
+     · 先手值 +1     —— 自身全部技能的先手值 spd +1（技能面板同步显示）
+     · 全属性种族值 +25 —— 按本体 CONV 换算成实际属性：
+         体力 +100 / 攻击 +50 / 防御 +50 / 魔攻 +50 / 魔抗 +50 / 速度 +75
+   纯增量：不改本体字节。击杀判定挂在 doSkill 之后（同一次出招最多结算一次；
+   由本体 tryFaint 负责真正的濒死，复活类被动救回来则不成长）。
+   公开接口：window.__KG
+*/
+(function () {
+  'use strict';
+  if (window.__KG_LAYER__) return;
+  window.__KG_LAYER__ = 1;
+
+  var DEFAULT_RACE = 25;
+  var KEYS = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
+
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) {} }
+  function act(sd) { return (sd && sd.team) ? sd.team[sd.active] : null; }
+  function hasKG(p) { return !!(p && p.def && p.def.passive && p.def.passive.killGrow); }
+  function cfgOf(p) {
+    var c = (p && p.def && p.def.passive && p.def.passive.killGrow) || {};
+    return {
+      race: (typeof c.race === 'number' && c.race > 0) ? c.race : DEFAULT_RACE,
+      spe: (typeof c.spe === 'number') ? c.spe : 1
+    };
+  }
+  /* 种族值 → 实际属性的换算增量（与本体 CONV 一致） */
+  function deltaOf(race) {
+    return { hp: 4 * race, atk: 2 * race, def: 2 * race, spa: 2 * race, spd: 2 * race, spe: 3 * race };
+  }
+
+  function grow(A, D) {
+    if (!A || A.fainted || !hasKG(A)) return 0;
+    var c = cfgOf(A), d = deltaOf(c.race);
+    A._kgKills = (A._kgKills || 0) + 1;
+    (A.moves || []).forEach(function (m) {
+      try { m.spd = ((typeof skSpd === 'function') ? skSpd(m) : ((m.spd != null) ? m.spd : 8)) + c.spe; } catch (e) {}
+    });
+    if (!A.stat) A.stat = {};
+    KEYS.forEach(function (k) { A.stat[k] = (A.stat[k] || 0) + d[k]; });
+    A.maxhp = (A.maxhp || 0) + d.hp;
+    A.hp = Math.min(A.maxhp, (A.hp || 0) + d.hp);
+    say('　↳ 🦉 <b>' + A.name + '</b> 击杀 <b>' + (D ? D.name : '对手') + '</b> —— 【噬魂】发作：先手值 +' + c.spe +
+        '，全属性种族值 +' + c.race + '（本场累计击杀 ' + A._kgKills + ' 只，种族值共 +' + (c.race * A._kgKills) + '）');
+    return 1;
+  }
+
+  /* 击杀判定：同一次 doSkill 内，目标从「活着」变成「倒下」才算 */
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, foeSide, mi, who) {
+      var A = act(side), D = act(foeSide);
+      var wasFainted = !!(D && D.fainted);
+      var res = _do.apply(this, arguments);
+      try {
+        if (A && D && !wasFainted && D.fainted && hasKG(A)) grow(A, D);
+      } catch (e) { try { console.error('[噬魂] 结算失败', e); } catch (_) {} }
+      return res;
+    };
+  }
+
+  /* 图鉴 / 选宠 / 战斗中显示的被动名与说明 */
+  try {
+    if (typeof window.passiveName === 'function' && !window.__KG_PN) {
+      window.__KG_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.killGrow) return '噬魂'; } catch (e) {}
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) { try { console.error('[噬魂] passiveName 挂载失败', e); } catch (_) {} }
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__KG_PD) {
+      window.__KG_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.killGrow) {
+            var c = (pet.passive.killGrow && typeof pet.passive.killGrow === 'object') ? pet.passive.killGrow : {};
+            var race = (typeof c.race === 'number' && c.race > 0) ? c.race : DEFAULT_RACE;
+            var spe = (typeof c.spe === 'number') ? c.spe : 1;
+            return '【噬魂】自身每击杀 1 只宠物（本场永久，可无限叠加）：先手值 +' + spe +
+              '，全属性种族值 +' + race + '（体力+' + 4 * race + '，攻击/防御/魔攻/魔抗+' + 2 * race + '，速度+' + 3 * race + '）';
+          }
+        } catch (e) {}
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) { try { console.error('[噬魂] passiveDesc 挂载失败', e); } catch (_) {} }
+
+  window.__KG = { grow: grow, kills: function (p) { return (p && p._kgKills) || 0; }, cfg: cfgOf, delta: deltaOf };
+})();
+</script>
+
+
+<!-- ===== 残烛魇 · 焚心烛魇觉醒层（纯增量，不改本体逻辑） ===== -->
+<script id="fenxin-src">
+/* ============================================================
+   【残烛魇 · 焚心烛魇 觉醒】层 fenxin（纯增量：不改本体逻辑）
+   新宠物 残烛魇（id: canzhuyan）的觉醒系统：
+     ① 觉醒资格：本场战斗中，自身每成功释放一次技能（任意技能，「燃芯」本身不计）记 1 点
+        「灯油」；累计满 3 次时立即记录觉醒资格（本场永久保留，
+        换人 / 倒下 / 恢复次数都不会清除）。
+     ② 成功使用「燃芯」后依次结算：
+        1) 进入觉醒形态【焚心烛魇】、触发特性、立即自动攻击一次
+        2) 清除自身全部负面
+        3) 回复自身 50% 最大生命
+        4) 自身当前携带的全部技能 PP 补满
+        已有护盾与正面强化保留。
+     ③ 特性【焚心长明】：
+        觉醒完整结算后，立即对敌方场上宠物自动释放当前「显示威力最高」的
+        可用攻击技能；把这次直接伤害的 50% 分别波及敌方随机两只存活场下宠
+        （只一只则只波及一只；只触发一次，换下再上场不重复）。
+     ④ 觉醒后常驻：自身每次攻击附带 25% 吸血（自动攻击也享受）；
+        全部技能先手值 +1。
+     ⑤ 专属技能变化（原 → 觉醒）：
+        烛焰→焚魂火 火/魔法 130 PP5 先手0→+1 命中后灼烧
+        凝蜡→凝蜡   火/变化 PP4 先手+2→+3 回复30%生命+清除全部负面
+        蜡衣→裂烛幽刃 幽/魔法 110 PP4 先手0→+1 命中先清对手护盾再结算
+        燃芯→终烬   火/魔法 160/240 PP3 先手−1→0，自身生命≤50% 时威力 240
+   只包装引擎函数，不碰 s2ai / s2link / tleague / data.json
+   ============================================================ */
+(function () {
+  'use strict';
+  if (typeof window === 'undefined') return;
+  if (window.__FENXIN_LAYER__) return;
+  window.__FENXIN_LAYER__ = 1;
+
+  var PID = 'canzhuyan';       // 残烛魇
+  var ANAME = '焚心烛魇';       // 觉醒形态名
+  var NEED = 3;                // 觉醒解锁：本场累计成功释放 3 次任意技能
+  var HEAL_PCT = 0.5;          // 觉醒回血
+  var BUFF_LV = 2;             // 双攻各 +2 级
+  var DRAIN_PCT = 0.25;        // 觉醒后攻击吸血
+  var SPLASH_PCT = 0.5;        // 余烬波及比例
+  var SPLASH_N = 2;            // 波及目标数
+  var AUTO = 0;                // >0 表示正在跑「焚心长明」的自动攻击（不计入灯油）
+
+  /* 觉醒后技能替换表（spd 为「觉醒先手 +1」之前的原始值：
+     定义里的 spd 会再统一 +1，所以这里按觉醒前的档位填） */
+  var TRANS = {
+    '烛焰': { name: '焚魂火', star: 1, cat: '魔法', power: 130, pp: 5, spd: 8, type: '火',
+      status: { n: 'burn', ch: 1 },
+      desc: '觉醒 · 130威力火系魔法；命中后使对手灼烧' },
+    '蜡衣': { name: '裂烛幽刃', star: 1, cat: '魔法', power: 110, pp: 4, spd: 8, type: '幽',
+      shieldBreak: { heal: 0 },
+      desc: '觉醒 · 110威力幽系魔法；命中时先清除对手护盾，再结算伤害' },
+    '燃芯': { name: '终烬', star: 1, cat: '魔法', power: 160, pp: 3, spd: 7, type: '火',
+      zkFinal: 1, zkLow: 160, zkHigh: 240,
+      desc: '觉醒 · 先手0 · 火系魔法；施放时自身生命≤50% 威力240，否则 160' }
+  };
+
+  function log(s) { try { if (typeof logLine === 'function') logLine(s); else if (window.logLine) window.logLine(s); } catch (e) {} }
+  function fx(o) { try { if (typeof S !== 'undefined' && S && S.fx) S.fx.push(o); } catch (e) {} }
+  function act(side) { try { return (typeof active === 'function') ? active(side) : side.team[side.active]; } catch (e) { return null; } }
+  function state() { try { if (typeof S !== 'undefined' && S) return S; } catch (e) {} try { return window.S || null; } catch (e) {} return null; }
+  function isMine(p) { return !!(p && p.def && p.def.id === PID); }
+  function isAtk(m) { return !!(m && m.cat !== '变化' && (m.power || 0) > 0); }
+  function uses(p) { return (p && p.__fxUses) || 0; }
+
+  /* ---------- 技能实时威力同步（终烬 160/240） ---------- */
+  function syncFinal(p) {
+    if (!p || !p.moves) return;
+    var low = (p.hp || 0) <= (p.maxhp || 1) * 0.5;
+    for (var i = 0; i < p.moves.length; i++) {
+      var m = p.moves[i];
+      if (!m || !m.zkFinal) continue;
+      var v = low ? (m.zkHigh || 240) : (m.zkLow || 160);
+      if (m.power !== v) m.power = v;
+    }
+  }
+
+  /* ---------- 灯油：累计 3 次技能 → 觉醒资格 ---------- */
+  function noteUse(A) {
+    if (!isMine(A) || A.__awake) return;
+    A.__fxUses = uses(A) + 1;
+    if (A.__fxUses >= NEED) ready(A);
+    else log('　↳ 🕯 <b>灯烬</b> 灯油 ' + A.__fxUses + '/' + NEED + '（本场累计释放技能次数）。');
+  }
+  function ready(A) {
+    if (!isMine(A) || A.__awake || A.__awkReady) return;
+    A.__awkReady = 1;
+    log('　↳ 🕯 <b>' + A.name + '</b> 灯油已满（' + NEED + '/' + NEED + '）—— <b>【灯烬】</b>觉醒资格已记录（本场永久有效，换人 / 倒下都不会清除）。');
+  }
+  function checkReady(p) {
+    if (!isMine(p) || p.__awake || p.__awkReady) return;
+    if (uses(p) >= NEED) ready(p);
+  }
+  function scan() {
+    var s = state();
+    if (!s) return;
+    [s.me, s.foe].forEach(function (sd) {
+      if (!sd || !sd.team) return;
+      for (var i = 0; i < sd.team.length; i++) { try { checkReady(sd.team[i]); } catch (e) {} }
+    });
+  }
+
+  /* ---------- 清除自身全部负面（与本体 cleanse 同口径） ---------- */
+  function cleanseSelf(A) {
+    try {
+      ['burn', 'par', 'frz', 'bind'].forEach(function (k) { if (A.status && A.status[k]) delete A.status[k]; });
+      if (A.status) A.status.fear = 0;
+      var locked = false;
+      try { locked = (typeof buffLockOwner === 'function') ? !!buffLockOwner() : false; } catch (e) {}
+      if (!locked) {
+        for (var k in (A.buffs || {})) { if (A.buffs[k] && (A.buffs[k].lv || 0) < 0) delete A.buffs[k]; }
+      } else {
+        log('　↳ 🔒 能力等级被【禁锢】锁定，负面等级无法净化。');
+      }
+      A.dot = null;
+    } catch (e) {}
+  }
+
+  /* ---------- 25% 吸血 ---------- */
+  function drain(A, sideKey, dealt) {
+    var mul = 1;
+    try { mul = (typeof healMul === 'function') ? healMul(A) : 1; } catch (e) {}
+    var h = Math.round(dealt * DRAIN_PCT * mul);
+    if (!(h > 0)) return;
+    var p0 = A.hp;
+    A.hp = Math.min(A.maxhp, A.hp + h);
+    var got = A.hp - p0;
+    if (!(got > 0)) return;
+    log('　↳ 🩸 <b>焚心长明</b> 吸血 +' + got);
+    fx({ on: sideKey, heal: true, txt: '+' + got,
+      hpFrom: Math.round(p0 / Math.max(1, A.maxhp) * 100), hpTo: Math.round(A.hp / Math.max(1, A.maxhp) * 100) });
+  }
+
+  /* ---------- 自动攻击：读当前技能栏，取显示威力最高的可用攻击技 ---------- */
+  function pickAuto(side, A) {
+    var best = -1, bestP = -1, bestN = '';
+    var mv = A.moves || [];
+    for (var i = 0; i < mv.length; i++) {
+      var m = mv[i];
+      if (!isAtk(m) || (m.pp || 0) <= 0) continue;
+      var vals = [m.power];
+      try { if (typeof livePowerVals === 'function') vals = livePowerVals(side, A, m) || vals; } catch (e) {}
+      var p = 0;
+      for (var k = 0; k < vals.length; k++) { var v = Number(vals[k]); if (isFinite(v) && v > p) p = v; }
+      if (p > bestP) { bestP = p; best = i; bestN = m.name; }   /* 同威力取靠前 */
+    }
+    return { i: best, p: bestP, name: bestN };
+  }
+
+  /* ---------- 50% 波及敌方随机两只存活场下宠 ---------- */
+  function splash(defSide, dealt) {
+    var bench = [];
+    try {
+      var t = defSide.team || [];
+      for (var i = 0; i < t.length; i++) {
+        var p = t[i];
+        if (p && i !== defSide.active && !p.fainted && (p.hp || 0) > 0) bench.push(p);
+      }
+    } catch (e) {}
+    if (!bench.length) { log('　↳ 敌方没有存活的场下宠物，余烬无处波及。'); return; }
+    var n = Math.min(SPLASH_N, bench.length);
+    var picks = [];
+    var pool = bench.slice();
+    for (var k = 0; k < n; k++) { picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); }
+    var amt = Math.max(1, Math.round(dealt * SPLASH_PCT));
+    log('　↳ 🔥 <b>焚心长明</b> 余烬：把本次直接伤害的 50%（' + amt + '）分别波及敌方场下 ' + n + ' 只。');
+    for (var q = 0; q < picks.length; q++) {
+      var bp = picks[q];
+      var d = amt, absorbed = 0;
+      try { if (typeof window.capDmg === 'function') d = window.capDmg(bp, amt); else if (typeof capDmg === 'function') d = capDmg(bp, amt); } catch (e) {}
+      if (!(d > 0)) { log('　　<span class="dim">' + bp.name + ' 未受波及</span>'); continue; }
+      try {
+        if ((bp.shield || 0) > 0) {
+          absorbed = Math.min(bp.shield, d);
+          bp.shield -= absorbed;
+          if (bp.shield <= 0) { bp.shield = 0; bp.shieldT = 0; }
+          d -= absorbed;
+        }
+      } catch (e) {}
+      var pre = bp.hp || 0;
+      if (d > 0) {
+        bp.hp = Math.max(0, pre - d);
+        bp.turnDmgTaken = (bp.turnDmgTaken || 0) + d;
+      }
+      if ((bp.hp || 0) <= 0) { try { if (typeof tryFaint === 'function') tryFaint(bp); else if (window.tryFaint) window.tryFaint(bp); } catch (e) {} }
+      log('　　' + bp.name + ' 受到 <b>' + d + '</b> 点伤害'
+        + (absorbed ? '（护盾吸收 ' + absorbed + '）' : '')
+        + (d < amt ? '（场下保护：生命最低保留 1 点）' : '')
+        + ((bp.hp || 0) > 0 ? '，余 ' + bp.hp + '。' : '，倒下了。'));
+    }
+  }
+
+  /* ---------- 觉醒完整结算 ---------- */
+  function autoAttack(sideKey, side, other, A, who) {
+    var D = act(other);
+    if (!D || D.fainted) { log('　↳ 敌方场上无人，【焚心长明】的追击落空。'); return; }
+    syncFinal(A);
+    var pick = pickAuto(side, A);
+    if (pick.i < 0) { log('　↳ 没有可用的攻击技能，【焚心长明】的追击落空。'); return; }
+    log('　↳ 🔥 <b>焚心长明</b>：读取当前技能栏，自动释放目前显示威力最高的 <b>' + pick.name + '</b>（威力 ' + pick.p + '）。');
+    var t0 = D.turnDmgTaken || 0, h0 = D.hp || 0;
+    AUTO++;
+    try {
+      if (typeof window.doSkill === 'function') window.doSkill(sideKey, side, other, pick.i, who);
+      else if (typeof doSkill === 'function') doSkill(sideKey, side, other, pick.i, who);
+    } catch (e) { try { console.error('[焚心] 追击结算失败', e); } catch (_) {} }
+    AUTO--;
+    var dealt = (D.turnDmgTaken || 0) - t0;
+    if (!(dealt > 0)) dealt = Math.max(0, h0 - (D.hp || 0));
+    if (dealt > 0) splash(other, dealt);
+    else log('　↳ 这一击没能造成伤害，余烬未能波及场下。');
+  }
+
+  function awaken(sideKey, side, other, A, who) {
+    if (!A || A.__awake) return;
+    var presentation = window.CandleMotion?.beginAwakening(sideKey, A);
+    var oldName = A.name;
+    var maxhp = A.maxhp || 1;
+    A.__awake = 1;
+    A.__awkReady = 1;
+    A.name = ANAME;
+    try { A.def = Object.assign({}, A.def, { name: ANAME, art: window.CandleMotion?.awakeArt || A.def.art, passive: { fenxinChangming: 1 } }); } catch (e) {}
+
+    /* 1) 技能位变形 + 全部技能先手 +1 */
+    var changed = [];
+    try {
+      var mv = A.moves || [];
+      for (var i = 0; i < mv.length; i++) {
+        var cur = mv[i], t = cur && TRANS[cur.name];
+        if (!t) continue;
+        var nm = {};
+        for (var k in t) nm[k] = t[k];
+        nm.ppMax = t.pp;
+        mv[i] = nm;
+        changed.push('「' + cur.name + '」→「' + nm.name + '」');
+      }
+      for (var j = 0; j < mv.length; j++) {
+        var sp = (mv[j].spd != null) ? mv[j].spd : 8;
+        try { if (typeof skSpd === 'function') sp = skSpd(mv[j]); } catch (e) {}
+        mv[j].spd = sp + 1;
+      }
+    } catch (e) {}
+
+    log('🕯 <b>' + (who === '你' ? '你的' : '对手的') + ' ' + oldName + '</b> 燃芯长明 —— <b>' + ANAME + '</b> 觉醒！');
+    log('　↳ 技能位变形：' + (changed.length ? changed.join('、') : '（无）') + '。');
+
+    /* 2) 清除自身全部负面 */
+    cleanseSelf(A);
+    log('　↳ 清除自身全部负面状态。');
+
+    /* 3) 回复 50% 最大生命 */
+    var got = 0;
+    try {
+      var mul = 1;
+      try { mul = (typeof healMul === 'function') ? healMul(A) : 1; } catch (e) {}
+      var amt = Math.round(maxhp * HEAL_PCT * mul);
+      var p0 = A.hp;
+      A.hp = Math.min(A.maxhp, A.hp + amt);
+      got = A.hp - p0;
+      if (got > 0) {
+        log('　↳ 回复 <b>' + got + '</b> 点生命（最大生命的 50%）。');
+        fx({ on: sideKey, heal: true, txt: '+' + got,
+          hpFrom: Math.round(p0 / maxhp * 100), hpTo: Math.round(A.hp / maxhp * 100) });
+      } else {
+        log('　↳ 生命已满，未能回复。');
+      }
+    } catch (e) {}
+
+    /* 4) 全部技能 PP 补满 */
+    try { A.moves.forEach(function (m) { m.pp = m.ppMax; }); } catch (e) {}
+    log('　↳ 当前携带的全部技能使用次数已补满。');
+
+    /* 属性：双攻各 +2 级（已有护盾 / 正面强化全部保留） */
+    try { if (typeof applyStat === 'function') applyStat(A, 'atk', BUFF_LV); } catch (e) {}
+    try { if (typeof applyStat === 'function') applyStat(A, 'spa', BUFF_LV); } catch (e) {}
+    log('　↳ 物攻、魔攻各 +' + BUFF_LV + ' 级；全部技能先手值 +1；攻击附带 25% 吸血（常驻）。');
+
+    syncFinal(A);
+    try { scan(); } catch (e) {}
+    if (presentation) window.CandleMotion.queueAwakening(presentation);
+    else { try { if (typeof window.renderBattle === 'function') window.renderBattle(); } catch (e) {} }
+
+    /* 特性：完整结算后立即自动攻击一次 */
+    autoAttack(sideKey, side, other, A, who);
+  }
+
+  /* ---------- ① 包装 doSkill ---------- */
+  var _do = window.doSkill;
+  if (typeof _do === 'function' && !window.__FENXIN_SKILL__) {
+    window.__FENXIN_SKILL__ = 1;
+    window.doSkill = function (sideKey, side, other, mi, who) {
+      var A = act(side), D = act(other), sk = null;
+      try { sk = (A && A.moves) ? A.moves[mi] : null; } catch (e) {}
+      try { if (A) syncFinal(A); } catch (e) {}
+      var pp0 = sk ? (sk.pp || 0) : 0;
+      var t0 = (D && D.turnDmgTaken) || 0, h0 = D ? (D.hp || 0) : 0;
+      var r = _do.apply(this, arguments);
+      try {
+        if (!state()) return r;
+        var dealt = ((D && D.turnDmgTaken) || 0) - t0;
+        if (!(dealt > 0)) dealt = Math.max(0, h0 - (D ? (D.hp || 0) : 0));
+        /* 灯油计数：真正发动过（PP 被消耗）才算；自动攻击不计 */
+        if (!AUTO && sk && A && isMine(A) && !sk.fxAwaken && (sk.pp === pp0 - 1)) noteUse(A);
+        /* 觉醒后攻击吸血（含自动攻击） */
+        if (A && A.__awake && isAtk(sk) && dealt > 0) drain(A, sideKey, dealt);
+        /* 资格兜底扫描 */
+        scan();
+        /* 燃芯：觉醒 or 灯油未满 */
+        if (sk && sk.fxAwaken && A && isMine(A) && !A.__awake) {
+          if (A.__awkReady) awaken(sideKey, side, other, A, who);
+          else {
+            var cur = A.moves[mi];
+            if (cur) {
+              var mx = cur.ppMax || 1;
+              cur.pp = Math.min(mx, (cur.pp || 0) + 1);
+              log('　↳ 🕯 灯油未满（' + uses(A) + '/' + NEED + '）—— 觉醒未发动，还需释放 ' + (NEED - uses(A)) + ' 次技能（「' + cur.name + '」使用次数已归还）。');
+            }
+          }
+        }
+      } catch (e) { try { console.error('[焚心] doSkill 后处理失败', e); } catch (_) {} }
+      return r;
+    };
+  }
+
+  /* ---------- ② 渲染时同步终烬威力 + 资格兜底 ---------- */
+  var _rb = window.renderBattle;
+  if (typeof _rb === 'function' && !window.__FENXIN_RB__) {
+    window.__FENXIN_RB__ = 1;
+    window.renderBattle = function () {
+      var r = _rb.apply(this, arguments);
+      try {
+        var s = state();
+        if (s) {
+          [s.me, s.foe].forEach(function (sd) {
+            if (!sd || !sd.team) return;
+            for (var i = 0; i < sd.team.length; i++) syncFinal(sd.team[i]);
+          });
+          scan();
+        }
+      } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------- ③ 战斗界面标签 ---------- */
+  var _bars = window.barsHTML;
+  if (typeof _bars === 'function' && !window.__FENXIN_BARS__) {
+    window.__FENXIN_BARS__ = 1;
+    window.barsHTML = function (sideKey, side, label) {
+      var out = _bars.apply(this, arguments);
+      try {
+        var p = (side && side.team) ? side.team[side.active] : null;
+        if (p && isMine(p) && typeof out === 'string') {
+          var tag = p.__awake ? '<span class="st up">🔥 焚心长明</span>'
+            : (p.__awkReady ? '<span class="st up">🕯 灯油 ' + NEED + '/' + NEED + ' · 可觉醒</span>'
+                             : '<span class="st">🕯 灯油 ' + uses(p) + '/' + NEED + '</span>');
+          out = out.replace('<div class="strow">', '<div class="strow">' + tag);
+        }
+      } catch (e) {}
+      return out;
+    };
+  }
+
+  /* ---------- ④ 被动名 / 描述 ---------- */
+  var _pn = window.passiveName;
+  if (typeof _pn === 'function' && !window.__FENXIN_PN__) {
+    window.__FENXIN_PN__ = 1;
+    window.passiveName = function (pet) {
+      var pv = pet && pet.passive;
+      if (pv && pv.lampAsh) return '灯烬';
+      if (pv && pv.fenxinChangming) return '焚心长明';
+      return _pn.apply(this, arguments);
+    };
+  }
+  var _pd = window.passiveDesc;
+  if (typeof _pd === 'function' && !window.__FENXIN_PD__) {
+    window.__FENXIN_PD__ = 1;
+    window.passiveDesc = function (pet) {
+      var pv = pet && pet.passive;
+      if (pv && pv.lampAsh) {
+        return '【灯烬】本场战斗中，自身每成功释放一次技能（「燃芯」本身不计）记 1 点灯油；累计 3 次后立即记录觉醒资格——之后换人、倒下都不会清除；使用「燃芯」即可觉醒为【焚心烛魇】。';
+      }
+      if (pv && pv.fenxinChangming) {
+        return '【焚心长明】觉醒时立即对敌方场上自动释放当前显示威力最高的可用攻击技能，并把该次直接伤害的 50% 分别波及敌方至多两只存活场下宠物（仅觉醒时触发一次）。常驻：攻击吸血 25%、全部技能先手值 +1；「终烬」在自身生命≤50% 时威力 240。';
+      }
+      return _pd.apply(this, arguments);
+    };
+  }
+
+  /* ---------- ⑤ AI：够资格就打燃芯 ---------- */
+  var _ai = window.aiChoose;
+  if (typeof _ai === 'function' && !window.__FENXIN_AI__) {
+    window.__FENXIN_AI__ = 1;
+    window.aiChoose = function () {
+      var r = _ai.apply(this, arguments);
+      try {
+        var s = state();
+        if (!s || !s.foe) return r;
+        var me = act(s.foe);
+        if (!me || !isMine(me) || me.__awake || !me.__awkReady) return r;
+        var mv = me.moves || [];
+        for (var i = 0; i < mv.length; i++) {
+          if (mv[i] && mv[i].fxAwaken && (mv[i].pp || 0) > 0) return { kind: 'skill', i: i };
+        }
+      } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------- 自检 ---------- */
+  window.__FY = function () {
+    var s = state();
+    var out = { pid: PID, layer: !!window.__FENXIN_LAYER__, need: NEED, state: null };
+    try { out.pets = (typeof PETS !== 'undefined' && PETS) ? PETS.filter(function (p) { return p.id === PID; }).length : -1; } catch (e) { out.pets = -1; }
+    if (!s) return out;
+    var list = [];
+    [s.me, s.foe].forEach(function (sd) {
+      if (!sd || !sd.team) return;
+      for (var i = 0; i < sd.team.length; i++) {
+        var p = sd.team[i];
+        if (!isMine(p)) continue;
+        list.push({ side: (sd === s.me ? 'me' : 'foe'), active: i === sd.active, name: p.name,
+          hp: p.hp, maxhp: p.maxhp, uses: uses(p), ready: !!p.__awkReady, awake: !!p.__awake,
+          buffs: JSON.parse(JSON.stringify(p.buffs || {})),
+          moves: (p.moves || []).map(function (m) {
+            return m.name + ' ' + m.pp + '/' + m.ppMax + ' 速+' + (((typeof skSpd === 'function') ? skSpd(m) : m.spd) - 8) + ' 威' + m.power;
+          }) });
+      }
+    });
+    out.state = list;
+    return out;
+  };
+})();
+</script>
+
+<style id="jinyuxiao-art-direction">
+.pet.me[data-artkey="jinyuxiao"] .art{transform:none}
+.pet.foe[data-artkey="jinyuxiao"] .art{transform:scaleX(-1)}
+</style>
+<script id="jinyuxiao-art-motion">
+(() => {
+  const pet = PETS.find(entry => entry.id === 'jinyuxiao');
+  if (!pet) return;
+
+  const sources = ["media/dbd08230eb13bd4f9e9f9a2f.png", "media/ea63434ef5b8e3f5cbeb0597.png", "media/e3c1aec012d9b9c8fc805f8b.png", "media/9d9c68022005d3683fab096d.png", "media/81936d0c41c35b6608407c2e.png", "media/267338ac1992746e30797adc.png", "media/845959d889eaa0cacd6c46c2.png", "media/e3cb61bcc2dba42cfebb75eb.png", "media/01587733179588e2eedf55b1.png", "media/d6bbd7b093b74ccc5d4ecd6d.png", "media/bd6b8293a00ac58c5dac989d.png", "media/6a008095900adf63f74abee8.png"];
+  const timeline = {"id": "jinyuxiao", "move": "烬羽刃", "grid": [4, 3], "frame_size_px": [416, 416], "grounded_claw_px": [175, 346], "strike_frame": 7, "duration_ms": [200, 80, 100, 110, 60, 70, 80, 80, 90, 100, 100, 200], "stages": ["伏身待机", "沉肩", "屈爪蓄势", "扬翼", "蹬爪起扑", "收爪振翼", "翼缘横切", "扫翼收力", "张爪准备落地", "落爪卸力", "折翼", "复位"]};
+  const durations = [...timeline.duration_ms];
+  durations[3] = 180;
+  durations[6] = 110;
+  let poseEnd = 0;
+  const starts = durations.map(duration => {
+    const start = poseEnd;
+    poseEnd += duration;
+    return start;
+  });
+  const vanish = starts[3];
+  const appear = starts[4];
+  const hit = starts[5];
+  const recover = starts[9];
+  const afterHit = 760;
+  const total = Math.max(poseEnd, hit + afterHit);
+
+  pet.art = pet.id;
+  PET_ART[pet.id] = { idle: sources[0], attack: sources[0], leap: sources[0], hurt: sources[0] };
+  const sprites = sources.map(src => {
+    const image = new Image();
+    image.src = src;
+    return image;
+  });
+  let decoded = false;
+  const ready = Promise.all(sprites.map(image => image.decode())).then(() => decoded = true, () => false);
+  const queued = new WeakMap();
+  const running = new Map();
+
+  const clamp = t => Math.max(0, Math.min(1, t));
+  const smooth = t => t * t * (3 - 2 * t);
+
+  function createLayer(className) {
+    const canvas = document.createElement('canvas');
+    canvas.className = className;
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:43';
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    document.body.appendChild(canvas);
+    return { canvas, context };
+  }
+
+  function clearLayer(layer) {
+    const { canvas, context } = layer;
+    const density = Math.min(2, devicePixelRatio || 1);
+    const width = Math.round(innerWidth * density);
+    const height = Math.round(innerHeight * density);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    context.setTransform(density, 0, 0, density, 0, 0);
+    context.clearRect(0, 0, innerWidth, innerHeight);
+    return context;
+  }
+
+  function drawOwl(ctx, sprite, rect, x, y, facing, opacity = 1, blur = 0, tilt = 0, zoom = 1) {
+    if (opacity <= 0) return;
+    const w = rect.width * zoom;
+    const h = rect.height * zoom;
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    if (blur > 0) ctx.filter = 'blur(' + blur + 'px)';
+    ctx.translate(x, y);
+    ctx.rotate(tilt);
+    ctx.scale(facing, 1);
+    ctx.drawImage(sprite, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+
+  function slash(ctx, point, age, scale) {
+    const q = clamp(age / afterHit);
+    const growth = 1 + .58 * (1 - (1 - q) ** 2);
+    ctx.save();
+    ctx.globalAlpha = (1 - q) ** 1.15;
+    for (const side of [-1, 1]) {
+      const center = point.x + side * 25 * scale;
+      const margin = 63 * scale;
+      ctx.save();
+      ctx.translate(Math.max(margin, Math.min(innerWidth - margin, center)), point.y - 4 * scale);
+      ctx.rotate(-side * .64);
+      ctx.scale(scale, scale);
+      // A matched rake: one heavy cut, two finer tracks on exactly the same angle.
+      const lines = [
+        { offset: -12, reach: 53, width: 2.6 },
+        { offset: 0, reach: 69, width: 8.4 },
+        { offset: 12, reach: 48, width: 2.4 }
+      ];
+      for (const {offset, reach, width} of lines) {
+        const length = reach * growth;
+        const thick = width * (1 + .70 * q) * .5;
+        const red = ctx.createLinearGradient(-length, 0, length, 0);
+        red.addColorStop(0, '#76122a');
+        red.addColorStop(.24, '#da123b');
+        red.addColorStop(.58, '#ff4054');
+        red.addColorStop(.82, '#ee183d');
+        red.addColorStop(1, '#851129');
+        ctx.fillStyle = red;
+        ctx.beginPath();
+        ctx.moveTo(-length, offset);
+        ctx.bezierCurveTo(-length * .48, offset - thick * .88, length * .20, offset - thick, length, offset);
+        ctx.bezierCurveTo(length * .52, offset + thick * .66, -length * .22, offset + thick * 1.16, -length, offset);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function animate(cast) {
+    const { owner, actor, target, from, to, connects } = cast;
+    const body = document.querySelector('#fig_' + from + ' .artimg');
+    const defender = document.getElementById('fig_' + to);
+    if (!decoded || !body || !defender?.querySelector('.art')) return false;
+
+    running.get(from)?.();
+    const pose = createLayer('jinyuxiao-pose');
+    if (!pose) return false;
+    const direction = from === 'me' ? 1 : -1;
+    const mode = localStorage.getItem('lingchong_fxpro_mode') || 'high';
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const visibility = body.style.visibility;
+    const start = performance.now();
+    let targetSpot = BattleSpriteGeometry.targetPoint(defender);
+    let impactLayer, request;
+
+    function stop() {
+      cancelAnimationFrame(request);
+      body.style.visibility = visibility;
+      pose.canvas.remove();
+      impactLayer?.canvas.remove();
+      running.delete(from);
+    }
+    running.set(from, stop);
+
+    function render(now) {
+      const elapsed = Math.max(0, now - start);
+      if (S !== owner || owner.cancelled || !body.isConnected || !defender.isConnected ||
+          active(owner[from]) !== actor || active(owner[to]) !== target || elapsed >= total) {
+        stop();
+        return;
+      }
+      const index = starts.findLastIndex(frameStart => frameStart <= elapsed);
+      const rect = BattleSpriteGeometry.contain(body);
+      if (!rect.width || !rect.height) {
+        request = requestAnimationFrame(render);
+        return;
+      }
+      if (elapsed < hit) targetSpot = BattleSpriteGeometry.targetPoint(defender);
+      const ctx = clearLayer(pose);
+      const originX = rect.left + rect.width * .5;
+      const originY = rect.top + rect.height * .5;
+      const sprite = sprites[index];
+      const gap = connects ? 0 : rect.width * .39;
+      const contactX = targetSpot.x - direction * gap;
+      const contactY = targetSpot.y - (connects ? 0 : rect.height * .18);
+      let phase, clones = 0;
+
+      if (elapsed < vanish) {
+        phase = 'ready';
+        drawOwl(ctx, sprite, rect, originX, originY, direction);
+      } else if (elapsed < appear) {
+        phase = 'vanish';
+        const p = clamp((elapsed - vanish) / (appear - vanish));
+        const fade = smooth(clamp(p / .83));
+        const blur = reduced || mode === 'off' ? 0 : 1 + p * Math.min(12, rect.width * .09);
+        drawOwl(ctx, sprite, rect, originX, originY, direction, 1 - fade, blur);
+      } else if (elapsed < hit) {
+        phase = 'arrival';
+        drawOwl(ctx, sprite, rect, contactX - direction * rect.width * .19,
+          contactY - rect.height * .08, direction);
+      } else if (elapsed < recover) {
+        phase = 'split';
+        clones = 2;
+        const p = clamp((elapsed - hit) / (recover - hit));
+        const spread = 1 - (1 - p) ** 1.8;
+        const opacity = 1 - smooth(clamp((p - .55) / .45));
+        const range = Math.min(rect.width * .62, innerWidth * .16);
+        const half = rect.width * .33;
+        for (const side of [-1, 1]) {
+          const edge = side > 0 ? innerWidth - half - 4 : half + 4;
+          const available = Math.max(rect.width * .12, (edge - contactX) * side);
+          const move = Math.min(range, available);
+          const x = contactX + side * (rect.width * .07 + move * spread);
+          const y = contactY - (side > 0 ? .12 : -.025) * rect.height
+            - rect.height * (.07 + spread * (side > 0 ? .38 : .29));
+          drawOwl(ctx, sprite, rect, x, y, side, opacity, 0,
+            -side * (reduced ? .09 : .20), .80);
+        }
+      } else {
+        phase = 'return';
+        const opacity = smooth(clamp((elapsed - recover) / 72));
+        drawOwl(ctx, sprite, rect, originX, originY, direction, opacity);
+      }
+      pose.canvas.dataset.frame = index + 1;
+      pose.canvas.dataset.phase = phase;
+      pose.canvas.dataset.clones = clones;
+      body.style.visibility = 'hidden';
+
+      const age = elapsed - hit;
+      if (connects && mode !== 'off' && age >= 0 && age < afterHit) {
+        impactLayer ||= createLayer('jinyuxiao-impact-slash');
+        if (impactLayer) {
+          const impactContext = clearLayer(impactLayer);
+          const scale = Math.max(.62, Math.min(1.34, rect.width / 127, innerWidth / 548));
+          slash(impactContext, targetSpot, age, scale);
+        }
+      } else if (impactLayer) {
+        impactLayer.canvas.remove();
+        impactLayer = undefined;
+      }
+      request = requestAnimationFrame(render);
+    }
+    request = requestAnimationFrame(render);
+    return true;
+  }
+
+  function lookup(frames) {
+    if (!frames?.length || frames.some(frame => frame.captainApproach || frame.captainReply)) return null;
+    for (const frame of frames) {
+      const cast = queued.get(frame);
+      if (cast?.owner === S) return cast;
+    }
+    return null;
+  }
+
+  const oldSkill = window.doSkill;
+  window.doSkill = function (from, side, other, index) {
+    const actor = active(side);
+    const move = actor?.moves[index];
+    if (actor?.def?.id !== pet.id || !(move?.power > 0) || move.cat === '变化') {
+      return oldSkill.apply(this, arguments);
+    }
+    const owner = S;
+    const to = other === owner.foe ? 'foe' : 'me';
+    const target = active(other);
+    const sourceHud = BattleSpriteGeometry.snapshotHud(from);
+    const targetHud = BattleSpriteGeometry.snapshotHud(to);
+    const shield = target.shield || 0;
+    const offset = owner.fx.length;
+    const result = oldSkill.apply(this, arguments);
+    const frames = owner.fx.slice(offset);
+    const launch = frames.find(frame => frame.lunge === from || (frame.atkfx && frame.from === from));
+    if (launch) {
+      const damage = frames.find(frame => frame.on === to && frame.shake && Number(frame.txt) < 0);
+      const connects = Boolean(damage || shield > (target.shield || 0));
+      queued.set(launch, { from, to, owner, actor, target, sourceHud, targetHud, launch, frames, damage, connects });
+    }
+    return result;
+  };
+
+  const oldDelay = window.impactDelay;
+  window.impactDelay = function (frame, frames) {
+    const cast = lookup(frames);
+    if (cast?.playing && frame.captainAt == null && cast.frames.includes(frame)) return hit + (frame.delay || 0);
+    return oldDelay.apply(this, arguments);
+  };
+
+  const oldPlay = window.playFx;
+  window.playFx = function () {
+    const cast = lookup(S?.fx);
+    if (cast && animate(cast)) {
+      cast.playing = true;
+      cast.launch.customLaunch = true;
+      if (cast.damage) cast.damage.customImpact = true;
+      BattleSpriteGeometry.delayHud({ owner: cast.owner, to: cast.to, target: cast.target, previousHUD: cast.targetHud }, hit);
+      BattleSpriteGeometry.delayHud({ owner: cast.owner, to: cast.from, target: cast.actor, previousHUD: cast.sourceHud }, hit);
+    }
+    return oldPlay.apply(this, arguments);
+  };
+
+  window.JinyuxiaoMotion = {
+    ready,
+    clear() {
+      for (const stop of running.values()) stop();
+    },
+    queueEnd(frames) {
+      const cast = decoded && lookup(frames);
+      if (!cast) return 0;
+      return Math.max(total, hit + afterHit + Math.max(0, ...cast.frames.map(frame => frame.delay || 0)));
+    }
+  };
+})();
+</script>
+
+<style id="canzhuyan-direction">
+.pet.me[data-artkey="canzhuyan"] .art,.pet.me[data-artkey="canzhuyan-awake"] .art{transform:none}
+.pet.foe[data-artkey="canzhuyan"] .art,.pet.foe[data-artkey="canzhuyan-awake"] .art{transform:scaleX(-1)}
+</style>
+<script id="canzhuyan-art-motion">
+(() => {
+  const pet = PETS.find(entry => entry.id === 'canzhuyan');
+  if (!pet) return;
+  const awakeArt = 'canzhuyan-awake';
+  const banks = [{"timeline": {"id": "canzhuyan", "form": "未觉醒", "name": "残烛魇", "move": "烛焰", "grid": [4, 3], "frame_size_px": [416, 416], "release_frame": 7, "duration_ms": [210, 90, 100, 110, 100, 80, 80, 90, 90, 90, 100, 210], "stages": ["悬浮待机", "翻掌", "掌心生火", "托稳火苗", "屈肘蓄势", "聚火于指间", "弹焰离手", "指尖送出", "放松前臂", "屈肘收回", "手掌复位", "悬浮待机"]}, "sources": ["media/986d89b3989e412fcbe58743.png", "media/639d7e1f66d1e96f0c6a70c7.png", "media/a80494eab29608fc29ae4d52.png", "media/dd552eb684c6fc45e60f93f3.png", "media/a92916fd3c17d29df4478011.png", "media/753fbac80a8adda90afeb4fe.png", "media/006fa99049dfca47972037e6.png", "media/a55ed4bbb2259313d7ce50d1.png", "media/c1a85559fefd8b50a49aee74.png", "media/bc8e8ee5b01048c573437d01.png", "media/d0fb365e60f310a324b77781.png", "media/0c5f35343724ec20e959f705.png"]}, {"timeline": {"id": "canzhuyan", "form": "觉醒", "name": "焚心烛魇", "move": "焚魂火", "grid": [4, 3], "frame_size_px": [416, 416], "release_frame": 7, "duration_ms": [210, 90, 100, 110, 130, 70, 80, 90, 100, 90, 100, 210], "stages": ["火心待机", "双肘抬起", "从胸口引火", "两掌合拢聚焰", "把火压回胸前", "双掌向前推", "焚魂火离手", "推掌收力", "放低近侧手", "双肘回撤", "回到胸前", "火心待机"]}, "sources": ["media/2830e543c99afe11361765cf.png", "media/a3bba940907229fbc933e62c.png", "media/d2ad665fa4b94aebb96206ea.png", "media/b8783c05d96f1aec54af8a98.png", "media/dae839b33e7821e8a5fcbe0c.png", "media/de8466238eeb40102f9fb6b1.png", "media/99bc1c07378341c21c8bc3ad.png", "media/2b8468e99b95e7fa4f35afa5.png", "media/2e1047cd88644411e2aff7e0.png", "media/5936a3eeb484d4c9f0cc329b.png", "media/032c546d9c5d6986e35dc85a.png", "media/2084db991ce8717f5a1318ec.png"]}];
+  const fireBoxes = [
+    { x: 348, y: 125, w: 56, h: 35 },
+    { x: 343, y: 159, w: 48, h: 47 }
+  ];
+  const flight = 220;
+  const impactLife = 380;
+  const hitLife = attack => attack.form ? 1120 : impactLife;
+  const ignition = Object.freeze({ curtain: 110, covered: 425, swap: 480, reveal: 550, clear: 1015, end: 1160 });
+const limit = value => Math.min(1, Math.max(0, value));
+const easeOut = q => 1 - (1 - q) ** 3;
+const easeInOut = q => q * q * (3 - 2 * q);
+const randomAt = seed => {
+  const n = Math.sin(seed * 17.87 + 31.71) * 43758.5453;
+  return n - Math.floor(n);
+};
+
+function fireLeaf(ctx, x, y, w, h, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(w, h);
+  const fill = ctx.createLinearGradient(0, .13, 0, -1);
+  fill.addColorStop(0, '#9e241700');
+  fill.addColorStop(.19, '#a5291bdf');
+  fill.addColorStop(.54, '#f5672a');
+  fill.addColorStop(.84, '#ffb44d');
+  fill.addColorStop(1, '#ff8937');
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.moveTo(-.47, .12);
+  ctx.bezierCurveTo(-.84, -.42, .04, -.50, -.25, -1);
+  ctx.bezierCurveTo(.29, -.83, .38, -.62, .33, -.43);
+  ctx.quadraticCurveTo(.51, -.51, .62, -.66);
+  ctx.bezierCurveTo(.66, -.40, .43, -.21, .45, .12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff3b8c9';
+  ctx.beginPath();
+  ctx.moveTo(-.09, -.20);
+  ctx.quadraticCurveTo(-.26, -.37, .05, -.63);
+  ctx.quadraticCurveTo(.25, -.40, .19, -.14);
+  ctx.quadraticCurveTo(.04, -.09, -.09, -.20);
+  ctx.fill();
+  ctx.restore();
+}
+
+const burnTiles = new WeakMap();
+
+function burnNoise(x, y, seed) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const tx = easeInOut(x - ix), ty = easeInOut(y - iy);
+  const at = (a,b) => randomAt(a * 71 + b * 229 + seed);
+  const top = at(ix,iy) + (at(ix+1,iy) - at(ix,iy)) * tx;
+  const bottom = at(ix,iy+1) + (at(ix+1,iy+1) - at(ix,iy+1)) * tx;
+  return top + (bottom - top) * ty;
+}
+
+function burnTile(first, second) {
+  if (burnTiles.has(first)) return burnTiles.get(first);
+  const inner = 144;
+  const pad = 11;
+  const size = inner + pad * 2;
+  const image = document.createElement('canvas');
+  image.width = image.height = size;
+  const ctx = image.getContext('2d', {willReadFrequently:true});
+  ctx.drawImage(first, pad, pad, inner, inner);
+  ctx.drawImage(second, pad, pad, inner, inner);
+  const silhouettes = ctx.getImageData(0,0,size,size).data;
+  const mask = new Uint8Array(size * size);
+  // Cover both real silhouettes with a small antialias margin.
+  for (let y = 4; y < size - 4; y++) {
+    for (let x = 4; x < size - 4; x++) {
+      if (silhouettes[(y * size + x) * 4 + 3] < 22) continue;
+      for (let dy = -4; dy <= 4; dy++) {
+        for (let dx = -4; dx <= 4; dx++) {
+          if (dx * dx + dy * dy <= 20) mask[(y + dy) * size + x + dx] = 1;
+        }
+      }
+    }
+  }
+  const points = [];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const pos = y * size + x;
+      if (!mask[pos]) continue;
+      const u = x / size, v = y / size;
+      const coarse = burnNoise(u * 6, v * 8, 19);
+      const fine = burnNoise(u * 18, v * 21, 91);
+      const holes = burnNoise(u * 8, v * 9, 211);
+      const grain = .62 * coarse + .26 * fine + .12 * randomAt(pos + 91);
+      const catchAt = .89 - .80 * v + .30 * (coarse - .5) + .06 * (fine - .5);
+      const ashAt = limit(.84 - .57 * v + .70 * (holes - .5) + .12 * (fine - .5));
+      points.push({index:pos * 4, u, v, grain, catchAt, ashAt});
+    }
+  }
+  const data = ctx.createImageData(size, size);
+  const tile = {image, ctx, inner, pad, size, data, points};
+  burnTiles.set(first, tile);
+  return tile;
+}
+
+function drawAwakening(ctx, w, h, rect, time, reduced, first, second, face = 1) {
+  ctx.clearRect(0, 0, w, h);
+  if (time < ignition.curtain || time >= ignition.end || !rect.width) return;
+  const tile = burnTile(first, second);
+  const rise = limit((time - ignition.curtain) / (ignition.covered - ignition.curtain));
+  const ash = limit((time - ignition.reveal) / (ignition.clear - ignition.reveal));
+  const painted = time >= ignition.covered;
+  if (ash < 1) {
+    const rgba = tile.data.data;
+    rgba.fill(0);
+    for (const {index,u,v,grain,catchAt,ashAt} of tile.points) {
+      const front = rise - catchAt;
+      if (!painted && front < -.035) continue;
+      const edge = ashAt - ash;
+      if (ash > 0 && edge < -.028) continue;
+      const lick = Math.sin(v * 36 - u * 23 + time * .027);
+      const coal = .035 + grain * .24 + .17 * Math.max(0, lick) * grain;
+      const hot = ash > 0 ? 1 - limit(Math.abs(edge) * 10)
+        : 1 - limit(Math.abs(front - .035) * 6.2);
+      const heat = limit(coal + hot * (.70 + grain * .24));
+      rgba[index] = 27 + heat ** .82 * 226;
+      rgba[index+1] = 9 + heat ** 2.3 * 187;
+      rgba[index+2] = 12 + heat ** 4 * 99;
+      rgba[index+3] = painted && ash === 0 ? 255 :
+        Math.round(255 * (ash > 0 ? limit((edge + .028) / .064) : limit((front + .035) / .058)));
+    }
+    tile.ctx.putImageData(tile.data, 0, 0);
+    ctx.save();
+    ctx.translate(rect.left + (face < 0 ? rect.width : 0), rect.top);
+    ctx.scale(face, 1);
+    const width = rect.width * tile.size / tile.inner;
+    const height = rect.height * tile.size / tile.inner;
+    ctx.drawImage(tile.image, -rect.width * tile.pad / tile.inner, -rect.height * tile.pad / tile.inner, width, height);
+    ctx.restore();
+  }
+
+  if (reduced) return;
+  const lift = easeOut(rise);
+  const cool = limit((time - ignition.reveal) / (ignition.end - ignition.reveal));
+  const frontY = rect.top + (.94 - .76 * lift) * rect.height;
+  ctx.save();
+  const scale = rect.width / 150;
+  for (let i = 0; i < 20; i++) {
+    const p = (time * (.0012 + .0008 * randomAt(i + 1)) + randomAt(i + 40)) % 1;
+    const x = rect.left + (.18 + randomAt(i + 70) * .65 + (p * .3) * Math.sin(i * 3.4)) * rect.width;
+    const y = (cool > 0 ? rect.top + (.70 - cool * .36) * rect.height : frontY + .17 * rect.height)
+      - (.06 + p * .32) * rect.height;
+    ctx.globalAlpha = Math.sin(p * Math.PI) * (1 - cool) * Math.min(1, rise * 3) * .82;
+    ctx.fillStyle = cool > .22 && i % 3 === 0 ? '#b58b75' : i % 4 ? '#f3773b' : '#ffd8a0';
+    const s = Math.max(1, scale * (1.1 + randomAt(i + 81) * 1.65));
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(p * 2.1 + i);
+    ctx.beginPath();
+    ctx.moveTo(-s,0);
+    ctx.lineTo(.3 * s,-s);
+    ctx.lineTo(s,0);
+    ctx.lineTo(0,.48 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawAwakeAura(ctx, rect, time, reduced) {
+  if (!rect.width) return;
+  const w = rect.width;
+  const phase = reduced ? .55 : time * .0017;
+  const rings = [
+    { y: .43, rx: .48, ry: .118, tilt: -.34, drift: 1.08, width: .020 },
+    { y: .64, rx: .545, ry: .133, tilt: .30, drift: -.83, width: .025 },
+    { y: .83, rx: .455, ry: .102, tilt: -.12, drift: .71, width: .017 }
+  ];
+  for (let i = 0; i < rings.length; i++) {
+    const ring = rings[i];
+    const tilt = ring.tilt + Math.sin(phase * .62 + i * 1.9) * .065;
+    const rx = ring.rx * w;
+    const ry = ring.ry * rect.height;
+    ctx.save();
+    ctx.translate(rect.left + .50 * w, rect.top + (ring.y + Math.sin(phase * .83 + i * 2.1) * .014) * rect.height);
+    ctx.rotate(tilt);
+
+    // A thin continuous track stays translucent. The hotter segment travels along it.
+    ctx.strokeStyle = '#f77d3e56';
+    ctx.lineWidth = Math.max(1.05, ring.width * w * .43);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    const start = phase * ring.drift + i * 2.25;
+    const reach = i === 1 ? 1.86 : 1.43;
+    const point = (s, side) => {
+      const angle = start + s * reach;
+      const taper = Math.sin(Math.PI * s) ** 1.08;
+      const crown = 1 + .24 * Math.sin(s * 13 + phase + i);
+      const edge = side * ring.width * w * taper * crown * .57;
+      return [(rx + edge) * Math.cos(angle), (ry + edge) * Math.sin(angle)];
+    };
+    const [sx, sy] = point(0, 1);
+    const [ex, ey] = point(1, -1);
+    const heat = ctx.createLinearGradient(sx, sy, ex, ey);
+    heat.addColorStop(0, '#b7362100');
+    heat.addColorStop(.30, '#ed602d89');
+    heat.addColorStop(.67, '#ffd39caa');
+    heat.addColorStop(.85, '#ffac62b0');
+    heat.addColorStop(1, '#fe864100');
+    ctx.fillStyle = heat;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    for (let j = 1; j <= 26; j++) ctx.lineTo(...point(j / 26, 1));
+    for (let j = 25; j >= 0; j--) ctx.lineTo(...point(j / 26, -1));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawFallingFlames(ctx, point, progress, scale, reduced) {
+  const q = limit(progress);
+  ctx.save();
+  ctx.globalAlpha = 1 - easeInOut(limit((q - .22) / .78));
+  const count = reduced ? 5 : 14;
+  for (let i = 0; i < count; i++) {
+    const a = i * 2.399 + .17;
+    const drag = 1 - (1 - q) ** 1.32;
+    const force = 26 + 52 * randomAt(i + 28);
+    const x = point.x + Math.cos(a) * (8 + force * drag) * scale;
+    const y = point.y + Math.sin(a) * (8 + force * drag) * scale
+      + (q * q * (67 + 23 * randomAt(i + 9)) - q * 25) * scale;
+    const size = (10 + 15 * randomAt(i + 66)) * (1 - q * .57) * scale;
+    const angle = a + Math.PI / 2 + (i % 2 ? 1 : -1) * q * 1.8;
+    fireLeaf(ctx, x, y, size * .76, size * 1.38, angle);
+  }
+  if (q < .13) {
+    const flash = 1 - q / .13;
+    ctx.globalAlpha = flash * .89;
+    const scaleUp = (13 + 15 * (1 - flash)) * scale;
+    for (let i = 0; i < 5; i++) {
+      fireLeaf(ctx, point.x, point.y, scaleUp * .80, scaleUp * 1.32, i * 1.26);
+    }
+  }
+  ctx.restore();
+}
+
+  let decoded = false;
+  for (const [form, bank] of banks.entries()) {
+    const key = form ? awakeArt : pet.id;
+    const idle = bank.sources[0];
+    PET_ART[key] = { idle, hurt: idle, attack: idle, leap: idle };
+    bank.starts = [];
+    bank.total = 0;
+    for (const duration of bank.timeline.duration_ms) {
+      bank.starts.push(bank.total);
+      bank.total += duration;
+    }
+    bank.releaseFrame = bank.timeline.release_frame - 1;
+    bank.release = bank.starts[bank.releaseFrame];
+    bank.hit = bank.release + flight;
+    bank.images = bank.sources.map(src => {
+      const image = new Image();
+      image.src = src;
+      return image;
+    });
+  }
+  pet.art = pet.id;
+  const ready = Promise.all(banks.flatMap(bank => bank.images.map(image => image.decode())))
+    .then(() => decoded = true, () => false);
+
+  const awakenings = new WeakMap();
+  const attacks = new WeakMap();
+  const running = new Set();
+  const revealHudAt = ignition.reveal + 185;
+  const otherSide = side => side === 'me' ? 'foe' : 'me';
+
+  function snapshotName(side) {
+    return { selector: '.nm', before: document.querySelector('.hpside.' + side + ' .nm')?.cloneNode(true) };
+  }
+
+  function beginAwakening(from, actor) {
+    if (!decoded || S?.cancelled || !document.querySelector('#fig_' + from + ' .artimg')) return null;
+    return {
+      owner: S, actor, from, offset: S.fx.length,
+      beforeHud: [...BattleSpriteGeometry.snapshotHud(from), snapshotName(from)]
+    };
+  }
+
+  function queueAwakening(ticket) {
+    const { owner, from } = ticket;
+    ticket.healing = owner.fx.slice(ticket.offset);
+    // The actor has awakened and healed, but the automatic attack is not resolved yet.
+    const hud = document.createElement('template');
+    hud.innerHTML = barsHTML(from, owner[from], from === 'me' ? '你' : owner.tower ? '试炼首领' : '对手 · ' + aiStyleName(owner.foe));
+    ticket.awakeHud = ['.hpn', '.strow', '.hpshield'].map(selector => ({ selector, before: hud.content.querySelector(selector) }));
+    const marker = {};
+    awakenings.set(marker, ticket);
+    owner.fx.push(marker);
+  }
+
+  function getAwakening(frames) {
+    for (const frame of frames || []) {
+      const ticket = awakenings.get(frame);
+      if (ticket?.owner === S) return ticket;
+    }
+    return null;
+  }
+
+  function getAttack(frames) {
+    if (frames?.some(frame => frame.captainApproach || frame.captainReply)) return null;
+    for (const frame of frames || []) {
+      const attack = attacks.get(frame);
+      if (attack?.owner === S) return attack;
+    }
+    return null;
+  }
+
+  const oldSkill = window.doSkill;
+  window.doSkill = function (from, side, other, index) {
+    const actor = active(side);
+    const move = actor?.moves[index];
+    if (actor?.def?.id !== pet.id || !decoded) return oldSkill.apply(this, arguments);
+    const ticket = getAwakening(S?.fx);
+    const followsAwakening = ticket?.actor === actor;
+    const animated = move?.name === '烛焰' ||
+      (actor.__awake && move?.power > 0 && (move.cat === '魔法' || (followsAwakening && move.cat === '物理')));
+    if (!animated) return oldSkill.apply(this, arguments);
+
+    const owner = S;
+    const to = otherSide(from);
+    const target = active(other);
+    const form = actor.__awake ? 1 : 0;
+    const beforeTarget = BattleSpriteGeometry.snapshotHud(to);
+    const beforeSource = followsAwakening ? ticket.awakeHud : BattleSpriteGeometry.snapshotHud(from);
+    const shield = target.shield || 0;
+    const offset = owner.fx.length;
+    const result = oldSkill.apply(this, arguments);
+    const frames = owner.fx.slice(offset);
+    const launch = frames.find(frame => (frame.atkfx && frame.from === from) || (followsAwakening && frame.lunge === from));
+    if (launch) {
+      const damage = frames.find(frame => frame.on === to && frame.shake && Number(frame.txt) < 0);
+      const connects = Boolean(damage || shield > (target.shield || 0));
+      attacks.set(launch, { owner, from, to, actor, target, form, beforeSource, beforeTarget, frames, launch, damage, connects,
+        start: followsAwakening ? ignition.end : 0 });
+    }
+    return result;
+  };
+
+  function createLayer(name, priority) {
+    const canvas = document.createElement('canvas');
+    canvas.className = name;
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:' + priority;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    document.body.appendChild(canvas);
+    return { canvas, ctx };
+  }
+
+  function clearLayer(layer) {
+    const width = document.documentElement.clientWidth;
+    const height = innerHeight;
+    const density = Math.min(1.5, devicePixelRatio || 1);
+    const w = Math.round(width * density);
+    const h = Math.round(height * density);
+    if (layer.canvas.width !== w || layer.canvas.height !== h) {
+      layer.canvas.width = w;
+      layer.canvas.height = h;
+    }
+    layer.ctx.setTransform(density, 0, 0, density, 0, 0);
+    layer.ctx.clearRect(0, 0, width, height);
+    return { width, height };
+  }
+
+  function drawSpell(ctx, origin, target, q, scale, form, reduced) {
+    const path = progress => ({
+      x: origin.x + (target.x - origin.x) * progress,
+      y: origin.y + (target.y - origin.y) * progress - Math.sin(Math.PI * progress) * 21 * scale
+    });
+    const point = path(q);
+    const behind = path(Math.max(0, q - .21));
+    const next = path(Math.min(1, q + .03));
+    const angle = Math.atan2(next.y - behind.y, next.x - behind.x);
+    if (!reduced) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      const trail = ctx.createLinearGradient(behind.x, behind.y, point.x, point.y);
+      trail.addColorStop(0, '#bc281d00');
+      trail.addColorStop(1, '#ff8e44df');
+      ctx.strokeStyle = trail;
+      ctx.lineWidth = (form ? 7 : 4) * scale;
+      ctx.beginPath();
+      ctx.moveTo(behind.x, behind.y);
+      ctx.quadraticCurveTo((behind.x + point.x) / 2, point.y + 4 * scale, point.x, point.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.translate(point.x, point.y);
+    ctx.rotate(angle);
+    const radius = (form ? 12 : 8) * scale * (1 + .32 * q);
+    const fire = ctx.createLinearGradient(-radius * 2.3, 0, radius, 0);
+    fire.addColorStop(0, '#c43e1900');
+    fire.addColorStop(.56, '#f25323');
+    fire.addColorStop(1, '#fff3bf');
+    ctx.fillStyle = fire;
+    ctx.beginPath();
+    ctx.moveTo(radius, 0);
+    ctx.bezierCurveTo(radius * .75, -radius, -radius * .5, -radius * .58, -radius * 2.3, -radius * .78);
+    ctx.quadraticCurveTo(-radius * .89, -radius * .11, -radius * 1.65, radius * .52);
+    ctx.bezierCurveTo(-radius * .32, radius * .6, radius * .64, radius, radius, 0);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHit(ctx, point, age, scale, attack, reduced) {
+    if (attack.form) {
+      drawFallingFlames(ctx, point, age / hitLife(attack), scale, reduced);
+      return;
+    }
+    const q = limit(age / impactLife);
+    const spread = easeOut(q);
+    ctx.save();
+    ctx.translate(point.x, point.y);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = (1 - q) ** 1.45;
+    for (let i = 0; i < (attack.form ? 3 : 2); i++) {
+      const radius = 9 + spread * (25 + 13 * i);
+      ctx.strokeStyle = i ? '#eb592d' : '#ffedb1';
+      ctx.lineWidth = (i ? 1.8 : 3.4) * (1 - q * .48);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, radius, radius * .72, i * .65, .2 + i * 1.8, 4.85 + i * 1.8);
+      ctx.stroke();
+    }
+    for (let i = 0; i < (reduced ? 5 : attack.form ? 17 : 10); i++) {
+      const a = i * 2.399;
+      const r = 6 + spread * (21 + (i % 5) * 8);
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r + q * q * 15;
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(a);
+      ctx.fillStyle = i % 3 ? '#ff8746' : '#ffe0a0';
+      ctx.beginPath();
+      ctx.moveTo(-6 * (1 - q), 0);
+      ctx.lineTo(0, -2.5);
+      ctx.lineTo(7 - q * 3, 0);
+      ctx.lineTo(0, 2.5);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function present(ticket, attack) {
+    const { from, owner, actor } = ticket || attack;
+    const figure = document.getElementById('fig_' + from);
+    const body = figure?.querySelector('.artimg');
+    const targetFigure = attack && document.getElementById('fig_' + attack.to);
+    if (!body || (attack && !targetFigure?.querySelector('.art'))) return false;
+
+    const bank = attack && banks[attack.form];
+    const pose = attack && createLayer('canzhuyan-cast-fx', 43);
+    const curtain = ticket && createLayer('canzhuyan-awakening-fx', 96);
+    if ((ticket && !curtain) || (attack && !pose)) {
+      pose?.canvas.remove();
+      curtain?.canvas.remove();
+      return false;
+    }
+
+    const mode = localStorage.getItem('lingchong_fxpro_mode') || 'high';
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const direction = from === 'foe' ? -1 : 1;
+    const visibility = body.style.visibility;
+    const start = performance.now();
+    const end = Math.max(ticket ? ignition.end : 0, attack ? attack.start + Math.max(bank.total, bank.hit + hitLife(attack)) : 0);
+    let request, swapped = false, destination;
+
+    function setArt(awake) {
+      figure.dataset.artkey = awake ? awakeArt : pet.id;
+      body.src = banks[awake ? 1 : 0].sources[0];
+      if (awake) syncAura();
+    }
+
+    function stop() {
+      cancelAnimationFrame(request);
+      if (body.isConnected) {
+        body.style.visibility = visibility;
+        setArt(Boolean(actor.__awake));
+      }
+      pose?.canvas.remove();
+      curtain?.canvas.remove();
+      running.delete(stop);
+    }
+    running.add(stop);
+    if (ticket) setArt(false);
+
+    function draw(now) {
+      const time = Math.max(0, now - start);
+      if (S !== owner || owner.cancelled || !body.isConnected || active(owner[from]) !== actor || time >= end) {
+        stop();
+        return;
+      }
+      if (curtain && time < ignition.end && curtain.canvas.isConnected) {
+        const {width, height} = clearLayer(curtain);
+        const rect = BattleSpriteGeometry.contain(body);
+        // Even if a frame arrives late, switch while an opaque curtain is painted.
+        const swapNow = time >= ignition.swap && !swapped;
+        drawAwakening(curtain.ctx, width, height, rect, swapNow ? ignition.swap : time, reduced || mode === 'off',
+          banks[0].images[0], banks[1].images[0], direction);
+        if (swapNow) {
+          setArt(true);
+          swapped = true;
+        }
+      } else if (curtain?.canvas.isConnected) {
+        if (!swapped) setArt(true);
+        curtain.canvas.remove();
+      }
+
+      if (pose && time >= attack.start && targetFigure.isConnected && active(owner[attack.to]) === attack.target) {
+        const age = time - attack.start;
+        clearLayer(pose);
+        const ctx = pose.ctx;
+        const rect = BattleSpriteGeometry.contain(body);
+        const size = bank.timeline.frame_size_px[0];
+        const scale = rect.width / size;
+        const index = bank.starts.findLastIndex(frameStart => frameStart <= age);
+        const box = fireBoxes[attack.form];
+        if (age < bank.total) {
+          ctx.save();
+          ctx.translate(rect.left + (direction < 0 ? rect.width : 0), rect.top);
+          ctx.scale(scale * direction, scale);
+          if (index === bank.releaseFrame) {
+            ctx.beginPath();
+            ctx.rect(0, 0, size, size);
+            ctx.rect(box.x, box.y, box.w, box.h);
+            ctx.clip('evenodd');
+          }
+          ctx.drawImage(bank.images[index], 0, 0);
+          ctx.restore();
+          body.style.visibility = 'hidden';
+        } else {
+          body.style.visibility = visibility;
+        }
+        const scaleFx = Math.max(.67, Math.min(1.35, rect.width / 110));
+        if (age >= bank.release && age < bank.hit) {
+          const target = BattleSpriteGeometry.targetPoint(targetFigure);
+          destination = target;
+          const x = (box.x + box.w / 2) / size;
+          const origin = { x: rect.left + rect.width * (direction > 0 ? x : 1 - x),
+            y: rect.top + scale * (box.y + box.h / 2) };
+          const skip = attack.connects ? 0 : Math.max(18, rect.width * .28);
+          const end = {x: target.x + direction * skip, y: target.y - skip * .85};
+          drawSpell(ctx, origin, end, (age - bank.release) / flight, scaleFx, attack.form, reduced || mode === 'off');
+          pose.canvas.dataset.phase = 'flight';
+        }
+        if (age >= bank.hit && attack.connects && age < bank.hit + hitLife(attack)) {
+          destination ||= BattleSpriteGeometry.targetPoint(targetFigure);
+          if (mode !== 'off') drawHit(ctx, destination, age - bank.hit, scaleFx, attack, reduced || mode === 'mid');
+          pose.canvas.dataset.phase = 'impact';
+        }
+      }
+      request = requestAnimationFrame(draw);
+    }
+    request = requestAnimationFrame(draw);
+    return true;
+  }
+
+  const oldImpact = window.impactDelay;
+  window.impactDelay = function (frame, frames) {
+    if (frame.captainAt == null) {
+      const ticket = getAwakening(frames);
+      if (ticket?.playing && ticket.healing.includes(frame)) return revealHudAt + (frame.delay || 0);
+      const attack = getAttack(frames);
+      if (attack?.playing && attack.frames.includes(frame)) {
+        return attack.start + banks[attack.form].hit + (frame.delay || 0);
+      }
+    }
+    return oldImpact.apply(this, arguments);
+  };
+
+  function holdHud(owner, side, actor, before, time) {
+    BattleSpriteGeometry.delayHud({owner, to:side, target:actor, previousHUD:before}, time);
+  }
+
+  const oldPlay = window.playFx;
+  window.playFx = function () {
+    const ticket = getAwakening(S?.fx);
+    const attack = getAttack(S?.fx);
+    if ((ticket || attack) && present(ticket, attack)) {
+      if (attack) {
+        attack.playing = true;
+        attack.launch.customLaunch = true;
+        if (attack.damage) attack.damage.customImpact = true;
+        for (const frame of attack.frames) if (frame.heal) frame.candleSyncHeal = true;
+        const hit = attack.start + banks[attack.form].hit;
+        holdHud(attack.owner, attack.to, attack.target, attack.beforeTarget, hit);
+        holdHud(attack.owner, attack.from, attack.actor, attack.beforeSource, hit);
+      }
+      if (ticket) {
+        ticket.playing = true;
+        for (const frame of ticket.healing) if (frame.heal) frame.candleSyncHeal = true;
+        holdHud(ticket.owner, ticket.from, ticket.actor, ticket.beforeHud, revealHudAt);
+      }
+    }
+    return oldPlay.apply(this, arguments);
+  };
+
+  let aura = null;
+
+  function stopAura() {
+    if (!aura) return;
+    cancelAnimationFrame(aura.request);
+    aura.layer.canvas.remove();
+    aura = null;
+  }
+
+  function syncAura() {
+    const owner = S;
+    const available = () => ['me','foe'].map(side => {
+      const figure = document.getElementById('fig_' + side);
+      return figure?.dataset.artkey === awakeArt ? figure.querySelector('.artimg') : null;
+    }).filter(Boolean);
+    if (!owner || owner.cancelled || !available().length) {
+      stopAura();
+      return;
+    }
+    if (aura?.owner === owner) return;
+    stopAura();
+
+    const layer = createLayer('canzhuyan-awake-aura', 42);
+    if (!layer) return;
+    aura = {owner, layer};
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function draw(now) {
+      if (S !== owner || owner.cancelled) return stopAura();
+      const images = available();
+      if (!images.length) return stopAura();
+      clearLayer(layer);
+      const mode = localStorage.getItem('lingchong_fxpro_mode') || 'high';
+      if (mode !== 'off') {
+        for (const image of images) {
+          drawAwakeAura(layer.ctx, BattleSpriteGeometry.contain(image), now, reduced || mode === 'mid');
+        }
+      }
+      aura.request = requestAnimationFrame(draw);
+    }
+    aura.request = requestAnimationFrame(draw);
+  }
+
+  const oldRender = window.renderBattle;
+  window.renderBattle = function () {
+    const result = oldRender.apply(this, arguments);
+    syncAura();
+    return result;
+  };
+
+  window.CandleMotion = {
+    ready, beginAwakening, queueAwakening, awakeArt,
+    clear() {
+      for (const stop of running) stop();
+      stopAura();
+    },
+    queueEnd(frames) {
+      const ticket = getAwakening(frames);
+      const attack = getAttack(frames);
+      return Math.max(ticket ? ignition.end : 0, attack ? attack.start + Math.max(
+        banks[attack.form].total,
+        banks[attack.form].hit + hitLife(attack) + Math.max(0, ...attack.frames.map(frame => frame.delay || 0))
+      ) : 0);
+    }
+  };
 })();
 </script>
