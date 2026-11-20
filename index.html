@@ -1371,6 +1371,7 @@ function cancelBattle(){
   window.XianjianMotion?.clear();
   window.JinyuxiaoMotion?.clear();
   window.CandleMotion?.clear();
+  window.MilafengMotion?.clear();
   if(window.ElementFX)ElementFX.clear();
   if(typeof WeatherStoatMotion!=='undefined')WeatherStoatMotion.clear();
   if(typeof SealFrameMotion!=='undefined')SealFrameMotion.clear();
@@ -1929,7 +1930,7 @@ function doSkill(sideKey,side,other,mi,who){
     if(D.fainted&&A.def&&A.def.passive){ const _kpv=A.def.passive; if(_kpv.onKill&&_kpv.onKill.heal){ const _h=Math.round(A.maxhp*_kpv.onKill.heal*healMul(A)); const _p0=A.hp; A.hp=Math.min(A.maxhp,A.hp+_h); if(A.hp>_p0) logLine(`　↳ ${A.name} 触发【猎食】回复 ${A.hp-_p0} 生命。`); } if(_kpv.killPP){ A.moves.forEach(function(m){ if(m.pp<m.ppMax) m.pp=Math.min(m.ppMax,m.pp+_kpv.killPP); }); logLine(`　↳ ${A.name} 触发【止戈】全技能 +${_kpv.killPP} 次。`); } }
     if(D.thorns&&D.thorns.turns>0&&_dmg>0){ const _r=capDmg(A,Math.round(_dmg*thornsPct(D.thorns)*(1-drOf(A)))); if(_r>0){ A.hp=Math.max(0,A.hp-_r); A.turnDmgTaken=(A.turnDmgTaken||0)+_r; if(A.hp<=0)tryFaint(A); logLine(`　↳ ${D.name} 反伤 ${_r} 点伤害（${thornsLayers(D.thorns)}层）。`); S.fx.push({on:sideKey, txt:'-'+_r, shake:true, hpFrom:Math.round((A.hp+_r)/Math.max(1,A.maxhp)*100), hpTo:Math.round(A.hp/A.maxhp*100)}); } }
     logLine(`${who}的 ${A.name} 使用 <b>${skill.name}</b>，对 ${D.name} 造成 <b>${_dmg}</b> 伤害。${crit?'<span class="crit">暴击！</span>':''}${effText(e)}`);
-    S.fx.push({on:(other===S.foe?'foe':'me'), fxType:skill.type||A.type, fxCat:skill.cat, txt:'-'+_dmg, shake:true, crit, eff:(reps>1&&i>0?undefined:e), quick:reps>1, hpFrom:Math.round(preHp/D.maxhp*100), hpTo:Math.round(D.hp/D.maxhp*100), delay:(reps>1?i*250:0)});
+    S.fx.push({on:(other===S.foe?'foe':'me'), fxType:skill.type||A.type, fxCat:skill.cat, landed:!_weatherDodged, txt:'-'+_dmg, shake:true, crit, eff:(reps>1&&i>0?undefined:e), quick:reps>1, hpFrom:Math.round(preHp/D.maxhp*100), hpTo:Math.round(D.hp/D.maxhp*100), delay:(reps>1?i*250:0)});
     /* 技能机制【千足连噬】：每段随机引动对手场下 2 只带 DoT 的宠（真实DoT伤害，不消耗） */
     try{
       const _tbd=skill.triggerBenchDot;
@@ -2068,7 +2069,7 @@ function stepTurn(){
     clearCd();
     CaptainSeal.execute(st);
     const lastImpact=S.fx.reduce((last,f)=>Math.max(last,f.captainAt||0),0);
-    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0);
+    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0,window.MilafengMotion?.queueEnd(S.fx)||0);
     const next=S.queue[S.qi];
     const gateApproach=S.fx.find(f=>f.captainApproach?.kind==='gate')?.captainApproach;
     const nextIsGate=next?.a.kind==='skill' && active(next.side).moves[next.a.i]?.captainGate &&
@@ -3397,6 +3398,7 @@ function fxLayer(id,z){
 }
 function impactDelay(frame,frames){
   if(frame.captainAt!=null) return frame.captainAt;
+  if(frame.beeImpactAt!=null) return frame.beeImpactAt;
   const dragonLunge=frames.find(f=>f.lunge&&RiftDragonMotion.isSeal(f.lunge));
   if(dragonLunge)return RiftDragonMotion.hit+(frame.delay||0);
   const sealLunge=frames.find(f=>f.lunge&&SealFrameMotion.isSeal(f.lunge));
@@ -3425,7 +3427,9 @@ function playFx(){
     if(f.captainReply) battleLater(()=>CaptainMotion.counter(f.captainReply),delay);
     if(f.bside){ spawnBuffFx(f.bside, f.k, f.lv, f.dir); SFX[f.dir==='down'?'debuff':'buff'](); }
     // 受击反馈：抖动 + 变红（命中瞬间）
-    if(f.on&&f.shake && parseFloat(f.txt)!==0){ battleLater(()=>{ const el=$('#fig_'+f.on); if(!el)return;
+    if(f.on&&f.shake && parseFloat(f.txt)!==0){ const beeRecipient=f.beeImpactAt!=null?active(S[f.on]):null;
+      battleLater(()=>{ if(beeRecipient && active(S[f.on])!==beeRecipient)return;
+      const el=$('#fig_'+f.on); if(!el)return;
       const image=el.querySelector('.artimg')||el.querySelector('.art');
       if(image && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){
         const dir=f.on==='me'?-1:1;
@@ -8125,9 +8129,9 @@ renderMode();
           desc: '专属 · 80威力光系魔法；命中时先击碎对手护盾，再结算伤害' }
       ] },
 
-    /* 烬羽鸮：火/暗 ——【噬魂】击杀成长：先手值+1、全属性种族值+25（本场永久叠加；实装在文件末尾 killgrow-src 层） */
+    /* 烬羽鸮：火/暗 ——【噬魂】击杀成长：先手值+1、全种族值+20、全技能威力+25、最终增伤+25%（本场永久叠加；实装在文件末尾 killgrow-src 层） */
     { id: 'jinyuxiao', name: '烬羽鸮', type: ['火', '暗'], emoji: '🦉',
-      passive: { killGrow: { spe: 1, race: 25 } },
+      passive: { killGrow: { spe: 1, race: 20, pw: 25, fin: 0.25 } },
       base: { hp: 88, atk: 104, def: 66, spa: 40, spd: 68, spe: 104 },   // 合计 470
       own: [
         { name: '烬羽刃', star: 1, cat: '物理', power: 90, pp: 6, type: '火', status: { n: 'burn', ch: 0.3 },
@@ -8154,7 +8158,26 @@ renderMode();
           desc: '专属 · 先手+1 · 70点护盾（3回合），自身防御+1级' },
         { name: '燃芯', star: 1, cat: '变化', power: 0, pp: 1, spd: 11, type: '火', fxAwaken: true,
           desc: '专属 · 先手+3 · 觉醒为【焚心烛魇】；本场需已累计释放 3 次技能，否则不发动（次数归还）' }
+      ] },
+
+    /* 蜜蜡绒蜂：萌/虫 ——【余蜡成衣】己方引爆属性烙印时按层数给引爆者护盾（含场下；机制实装在文件末尾 wax-src 层） */
+    { id: 'milafeng', name: '蜜蜡绒蜂', type: ['萌', '虫'], emoji: '🐝',
+      passive: { waxCoat: 20 },
+      base: { hp: 108, atk: 40, def: 82, spa: 110, spd: 84, spe: 60 },   // 合计 484
+      own: [
+        { name: '蜜糖封签', star: 1, cat: '变化', power: 0, pp: 5, spd: 9, type: '萌',
+          buff: { k: 'spa', lv: 1 }, waxAdd: { k: 'mb', n: 2 },
+          desc: '专属 · 先手+1 · 自身魔攻 +1 级；并给敌方队伍刷上 2 层【萌化烙印】' },
+        { name: '蜡针刻痕', star: 1, cat: '魔法', power: 85, pp: 6, type: '虫', waxAdd: { k: 'cb', n: 3 },
+          desc: '专属 · 85威力虫系魔法；命中并结算旧烙印后，给敌方队伍刷上 3 层【虫蚀烙印】' },
+        { name: '振翅碎封', star: 1, cat: '魔法', power: 100, pp: 4, spd: 9, type: '普通',
+          shieldBreak: { heal: 0 },
+          desc: '专属 · 先手+1 · 100威力普通系魔法；命中后先击碎对手护盾再结算伤害，随后正常结算烙印引爆' },
+        { name: '蜜蜡修补', star: 1, cat: '变化', power: 0, pp: 4, spd: 10, type: '萌',
+          heal: 0.3, cleanse: true,
+          desc: '专属 · 先手+2 · 回复自身 30% 最大生命，并清除自身全部负面' }
       ] }
+
   ];
 
   if (typeof PETS === 'undefined' || !Array.isArray(PETS)) {
@@ -19872,9 +19895,12 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
 <script id="killgrow-src">
 /* ===== 噬魂层（killgrow · 烬羽鸮）=====
    被动【噬魂】：自身每击杀 1 只宠物，本场永久成长（可无限叠加）
-     · 先手值 +1     —— 自身全部技能的先手值 spd +1（技能面板同步显示）
-     · 全属性种族值 +25 —— 按本体 CONV 换算成实际属性：
-         体力 +100 / 攻击 +50 / 防御 +50 / 魔攻 +50 / 魔抗 +50 / 速度 +75
+     · 先手值 +1        —— 自身全部技能的先手值 spd +1（技能面板同步显示）
+     · 全属性种族值 +20 —— 按本体 CONV 换算成实际属性：
+          体力 +80 / 攻击 +40 / 防御 +40 / 魔攻 +40 / 魔抗 +40 / 速度 +60
+     · 全部技能威力 +25 —— 自身携带的每个攻击技能威力 +25（技能面板同步显示）
+     · 最终增伤 +25%    —— 本体伤害公式读取 def.passive.finalDmg，这里只写在
+          该宠实例私有的 def 副本上，不污染图鉴 / 存档里的原始数据
    纯增量：不改本体字节。击杀判定挂在 doSkill 之后（同一次出招最多结算一次；
    由本体 tryFaint 负责真正的濒死，复活类被动救回来则不成长）。
    公开接口：window.__KG
@@ -19884,37 +19910,82 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
   if (window.__KG_LAYER__) return;
   window.__KG_LAYER__ = 1;
 
-  var DEFAULT_RACE = 25;
+  var DEFAULT_RACE = 20;      // 每杀全种族值 +20
+  var DEFAULT_SPE = 1;        // 每杀全部技能先手值 +1
+  var DEFAULT_PW = 25;        // 每杀全部攻击技能威力 +25
+  var DEFAULT_FIN = 0.25;     // 每杀最终增伤 +25%
   var KEYS = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
 
   function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) {} }
   function act(sd) { return (sd && sd.team) ? sd.team[sd.active] : null; }
   function hasKG(p) { return !!(p && p.def && p.def.passive && p.def.passive.killGrow); }
+  function num(v, d) { return (typeof v === 'number' && isFinite(v)) ? v : d; }
   function cfgOf(p) {
     var c = (p && p.def && p.def.passive && p.def.passive.killGrow) || {};
+    if (typeof c !== 'object') c = {};
     return {
-      race: (typeof c.race === 'number' && c.race > 0) ? c.race : DEFAULT_RACE,
-      spe: (typeof c.spe === 'number') ? c.spe : 1
+      race: num(c.race, DEFAULT_RACE),
+      spe: num(c.spe, DEFAULT_SPE),
+      pw: num(c.pw, DEFAULT_PW),
+      fin: num(c.fin, DEFAULT_FIN)
     };
   }
   /* 种族值 → 实际属性的换算增量（与本体 CONV 一致） */
   function deltaOf(race) {
     return { hp: 4 * race, atk: 2 * race, def: 2 * race, spa: 2 * race, spd: 2 * race, spe: 3 * race };
   }
+  /* 该宠实例私有的 def 副本（供最终增伤写入，避免污染图鉴/存档数据） */
+  function ownDef(A) {
+    try {
+      if (A.def && A.def.__kgOwn) return A.def;
+      var d = Object.assign({}, A.def);
+      d.passive = Object.assign({}, A.def && A.def.passive);
+      d.__kgOwn = 1;
+      A.def = d;
+      return d;
+    } catch (e) { return A.def; }
+  }
 
   function grow(A, D) {
     if (!A || A.fainted || !hasKG(A)) return 0;
     var c = cfgOf(A), d = deltaOf(c.race);
     A._kgKills = (A._kgKills || 0) + 1;
+
+    /* ① 全部技能先手值 +1 */
     (A.moves || []).forEach(function (m) {
       try { m.spd = ((typeof skSpd === 'function') ? skSpd(m) : ((m.spd != null) ? m.spd : 8)) + c.spe; } catch (e) {}
     });
+
+    /* ② 全种族值 +20 → 实际属性 */
     if (!A.stat) A.stat = {};
     KEYS.forEach(function (k) { A.stat[k] = (A.stat[k] || 0) + d[k]; });
     A.maxhp = (A.maxhp || 0) + d.hp;
     A.hp = Math.min(A.maxhp, (A.hp || 0) + d.hp);
+
+    /* ③ 全部攻击技能威力 +25 */
+    var pwAdd = 0;
+    (A.moves || []).forEach(function (m) {
+      try {
+        if (!m || m.cat === '变化' || !((m.power || 0) > 0)) return;
+        m.power = (m.power || 0) + c.pw;
+        pwAdd += c.pw;
+      } catch (e) {}
+    });
+
+    /* ④ 最终增伤 +25%（本体伤害公式读 def.passive.finalDmg） */
+    var def = ownDef(A);
+    var fin = 0;
+    try {
+      def.passive = def.passive || {};
+      fin = num(def.passive.finalDmg, 0) + c.fin;
+      def.passive.finalDmg = Math.round(fin * 10000) / 10000;
+    } catch (e) {}
+
     say('　↳ 🦉 <b>' + A.name + '</b> 击杀 <b>' + (D ? D.name : '对手') + '</b> —— 【噬魂】发作：先手值 +' + c.spe +
-        '，全属性种族值 +' + c.race + '（本场累计击杀 ' + A._kgKills + ' 只，种族值共 +' + (c.race * A._kgKills) + '）');
+        '，全种族值 +' + c.race + '（体力+' + d.hp + ' / 攻防魔攻魔抗+' + (2 * c.race) + ' / 速度+' + d.spe + '）' +
+        '，全技能威力 +' + c.pw + '，最终增伤 +' + Math.round(c.fin * 100) + '%');
+    say('　　（本场累计击杀 ' + A._kgKills + ' 只：种族值共 +' + (c.race * A._kgKills) +
+        '，威力共 +' + (c.pw * A._kgKills) + '，最终增伤共 +' + Math.round(c.fin * 100 * A._kgKills) + '%）');
     return 1;
   }
 
@@ -19950,11 +20021,11 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
       window.passiveDesc = function (pet) {
         try {
           if (pet && pet.passive && pet.passive.killGrow) {
-            var c = (pet.passive.killGrow && typeof pet.passive.killGrow === 'object') ? pet.passive.killGrow : {};
-            var race = (typeof c.race === 'number' && c.race > 0) ? c.race : DEFAULT_RACE;
-            var spe = (typeof c.spe === 'number') ? c.spe : 1;
-            return '【噬魂】自身每击杀 1 只宠物（本场永久，可无限叠加）：先手值 +' + spe +
-              '，全属性种族值 +' + race + '（体力+' + 4 * race + '，攻击/防御/魔攻/魔抗+' + 2 * race + '，速度+' + 3 * race + '）';
+            var c = cfgOf({ def: pet });
+            return '【噬魂】自身每击杀 1 只宠物（本场永久，可无限叠加）：先手值 +' + c.spe +
+              '，全属性种族值 +' + c.race + '（体力+' + 4 * c.race +
+              '，攻击/防御/魔攻/魔抗+' + 2 * c.race + '，速度+' + 3 * c.race + '）' +
+              '，全部技能威力 +' + c.pw + '，最终增伤 +' + Math.round(c.fin * 100) + '%';
           }
         } catch (e) {}
         return _pd.apply(this, arguments);
@@ -19962,7 +20033,18 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
     }
   } catch (e) { try { console.error('[噬魂] passiveDesc 挂载失败', e); } catch (_) {} }
 
-  window.__KG = { grow: grow, kills: function (p) { return (p && p._kgKills) || 0; }, cfg: cfgOf, delta: deltaOf };
+  window.__KG = {
+    grow: grow,
+    kills: function (p) { return (p && p._kgKills) || 0; },
+    cfg: cfgOf,
+    delta: deltaOf,
+    stacks: function (p) {
+      var c = cfgOf(p), k = (p && p._kgKills) || 0;
+      return { kills: k, race: c.race * k, pw: c.pw * k, fin: Math.round(c.fin * 100 * k) / 100,
+        finalDmg: (p && p.def && p.def.passive) ? (p.def.passive.finalDmg || 0) : 0,
+        powers: (p && p.moves || []).map(function (m) { return m.name + ':' + m.power; }) };
+    }
+  };
 })();
 </script>
 
@@ -21380,5 +21462,503 @@ function drawFallingFlames(ctx, point, progress, scale, reduced) {
       ) : 0);
     }
   };
+})();
+</script>
+
+<!-- ===== 蜡印层（蜜蜡绒蜂 · 属性烙印引爆）（纯增量，不改本体逻辑） ===== -->
+<script id="wax-src">
+/* ===== 蜡印层（wax · 蜜蜡绒蜂）=====
+   新宠【蜜蜡绒蜂】（萌/虫）与它带出的「属性烙印 · 引爆」体系（纯增量，不改本体字节）：
+     ① 属性烙印（队伍级）：挂在敌方「场上」的烙印槽里（不是给每只宠物各贴一份），可叠加层数、换人不丢
+        命名固定：一属性一名，格式「属性 + 单字 + 烙印」—— 萌=萌化烙印，虫=虫蚀烙印；
+        以后新增属性只往 DEFS 里加一行（name/short/icon/颜色），对外文案一律引用 DEFS，不再散写字面量
+         🍬 萌化烙印（萌）  🐝 虫蚀烙印（虫）
+     ② 引爆：己方宠物用「不同于该烙印属性」的威力技能命中后，在该技能完整结算后
+        引爆该属性全部烙印 —— 对本次攻击目标追加一次该属性伤害，威力 30 × 消耗层数，
+        沿用引爆技能的物理/魔法类别（用引爆者的输出能力计算）
+        · 多段攻击打完只结算一次；引爆伤害本身不会再触发引爆
+        · 固定伤害 / 持续伤害 / 烙印自身伤害都不触发
+     ③ 特性【余蜡成衣】（本宠场下也生效）：己方任意宠物引爆烙印，每消耗 1 层
+        就给引爆者 20 点护盾（可叠加、持续到被消耗）；本宠倒下后不再提供
+     ④ 本层同时提供该宠的 4 个专属技能（写在 newpets-src 的 own 里）：
+        蜜糖封签 / 蜡针刻痕 / 振翅碎封 / 蜜蜡修补
+   公开接口：window.__WAX.{defs,stacks,add,layer,burst,bees,self}
+*/
+(function () {
+  'use strict';
+  if (window.__WAX_LAYER__) return;
+  window.__WAX_LAYER__ = 1;
+
+  var PID = 'milafeng';        // 蜜蜡绒蜂
+  var POW_PER = 30;            // 每层引爆：30 威力
+  var SHIELD_PER = 20;         // 余蜡成衣：每层 20 点护盾
+
+  var DEFS = {
+    mb: { key: 'mb', name: '萌化烙印', short: '萌化印', icon: '🍬', type: '萌',
+          bg: 'linear-gradient(135deg,#ffc9e0,#ff8ab6)', fg: '#4a1226', bd: '#ffdce9' },
+    cb: { key: 'cb', name: '虫蚀烙印', short: '虫蚀印', icon: '🐝', type: '虫',
+          bg: 'linear-gradient(135deg,#f7e6a4,#dcb63f)', fg: '#3a2c06', bd: '#f8eebd' }
+  };
+  var KEYS = ['mb', 'cb'];
+
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) {} }
+  function act(sd) { return (sd && sd.team) ? sd.team[sd.active] : null; }
+  function ftype(p) { return p && (Array.isArray(p.type) ? p.type[0] : p.type); }
+  function isBee(p) { return !!(p && p.def && p.def.passive && p.def.passive.waxCoat); }
+
+  /* ---------- 队伍级烙印数据 ---------- */
+  function stacks(sd, k) { return (sd && sd.__wax && sd.__wax[k]) || 0; }
+  function add(sd, k, n) {
+    if (!sd || !DEFS[k]) return 0;
+    n = Math.max(0, Math.floor(n || 0));
+    if (!n) return 0;
+    if (!sd.__wax) sd.__wax = {};
+    sd.__wax[k] = (sd.__wax[k] || 0) + n;
+    return n;
+  }
+  function take(sd, k) {
+    var n = stacks(sd, k);
+    if (n > 0 && sd.__wax) delete sd.__wax[k];
+    return n;
+  }
+  function total(sd) { var t = 0; KEYS.forEach(function (k) { t += stacks(sd, k); }); return t; }
+  function bees(side) {
+    return ((side && side.team) || []).filter(function (p) { return p && !p.fainted && isBee(p); });
+  }
+
+  /* ---------- 状态行气泡 ---------- */
+  function brandTags(side) {
+    var out = '';
+    KEYS.forEach(function (k) {
+      var n = stacks(side, k); if (!n) return;
+      var bd = DEFS[k];
+      out += '<span class="st" style="background:' + bd.bg + ';color:' + bd.fg + ';border:1px solid ' + bd.bd +
+        ';border-radius:999px;padding:0 7px;margin-right:3px;box-shadow:0 0 6px rgba(255,150,190,.45)">' +
+        bd.icon + ' ' + bd.short + '×' + n + '</span>';
+    });
+    return out;
+  }
+
+  /* ---------- 引爆 ---------- */
+  function fxOn(D, dmg, onKey) {
+    try {
+      S.fx.push({ on: onKey, txt: '-' + dmg, shake: true,
+        hpFrom: Math.round((D.hp + dmg) / Math.max(1, D.maxhp) * 100),
+        hpTo: Math.round(D.hp / Math.max(1, D.maxhp) * 100) });
+    } catch (e) {}
+  }
+  function burst(sideKey, side, foeSide, A, D, skill) {
+    if (!A || !D || D.fainted || !skill) return 0;
+    if (skill.cat === '变化' || !((skill.power || 0) > 0)) return 0;
+    var st = skill.type || ftype(A);
+    var keys = KEYS.filter(function (k) { return stacks(foeSide, k) > 0 && DEFS[k].type !== st; });
+    if (!keys.length) return 0;
+
+    var cat = (skill.cat === '物理') ? '物理' : '魔法';
+    var onKey = (foeSide === (typeof S !== 'undefined' ? S.foe : null)) ? 'foe' : 'me';
+    var consumed = 0;
+
+    keys.forEach(function (k) {
+      var n = stacks(foeSide, k); if (!n) return;
+      var bd = DEFS[k];
+      var power = POW_PER * n;
+      var dmg = 0;
+      try {
+        var calc = calcDamage(A, D, { name: '引爆', cat: cat, power: power, type: bd.type });
+        dmg = Math.max(1, Math.round(calc.dmg || 0));
+      } catch (e) { dmg = Math.max(1, Math.round(power * 0.5)); }
+
+      /* 先扣层：引爆一旦发生，层数就算「被消耗」，哪怕伤害被护盾全吃 */
+      take(foeSide, k);
+      consumed += n;
+      var absorbed = 0;
+      if (D.shield > 0 && dmg > 0) {
+        absorbed = Math.min(D.shield, dmg);
+        D.shield -= absorbed; dmg -= absorbed;
+        if (D.shield <= 0) { D.shield = 0; D.shieldT = 0; }
+      }
+      try { if (typeof capDmg === 'function') dmg = capDmg(D, dmg); } catch (e) {}
+      if (dmg > 0) {
+        D.hp = Math.max(0, D.hp - dmg);
+        D.turnDmgTaken = (D.turnDmgTaken || 0) + dmg;
+        D._lastHitDmg = dmg;
+        fxOn(D, dmg, onKey);
+      }
+      say('　↳ ' + bd.icon + ' <b>' + bd.name + '</b> 炸开：' + A.name + ' 引爆 ' + n + ' 层 —— ' +
+          '追加 ' + power + ' 威力' + bd.type + '系' + cat + '伤害，造成 <b>' + dmg + '</b> 点' +
+          (absorbed > 0 ? '（护盾吸收 ' + absorbed + '）' : '') + '。');
+    });
+
+    if (!consumed) return 0;
+
+    /* 余蜡成衣：谁引爆谁拿盾 */
+    var list = bees(side);
+    if (list.length) {
+      var gain = SHIELD_PER * consumed * list.length;
+      A.shield = (A.shield || 0) + gain;
+      A.shieldT = 0;
+      say('　↳ 🛡 <b>' + list[0].name + '</b> 的【余蜡成衣】—— 碎裂蜡片飞回：' + A.name +
+          ' 获得 <b>' + gain + '</b> 点护盾' + (list.length > 1 ? '（' + list.length + ' 只蜡蜂合计）' : '') +
+          '，现有 ' + A.shield + ' 点。');
+    }
+
+    if (D.hp <= 0) {
+      say('💥 ' + D.name + ' 倒下了！');
+      try { if (typeof tryFaint === 'function') tryFaint(D); } catch (e) {}
+      try { S.fx.push({ die: onKey }); } catch (e) {}
+    }
+    return consumed;
+  }
+
+  /* ---------- 出招后：先结算旧印引爆，再叠本次技能的新印 ---------- */
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, other, mi, who) {
+      var A = act(side), D = act(other);
+      var sk = (A && A.moves) ? A.moves[mi] : null;
+      var fxStart = S.fx.length;
+      var res = _do.apply(this, arguments);
+      try {
+        // An evaded bee strike cannot place or detonate a contact mark. A shield still counts as contact.
+        if (isBee(A) && sk && sk.power > 0 && sk.cat !== '变化') {
+          var direct = S.fx.slice(fxStart).filter(f => f.on === (other === S.foe ? 'foe' : 'me') && f.landed != null);
+          if (direct.length && !direct.some(f => f.landed)) return res;
+        }
+        if (sk && A && D && !D.fainted) burst(sideKey, side, other, A, D, sk);
+        if (sk && sk.waxAdd && other && DEFS[sk.waxAdd.k]) {
+          var w = sk.waxAdd;
+          var got = add(other, w.k, w.n || 1);
+          var bd = DEFS[w.k];
+          if (got > 0) {
+            say('　↳ ' + bd.icon + ' <b>敌方队伍</b>被刷上【' + bd.name + '】+' + got +
+                ' 层（现 ' + stacks(other, w.k) + ' 层）—— 用不同属性的威力技能命中即可引爆。');
+          }
+        }
+      } catch (e) { try { console.error('[蜡印] 结算失败', e); } catch (_) {} }
+      return res;
+    };
+  }
+
+  /* ---------- 血条上方显示队伍烙印 ---------- */
+  var _bars = window.barsHTML;
+  if (typeof _bars === 'function') {
+    window.barsHTML = function (sideKey, side, label) {
+      var out = _bars.apply(this, arguments);
+      try {
+        var tags = brandTags(side);
+        if (tags) out = out.replace('<div class="strow">', '<div class="waxrow" style="margin:3px 0 1px">' + tags + '</div><div class="strow">');
+      } catch (e) {}
+      return out;
+    };
+  }
+
+  /* ---------- 被动名 / 说明 ---------- */
+  try {
+    if (typeof window.passiveName === 'function' && !window.__WAX_PN) {
+      window.__WAX_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.waxCoat) return '余蜡成衣'; } catch (e) {}
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__WAX_PD) {
+      window.__WAX_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.waxCoat) {
+            var per = (typeof pet.passive.waxCoat === 'number') ? pet.passive.waxCoat : SHIELD_PER;
+            return '【余蜡成衣】本宠存活时（在场下也算），己方任意宠物引爆属性烙印：每消耗 1 层，' +
+              '就为引爆者提供 ' + per + ' 点护盾（可叠加，持续到被消耗）；本宠倒下后不再提供新护盾。';
+          }
+        } catch (e) {}
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+
+  window.__WAX = {
+    defs: DEFS,
+    keys: KEYS,
+    stacks: stacks,
+    total: total,
+    add: add,
+    take: take,
+    burst: burst,
+    bees: bees,
+    powPer: POW_PER,
+    shieldPer: SHIELD_PER,
+    self: function () {
+      var p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x && x.id === PID; })[0] : null;
+      return { pet: p ? p.name : 'MISSING', passive: p ? p.passive : null,
+        skills: p ? (p.own || []).map(function (s) { return s.name; }) : null,
+        meBrands: ok() ? brandCoat() : null };
+    }
+  };
+  function ok() { return typeof S !== 'undefined' && S && S.me && S.foe; }
+  function brandCoat() {
+    return { me: { mb: stacks(S.me, 'mb'), cb: stacks(S.me, 'cb') },
+             foe: { mb: stacks(S.foe, 'mb'), cb: stacks(S.foe, 'cb') } };
+  }
+})();
+</script>
+
+<style id="milafeng-facing">
+.pet.me[data-artkey="milafeng"] .art{transform:none}
+.pet.foe[data-artkey="milafeng"] .art{transform:scaleX(-1)}
+</style>
+<script id="milafeng-attack-motion">
+(() => {
+  const bee = PETS.find(pet => pet.id === 'milafeng');
+  if (!bee) return;
+  const idle = 'media/2b87a35924acb804eccb6f64.webp';
+  bee.art = bee.id;
+  PET_ART[bee.id] = {idle, attack:idle, hurt:idle, leap:idle};
+  const poses = new Image();
+  poses.src = 'media/2a62d2b4f339d5cc10f2a837.webp';
+  let decoded = false;
+  const ready = poses.decode().then(() => decoded = true, () => false);
+  const contact = new Image();
+  contact.src = 'media/d7bf8a2cd86f6c6f1becc6c4.webp';
+  const impactCols = 6, impactRows = 3, impactStepMs = 20;
+  const impactLife = impactCols * impactRows * impactStepMs;
+  function attackTiming(holdMs) {
+    const starts = [];
+    let total = 0;
+    for (const ms of [120,80,90,140,50,40,holdMs,50,70,90,90,180]) {
+      starts.push(total);
+      total += ms;
+    }
+    return {starts, total};
+  }
+  const landedTiming = attackTiming(140), missedTiming = attackTiming(80);
+  const hit = landedTiming.starts[6], frameW = 380, frameH = 352;
+  // Measured tip of the opaque horn in the seventh cel.
+  const horn = {x:362.5, y:227};
+  const running = new Map();
+  const queue = new WeakMap();
+  const clamp = value => Math.max(0, Math.min(1, value));
+  const smooth = q => q*q*(3-2*q);
+
+  function animate(cast) {
+    const {owner, from, to, actor, target, connects} = cast;
+    const {starts, total} = cast.timing;
+    const body = document.querySelector('#fig_' + from + ' .artimg');
+    const defender = document.getElementById('fig_' + to);
+    if (!decoded || !body || !defender?.querySelector('.art')) return false;
+    const layer = document.createElement('canvas');
+    layer.className = 'milafeng-dash';
+    layer.setAttribute('aria-hidden','true');
+    layer.width = frameW; layer.height = frameH;
+    layer.style.cssText = 'position:fixed;left:0;top:0;transform-origin:0 0;pointer-events:none;z-index:43';
+    const ctx = layer.getContext('2d');
+    if (!ctx) return false;
+    running.get(from)?.();
+    document.body.appendChild(layer);
+    const visibility = body.style.visibility;
+    const dir = from === 'me' ? 1 : -1;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const effects = localStorage.getItem('lingchong_fxpro_mode') || 'high';
+    let raf, stopped = false, point, locked = false, lastFrame = -1, glint;
+    const started = performance.now();
+    function stop() {
+      stopped = true;
+      cancelAnimationFrame(raf);
+      body.style.visibility = visibility;
+      layer.remove();
+      running.delete(from);
+      glint?.remove();
+    }
+    running.set(from, stop);
+    function paint(age) {
+      if (stopped) return false;
+      if (locked) age = Math.max(age,hit);
+      if (owner !== S || owner.cancelled || age >= total || !body.isConnected ||
+          !defender.isConnected || active(owner[from]) !== actor || active(owner[to]) !== target) {
+        stop();
+        return false;
+      }
+      const home = BattleSpriteGeometry.contain(body);
+      if (!home.width || !home.height) return true;
+      if (!locked) {
+        point = BattleSpriteGeometry.targetPoint(defender);
+        // A dodge passes clear of the target's upper edge.
+        if (!connects) point.y = defender.getBoundingClientRect().top - home.height * .43;
+        locked = age >= hit;
+      }
+      const scale = home.width / frameW;
+      const homeTipX = home.left + (dir > 0 ? horn.x : frameW-horn.x)*scale;
+      const homeTipY = home.top + horn.y*scale;
+      const prep = smooth(clamp(age/starts[3])) * (1-clamp((age-starts[4])/(hit-starts[4])));
+      const charge = clamp((age-starts[4])/(hit-starts[4]));
+      const recovery = smooth(clamp((age-starts[7])/(starts[11]-starts[7])));
+      const travel = (charge*charge) * (1-recovery);
+      const x = home.left + (point.x-homeTipX)*travel - dir*29*scale*prep;
+      const y = home.top + (point.y-homeTipY)*travel - (reduced ? 0 : 14*scale*prep);
+      layer.style.width = home.width+'px';
+      layer.style.height = home.height+'px';
+      layer.style.transform = 'translate('+ (x+(dir<0?home.width:0)) +'px,'+y+'px) scaleX('+dir+')';
+      const index = starts.findLastIndex(start => start <= age);
+      if (index !== lastFrame) {
+        ctx.clearRect(0,0,frameW,frameH);
+        ctx.drawImage(poses,(index%4)*frameW,Math.floor(index/4)*frameH,frameW,frameH,0,0,frameW,frameH);
+        layer.dataset.frame = index+1;
+        lastFrame = index;
+      }
+      body.style.visibility = 'hidden';
+      if (connects && effects !== 'off' && age >= hit && age < hit + (reduced ? 160 : impactLife)) {
+        if (!glint) {
+          glint = document.createElement('div');
+          glint.className = 'milafeng-contact';
+          glint.setAttribute('aria-hidden','true');
+          glint.style.cssText = 'position:fixed;pointer-events:none;z-index:43;background-repeat:no-repeat';
+          glint.style.backgroundSize = (impactCols*100)+'% '+(impactRows*100)+'%';
+          glint.style.backgroundImage = 'url("' + contact.src + '")';
+          glint.style.transform = 'translate(-50%,-50%) scaleX('+dir+')';
+          document.body.appendChild(glint);
+        }
+        glint.style.left = point.x+'px';
+        glint.style.top = point.y+'px';
+        const impactAge = Math.max(0, age-hit);
+        const size = Math.min(188, Math.max(90, 350*scale)) * (effects === 'mid' ? .84 : 1);
+        glint.style.width = glint.style.height = size+'px';
+        const cell = reduced ? 3 : Math.min(impactCols*impactRows-1, Math.floor(impactAge/impactStepMs));
+        const col = cell % impactCols, row = Math.floor(cell/impactCols);
+        glint.style.backgroundPosition = (col*100/(impactCols-1))+'% '+(row*100/(impactRows-1))+'%';
+        if (reduced) glint.style.opacity = 1-clamp(impactAge/160);
+      } else if (glint) {
+        glint.remove();
+        glint = undefined;
+      }
+      return true;
+    }
+    function tick(now) { if (paint(now-started)) raf = requestAnimationFrame(tick); }
+    paint(0);
+    raf = requestAnimationFrame(tick);
+    // Paint the contact cel before the engine releases this hit's HUD and hurt callbacks.
+    battleLater(() => { if (!locked) paint(hit); }, hit);
+    return true;
+  }
+
+  // waxrow may be created or removed by this attack. Keep its place next to the status row.
+  function holdWaxRow(cast) {
+    const bar = document.querySelector('.hpside.' + cast.to);
+    const status = bar?.querySelector('.strow');
+    if (!status) return;
+    const after = bar.querySelector('.waxrow');
+    const before = cast.waxBefore;
+    if (before?.outerHTML === after?.outerHTML) return;
+    after?.remove();
+    if (before) status.before(before);
+    battleLater(() => {
+      if (!bar.isConnected || active(cast.owner[cast.to]) !== cast.target) return;
+      before?.remove();
+      if (after) bar.querySelector('.strow')?.before(after);
+    }, hit);
+  }
+
+  const prevSkill = window.doSkill;
+  window.doSkill = function(from, side, other, index) {
+    const actor = active(side), move = actor?.moves[index];
+    if (actor?.def?.id !== bee.id || !(move?.power > 0) || move.cat === '变化')
+      return prevSkill.apply(this, arguments);
+    const owner = S, to = other === owner.foe ? 'foe' : 'me', target = active(other);
+    const offset = owner.fx.length, logOffset = owner.log.length;
+    const sourceHud = BattleSpriteGeometry.snapshotHud(from), targetHud = BattleSpriteGeometry.snapshotHud(to);
+    const waxBefore = document.querySelector('.hpside.'+to+' .waxrow')?.cloneNode(true);
+    const result = prevSkill.apply(this, arguments);
+    const frames = owner.fx.slice(offset);
+    const launch = frames.find(f => f.lunge === from || (f.atkfx && f.from === from));
+    if (launch) {
+      const connects = frames.some(f => f.on === to && f.landed === true);
+      const timing = connects ? landedTiming : missedTiming;
+      queue.set(launch,{owner, from, to, actor, target, frames, launch, connects, timing, sourceHud, targetHud, waxBefore, logOffset});
+    }
+    return result;
+  };
+  function queued(frames) {
+    if (!frames?.length || frames.some(f => f.captainApproach || f.captainReply)) return;
+    for (const f of frames) {
+      const cast = queue.get(f);
+      if (cast?.owner === S) return cast;
+    }
+  }
+  const prevPlay = window.playFx;
+  window.playFx = function() {
+    const cast = queued(S?.fx);
+    if (cast && animate(cast)) {
+      cast.launch.customLaunch = true;
+      for (const frame of cast.frames) {
+        if (frame.captainAt == null) frame.beeImpactAt = hit+(frame.delay||0);
+        if (frame.on === cast.to && frame.shake && !frame.heal) frame.customImpact = true;
+      }
+      const log = document.getElementById('log');
+      if (log && cast.owner.log.length > cast.logOffset) {
+        log.innerHTML = cast.owner.log.slice(0,cast.logOffset).join('<br>');
+        log.scrollTop = log.scrollHeight;
+        battleLater(() => { if (log.isConnected) flushLog(); }, hit);
+      }
+      holdWaxRow(cast);
+      BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.from,target:cast.actor,previousHUD:cast.sourceHud},hit);
+      BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.to,target:cast.target,previousHUD:cast.targetHud},hit);
+    }
+    return prevPlay.apply(this, arguments);
+  };
+  window.MilafengMotion = {
+    ready,
+    clear() { for (const stop of running.values()) stop(); },
+    queueEnd(frames) {
+      const cast = decoded && queued(frames);
+      return cast ? Math.max(cast.timing.total, hit + Math.max(0,...cast.frames.map(f => f.delay||0)) + 240) : 0;
+    }
+  };
+})();
+</script>
+
+<!-- ===== 状态栏去 emoji（纯显示层，最后加载） ===== -->
+<script id="cleanbar-src">
+/* ===== 状态栏去 emoji（纯显示层）=====
+   把血条下方「buff / debuff 状态栏」里所有图标式 emoji 去掉，只留文字与数字：
+   🔒 禁锢 → 禁锢   🌊 涌潮 → 涌潮   🔥 焚心长明 → 焚心长明   🍬 萌化印 → 萌化印 …
+   做法：本层最后加载，包住 barsHTML，对成品的每个 <span class="st …"> 徽章文本做清理，
+   不碰任何数值、不碰宠物名前的 emoji、不碰日志文案；新加的状态徽章同样会被清掉。
+   公开：window.__CLEANBAR.remove(str) 可直接用同一套规则清任意文本。
+*/
+(function () {
+  'use strict';
+  if (window.__CLEANBAR__) return;
+  window.__CLEANBAR__ = 1;
+
+  /* 图标类 emoji 范围：表情/图形符号/变体选择符/零宽连接符/旗帜 */
+  var EMO = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{FE0E}\u{200D}\u{1F1E6}-\u{1F1FF}]/gu;
+  var CHIP = /(<span class="st[^"]*"[^>]*>)([\s\S]*?)(<\/span>)/g;
+
+  function cleanText(t) {
+    return String(t)
+      .replace(EMO, '')
+      .replace(/[ \t\u00a0]{2,}/g, ' ')
+      .replace(/^[\s·・．,，:：\-–—|｜]+/, '')
+      .replace(/[\s·・]+$/, '');
+  }
+
+  function clean(html) {
+    return html.replace(CHIP, function (m, open, inner, close) {
+      var t = cleanText(inner);
+      return t ? open + t + close : '';
+    });
+  }
+
+  var _bars = window.barsHTML;
+  if (typeof _bars === 'function') {
+    window.barsHTML = function () {
+      var out = _bars.apply(this, arguments);
+      try { return (typeof out === 'string') ? clean(out) : out; } catch (e) { return out; }
+    };
+  }
+
+  window.__CLEANBAR = { remove: cleanText, hasEmoji: function (t) { return EMO.test(String(t)); } };
 })();
 </script>
