@@ -1,4 +1,4 @@
-const CACHE = 'lc-4bfc7749381091e9-d';
+const CACHE = 'lc-557617c245ed3cd5-d';
 const PREFIX = 'lc-scope-' + new URL(self.registration.scope).pathname + ':';
 const STORE = PREFIX + CACHE;
 const ASSETS = ['./index.html', './manifest.json', './icon-180.png', './icon-512.png'];

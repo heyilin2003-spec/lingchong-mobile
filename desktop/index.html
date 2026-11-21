@@ -719,7 +719,7 @@ PETS.push({id:'yexun',name:'夜巡影猫',type:['幽','暗'],emoji:'🐈‍⬛',
     {name:'影步突袭',star:1,cat:'物理',power:85,pp:7,spd:10,type:'暗',drainFoePP:1,desc:'专属 · 先手+2 · 85威力暗系物理；命中后随机删除对手1个技能1点PP'},
     {name:'夜巡裂爪',star:1,cat:'物理',power:80,pp:6,type:'幽',status:{n:'fear',ch:0.5},desc:'专属 · 80威力幽系物理；50%恐惧（恐惧：无法出招、无法换人，受伤时场下队友连带受伤）'},
     {name:'暗影分身',star:1,cat:'变化',power:0,pp:4,spd:15,type:'幽',dodge:1,buff:{k:'spe',lv:1},backGuard:{mul:0.8},desc:'专属 · 先手+7 · 获得1次闪避、速度+1级；本回合后手伤害-20%'},
-    {name:'冥夜处刑',star:1,cat:'变化',power:0,pp:3,spd:6,type:'幽',sacrificeSupport:true,heal:0.2,desc:'专属 · 先手-2 · 自身回复20%生命；随机恢复场下宠物的血量和PP：总回血=自身当前血量，总回PP=自身剩余PP；优先残血/残PP'}
+    {name:'冥夜处刑',star:1,cat:'变化',power:0,pp:3,spd:6,type:'幽',sacrificeSupport:true,heal:0.2,desc:'专属 · 先手-2 · 自身回复20%生命；随机恢复场下宠物的血量和PP：总回血=自身当前血量，总回PP=自身剩余PP；优先残血/残PP（单只宠物单次最多回 4 点PP）'}
   ]});
 PETS.push({id:'junmu',name:'腐沼菌母',type:['毒','草'],emoji:'🍄',art:'junmu',passive:{onEnterDotTick:{times:2}},base:{hp:110,atk:40,def:86,spa:96,spd:88,spe:62},own:[
     {name:'腐沼孢子',star:1,cat:'魔法',power:65,pp:6,type:'毒',dot:{pct:0.02,turns:3,nm:'腐沼',add:2},desc:'专属 · 65威力毒系魔法；给对手挂2层【腐沼】（每层2%最大生命，3回合）'},
@@ -1322,6 +1322,9 @@ function cancelBattle(){
   window.JinyuxiaoMotion?.clear();
   window.CandleMotion?.clear();
   window.MilafengMotion?.clear();
+  window.ChiyinMotion?.clear();
+  window.LuefengMotion?.clear();
+  window.ShuangjiMotion?.clear();
   if(window.ElementFX)ElementFX.clear();
   if(typeof WeatherStoatMotion!=='undefined')WeatherStoatMotion.clear();
   if(typeof SealFrameMotion!=='undefined')SealFrameMotion.clear();
@@ -1731,6 +1734,7 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.dodge){ A.dodge=(A.dodge||0)+skill.dodge; logLine(`　↳ ${A.name} 获得 ${skill.dodge} 次闪避。`); }
     if(skill.survive){ A.surviveT=skill.survive; logLine(`　↳ ${A.name} 获得免死（${skill.survive} 回合内有效）。`); }
     if(skill.teamHeal||skill.teamPP){ let _hs=0; side.team.forEach(function(tp){ if(tp===A||tp.fainted) return; const _pre=tp.hp; if(skill.teamHeal) tp.hp=Math.min(tp.maxhp,tp.hp+Math.round(skill.teamHeal*healMul(tp))); if(tp.hp>_pre) _hs++; if(skill.teamPP) restoreOnePP(tp,-1,skill.teamPP); }); if(skill.teamPP) side.team.forEach(function(tp){ if(tp===A) restoreOnePP(tp,-1,skill.teamPP); }); logLine(`　↳ ${A.name} 支援场下队友：${_hs} 名各回复 ${skill.teamHeal||0} 生命。`); }
+    if(skill.teamPPick){ const _pk=skill.teamPPick, _pn=Math.max(1,_pk.count||2), _pe=Math.max(1,_pk.each||3); const _pool=side.team.filter(function(tp){return tp!==A&&!tp.fainted&&tp.moves.some(function(m){return m.pp<m.ppMax;});}); const _sel=[]; while(_sel.length<_pn&&_pool.length){ const _ri=Math.floor(Math.random()*_pool.length); _sel.push(_pool.splice(_ri,1)[0]); } let _pt=0; _sel.forEach(function(tp){ for(let _k=0;_k<_pe;_k++){ const _mv=restoreOnePP(tp,-1,1); if(!_mv) break; _pt++; } }); if(_sel.length){ logLine(`　↳ ${A.name} 随机支援 ${_sel.map(function(tp){return tp.name;}).join('、')} 共 ${_pt} 点PP。`); } }
     if(skill.healAll){
       let _n=0;
       side.team.forEach(function(tp){ if(tp.fainted) return; const _p0=tp.hp; tp.hp=Math.min(tp.maxhp,tp.hp+Math.round(tp.maxhp*skill.healAll*healMul(tp))); if(tp.hp>_p0) _n++; });
@@ -1759,7 +1763,7 @@ function doSkill(sideKey,side,other,mi,who){
     if(skill.reverseWeatherBonus && S.weather && S.weather.id==='reverse'){ const _rb=skill.reverseWeatherBonus; if(_rb.heal){ const _p0=A.hp; A.hp=Math.min(A.maxhp,A.hp+Math.round(A.maxhp*_rb.heal*healMul(A))); const _g=A.hp-_p0; if(_g>0){ logLine(`　↳ 🔄 【逆序】加成：${A.name} 额外回复 ${_g} 生命。`); S.fx.push({on:sideKey,heal:true,txt:'+'+_g,hpFrom:Math.round(_p0/A.maxhp*100),hpTo:Math.round(A.hp/A.maxhp*100)}); } } if(_rb.dodge){ A.dodge=(A.dodge||0)+_rb.dodge; logLine(`　↳ 🔄 【逆序】加成：${A.name} 获得 ${_rb.dodge} 次闪避。`); } }
     if(skill.clearMind){ A.clearMindT=skill.clearMind; logLine(`　↳ ${A.name} 进入【清醒】（${skill.clearMind} 回合）：无视除 DoT 外的负面效果。`); }
 
-    if(skill.sacrificeSupport){ const _bench=side.team.filter(function(t,i){return i!==side.active&&!t.fainted;}); if(!_bench.length){ logLine(`　↳ ${A.name} 没有可支援的场下队友。`); } else { const _hp0=Math.max(0,A.hp); const _pp0=A.moves.reduce(function(s,m){return s+Math.max(0,m.pp);},0); let _hpPool=_hp0, _ppPool=_pp0; const _hpGot=[], _ppGot=[]; let _guard=0; while(_hpPool>0&&_guard++<300){ const _cand=_bench.filter(function(t){return t.hp<t.maxhp;}); if(!_cand.length)break; _cand.sort(function(x,y){return (x.hp/x.maxhp)-(y.hp/y.maxhp);}); const _pick=_cand[Math.floor(Math.random()*Math.min(2,_cand.length))]; const _amt=Math.min(_pick.maxhp-_pick.hp,_hpPool,Math.max(1,Math.round(_hpPool*(0.2+Math.random()*0.4)))); _pick.hp+=_amt; _hpPool-=_amt; _hpGot.push(_pick.name+' +'+_amt); } _guard=0; const _ppRatio=function(t){ const _mx=t.moves.reduce(function(s,m){return s+m.ppMax;},0)||1; return t.moves.reduce(function(s,m){return s+m.pp;},0)/_mx; }; while(_ppPool>0&&_guard++<600){ const _cand=_bench.filter(function(t){return t.moves.some(function(m){return m.pp<m.ppMax;});}); if(!_cand.length)break; _cand.sort(function(x,y){return _ppRatio(x)-_ppRatio(y);}); const _pick=_cand[Math.floor(Math.random()*Math.min(2,_cand.length))]; const _mv=restoreOnePP(_pick,-1,1); if(!_mv)break; _ppPool--; _ppGot.push(_pick.name+' '+_mv.name); } logLine(`　↳ ${A.name} 将 ${_hp0} 点生命与 ${_pp0} 点PP随机分给场下（优先残血/残PP）——回血：${_hpGot.slice(0,6).join('、')||'无'}；回PP：${_ppGot.slice(0,6).join('、')||'无'}。`); } }
+    if(skill.sacrificeSupport){ const _bench=side.team.filter(function(t,i){return i!==side.active&&!t.fainted;}); if(!_bench.length){ logLine(`　↳ ${A.name} 没有可支援的场下队友。`); } else { const _hp0=Math.max(0,A.hp); const _pp0=A.moves.reduce(function(s,m){return s+Math.max(0,m.pp);},0); let _hpPool=_hp0, _ppPool=_pp0; const _hpGot=[], _ppGot=[]; const _ppCap=new Map(); let _guard=0; while(_hpPool>0&&_guard++<300){ const _cand=_bench.filter(function(t){return t.hp<t.maxhp;}); if(!_cand.length)break; _cand.sort(function(x,y){return (x.hp/x.maxhp)-(y.hp/y.maxhp);}); const _pick=_cand[Math.floor(Math.random()*Math.min(2,_cand.length))]; const _amt=Math.min(_pick.maxhp-_pick.hp,_hpPool,Math.max(1,Math.round(_hpPool*(0.2+Math.random()*0.4)))); _pick.hp+=_amt; _hpPool-=_amt; _hpGot.push(_pick.name+' +'+_amt); } _guard=0; const _ppRatio=function(t){ const _mx=t.moves.reduce(function(s,m){return s+m.ppMax;},0)||1; return t.moves.reduce(function(s,m){return s+m.pp;},0)/_mx; }; while(_ppPool>0&&_guard++<600){ const _cand=_bench.filter(function(t){return t.moves.some(function(m){return m.pp<m.ppMax;})&&(_ppCap.get(t)||0)<4;}); if(!_cand.length)break; _cand.sort(function(x,y){return _ppRatio(x)-_ppRatio(y);}); const _pick=_cand[Math.floor(Math.random()*Math.min(2,_cand.length))]; const _mv=restoreOnePP(_pick,-1,1); if(!_mv)break; _ppPool--; _ppCap.set(_pick,(_ppCap.get(_pick)||0)+1); _ppGot.push(_pick.name+' '+_mv.name); } logLine(`　↳ ${A.name} 将 ${_hp0} 点生命与 ${_pp0} 点PP随机分给场下（优先残血/残PP）——回血：${_hpGot.slice(0,6).join('、')||'无'}；回PP：${_ppGot.slice(0,6).join('、')||'无'}。`); } }
     if(skill.backGuard){ A.backGuard={mul:skill.backGuard.mul, heal:skill.backGuard.heal, turn:S.turn, used:false}; logLine(`　↳ 🛡 ${A.name} 摆出【沉甲潜航】：本回合受到的对手后手伤害 -${Math.round((1-skill.backGuard.mul)*100)}%。`); }
     if(skill.guard){ A.guardT=skill.guard.turns; A.guardMul=skill.guard.mul; logLine(`　↳ 🛡 ${A.name} 布下【定海】（${skill.guard.turns} 回合，受到伤害 -${Math.round((1-skill.guard.mul)*100)}%）。`); }
     if(skill.blackMoon){ A.blackMoon={turn:S.turn, fear:skill.blackMoon.fear, off:skill.blackMoon.off}; logLine(`　↳ ${A.name} 张开黑月——记录本回合受伤，回合结束反噬对手。`); }
@@ -2019,7 +2023,7 @@ function stepTurn(){
     clearCd();
     CaptainSeal.execute(st);
     const lastImpact=S.fx.reduce((last,f)=>Math.max(last,f.captainAt||0),0);
-    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0,window.MilafengMotion?.queueEnd(S.fx)||0);
+    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0,window.MilafengMotion?.queueEnd(S.fx)||0,window.ChiyinMotion?.queueEnd(S.fx)||0,window.LuefengMotion?.queueEnd(S.fx)||0,window.ShuangjiMotion?.queueEnd(S.fx)||0);
     const next=S.queue[S.qi];
     const gateApproach=S.fx.find(f=>f.captainApproach?.kind==='gate')?.captainApproach;
     const nextIsGate=next?.a.kind==='skill' && active(next.side).moves[next.a.i]?.captainGate &&
@@ -2916,14 +2920,14 @@ function playHurt(sideKey){
   const side=(sideKey==='me')?S.me:S.foe; if(!side) return;
   const a=artOf(active(side).def); if(!a||!a.hurt) return;
   const img=document.querySelector('#fig_'+sideKey+' .artimg'); if(!img) return;
-  img.src=a.hurt; setTimeout(()=>{ const im2=document.querySelector('#fig_'+sideKey+' .artimg'); if(im2) im2.src=a.idle; }, 270);
+  img.src=a.hurt; setTimeout(()=>{ const im2=document.querySelector('#fig_'+sideKey+' .artimg'); if(im2===img) im2.src=a.battleIdle||a.idle; }, 270);
 }
 function petIcon(pet,size){ const a=artOf(pet); return a?`<img src="${a.idle}" style="max-height:${size}px;max-width:100%;vertical-align:middle">`:pet.emoji; }
 let _lastActive={me:-1,foe:-1};
 function petHTML(sideKey,side){
   const p=active(side); const a=artOf(p.def);
   const entering=(_lastActive[sideKey]!==side.active); _lastActive[sideKey]=side.active;
-  const inner=a?`<img class="artimg" src="${a.idle}">`:p.emoji;
+  const inner=a?`<img class="artimg" src="${a.battleIdle||a.idle}">`:p.emoji;
   if(p.fainted&&p.gone) return `<div class="pet ${sideKey}" id="fig_${sideKey}"><div class="art"></div><div class="fx"></div></div>`;
   return `<div class="pet ${sideKey}${entering?' entering':''}" id="fig_${sideKey}" data-artkey="${p.def.art||''}"><div class="art">${inner}</div><div class="fx"></div></div>`;
 }
@@ -3056,7 +3060,7 @@ function playLunge(sideKey){
   setTimeout(()=>{ el.style.transition='transform .2s ease-in'; el.style.transform=`translate(${dx}px, ${dy}px)`; img.src=A.attack; },200); // 2) 扑到对手身上
   setTimeout(()=>{ spawnClaw(sideKey==='me'?'foe':'me'); },380);                                                                          //    爪击特效
   setTimeout(()=>{ el.style.transition='transform .28s cubic-bezier(.4,0,.7,.3)'; el.style.transform='translate(0,0)'; },930);             // 3) 停留后弹回
-  setTimeout(()=>{ img.src=A.idle; el.style.transition=''; el.style.zIndex=''; },1240);
+  setTimeout(()=>{ img.src=A.battleIdle||A.idle; el.style.transition=''; el.style.zIndex=''; },1240);
 }
 /* 全屏爪击特效：三道月牙形爪痕落在目标宠物身上（更细更长 · 缓缓出现/依次消失） */
 const CLAW_PATH='M10,6 C54,74 58,246 10,314 C32,246 30,74 10,6 Z';
@@ -3348,7 +3352,10 @@ function fxLayer(id,z){
 }
 function impactDelay(frame,frames){
   if(frame.captainAt!=null) return frame.captainAt;
+  if(frame.frostImpactAt!=null) return frame.frostImpactAt;
+  if(frame.falconImpactAt!=null) return frame.falconImpactAt;
   if(frame.beeImpactAt!=null) return frame.beeImpactAt;
+  if(frame.clawImpactAt!=null) return frame.clawImpactAt;
   const dragonLunge=frames.find(f=>f.lunge&&RiftDragonMotion.isSeal(f.lunge));
   if(dragonLunge)return RiftDragonMotion.hit+(frame.delay||0);
   const sealLunge=frames.find(f=>f.lunge&&SealFrameMotion.isSeal(f.lunge));
@@ -3375,10 +3382,14 @@ function playFx(){
       if(f.atkfx) spawnTypeFx(f.type, f.from, f.to);
     }
     if(f.captainReply) battleLater(()=>CaptainMotion.counter(f.captainReply),delay);
-    if(f.bside){ spawnBuffFx(f.bside, f.k, f.lv, f.dir); SFX[f.dir==='down'?'debuff':'buff'](); }
+    if(f.bside){
+      const recipient=active(S[f.bside]);
+      const show=()=>{if(active(S[f.bside])===recipient){spawnBuffFx(f.bside,f.k,f.lv,f.dir);SFX[f.dir==='down'?'debuff':'buff']()}};
+      if(f.falconImpactAt!=null||f.frostImpactAt!=null)battleLater(show,delay);else show();
+    }
     // 受击反馈：抖动 + 变红（命中瞬间）
-    if(f.on&&f.shake && parseFloat(f.txt)!==0){ const beeRecipient=f.beeImpactAt!=null?active(S[f.on]):null;
-      battleLater(()=>{ if(beeRecipient && active(S[f.on])!==beeRecipient)return;
+    if(f.on&&f.shake && parseFloat(f.txt)!==0){ const recipient=(f.beeImpactAt!=null||f.clawImpactAt!=null||f.falconImpactAt!=null||f.frostImpactAt!=null)?active(S[f.on]):null;
+      battleLater(()=>{ if(recipient && active(S[f.on])!==recipient)return;
       const el=$('#fig_'+f.on); if(!el)return;
       const image=el.querySelector('.artimg')||el.querySelector('.art');
       if(image && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){
@@ -7445,14 +7456,14 @@ renderMode();
     /* ── S2 风卷残云 · 第 2 只 ── */
     { id: 'shuchen', name: '曦光司晨', type: '光', emoji: '🌄', art: 'shuchen',
       passive: { teamRegenMissing: 0.06 },   // 定位：队伍续航（和曙天晨曦的「强化队友」分工，不重叠）
-      base: { hp: 106, atk: 56, def: 84, spa: 78, spd: 84, spe: 52 },  // 合计 460：慢速肉盾辅助
+      base: { hp: 115, atk: 56, def: 84, spa: 78, spd: 84, spe: 52 },  // 合计 469：慢速肉盾辅助
       own: [
         { name: '曦光初照', star: 1, cat: '变化', power: 0, pp: 6, type: '光', spd: 9,
           weather: { id: 'dawn', turns: 6 }, buff: { k: 'spd', lv: 1 },
           desc: '先手+1。铺展曙光：光系受到伤害-25%，单属性宠物每回合末随机回1点PP；自身魔抗+1级' },
-        { name: '垂光庇护', star: 1, cat: '变化', power: 0, pp: 4, type: '光',
-          teamHeal: 75, teamPP: 1, cleanse: true,
-          desc: '场下队友各回复75生命、各回1点PP，并净化自身全部负面' },
+        { name: '垂光庇护', star: 1, cat: '变化', power: 0, pp: 4, type: '光', spd: 10,
+          heal: 0.15, teamHeal: 75, teamPPick: { count: 2, each: 3 }, cleanse: true,
+          desc: '先手+2。自身回复15%生命；场下队友各回复75生命，并随机让2名队友各回3点PP；净化自身全部负面' },
         { name: '破晓辉击', star: 1, cat: '魔法', power: 90, pp: 6, type: '光',
           hpAdvMul: 1.35,
           desc: '90威力光系魔法，自身血量高于对手时伤害×1.35' },
@@ -8126,6 +8137,36 @@ renderMode();
         { name: '蜜蜡修补', star: 1, cat: '变化', power: 0, pp: 4, spd: 10, type: '萌',
           heal: 0.3, cleanse: true,
           desc: '专属 · 先手+2 · 回复自身 30% 最大生命，并清除自身全部负面' }
+      ] },
+
+    /* 赤印虬龙：龙/毒 ——【后发铭刻】攻击烙印流（攻击烙印是通用队伍烙印，定义在 teambrand-src 层；本宠专属在 chiyin-src 层） */
+    { id: 'chiyin', name: '赤印虬龙', type: ['龙', '毒'], emoji: '🐉',
+      passive: { lateBrand: 1 },
+      base: { hp: 112, atk: 104, def: 92, spa: 32, spd: 88, spe: 52 },   // 合计 480
+      own: [
+        { name: '朱墨爪痕', star: 1, cat: '物理', power: 85, pp: 6, type: '毒', teamBrandAdd: { key: 'atk', n: 1 },
+          desc: '专属 · 85威力毒系物理；命中后己方队伍叠加 1 层【攻击烙印】' },
+        { name: '战纹昭告', star: 1, cat: '变化', power: 0, pp: 4, type: '龙', buff: { k: 'atk', lv: 2 }, teamBrandAdd: { key: 'atk', n: 1 },
+          desc: '专属 · 自身物攻 +2 级；并叠加 1 层【攻击烙印】' },
+        { name: '破阵龙牙', star: 1, cat: '物理', power: 110, pp: 4, type: '龙', spd: 9, posClear: true,
+          desc: '专属 · 先手+1 · 110威力龙系物理；命中后先清除对手全部正面能力等级，再结算伤害' },
+        { name: '蜕墨回生', star: 1, cat: '变化', power: 0, pp: 4, type: '毒', spd: 10, heal: 0.35, cleanse: true,
+          desc: '专属 · 先手+2 · 回复自身 35% 最大生命，并清除自身全部负面' }
+      ] },
+
+    /* 掠风机隼：风/机械 ——【变速机翼】速差双分支；【极速烙印】是通用队伍烙印（定义在 teambrand-src 层），本宠专属在 luefeng-src 层 */
+    { id: 'luefeng', name: '掠风机隼', type: ['风', '机械'], emoji: '🦅',
+      passive: { speedGear: 1 },
+      base: { hp: 104, atk: 108, def: 82, spa: 32, spd: 74, spe: 84 },   // 合计 484
+      own: [
+        { name: '掠风斩', star: 1, cat: '物理', power: 85, pp: 7, type: '风', spd: 9, hitDebuff: { k: 'def', lv: -1 },
+          desc: '专属 · 先手+1 · 85威力风系物理；命中后令对手防御 -1 级' },
+        { name: '钢羽连射', star: 1, cat: '物理', power: 30, pp: 4, type: '机械', spd: 10, multi: [2, 2],
+          desc: '专属 · 先手+2 · 连续攻击 2 次，每段 30 威力；【极速烙印】的威力加成作用于每段' },
+        { name: '极限超频', star: 1, cat: '变化', power: 0, pp: 2, type: '机械', spd: 11, heal: 0.45, needHpBelow: 0.35, teamBrandAdd: { key: 'spd', n: 1 },
+          desc: '专属 · 先手+3 · 自身生命不高于 35% 时才能使用：回复自身 45% 最大生命，并获得 1 层【极速烙印】' },
+        { name: '回风整备', star: 1, cat: '变化', power: 0, pp: 4, type: '风', spd: 9, heal: 0.3, cleanse: true,
+          desc: '专属 · 先手+1 · 回复自身 30% 最大生命，并清除自身全部负面效果' }
       ] }
 
   ];
@@ -14648,7 +14689,7 @@ button:disabled{opacity:.42}
 .petpanel{padding:20px}.tabs button.on,.move.on{outline:1px solid #d9b978;background:#34433f;color:#f4e6c7}.move{padding:9px 12px;border-radius:7px;line-height:1.65}.moves{gap:10px}.overlay,.roster{backdrop-filter:blur(8px)}
 .rankhome{background:radial-gradient(ellipse at 50% 15%,#72654033,transparent 60%),linear-gradient(145deg,#1d3039,#101b23);border-color:#776849;padding:30px 20px}.rhname{color:#e9cf97}.rhbar i{background:linear-gradient(90deg,#9b8455,#e8cc92)}
 .battle{gap:14px;min-height:calc(100dvh - 64px)}
-.bars{padding:16px;background:linear-gradient(120deg,#13222cdd,#13222c99);border:1px solid #52626c66;border-radius:10px;box-shadow:0 6px 28px #0003}.hpside .nm{font-size:16px}.hpbar{height:13px;border-color:#758b8d55;border-radius:4px}.hpn{font-variant-numeric:tabular-nums}.vsbadge{background:transparent;border:0;border-bottom:1px solid #b59b68;border-radius:0;color:#e0c28a;font-family:Georgia,serif;font-size:25px;padding:0 18px}.hud{background:#101b24e8;border:1px solid #65777d55;border-radius:12px;padding:14px;backdrop-filter:blur(12px)}
+.bars{padding:16px}.bars .nm,.bars .hpn,.bars .roundhint{text-shadow:0 1px 3px #081521}.hpside .nm{font-size:16px}.hpbar{height:13px;border-color:#758b8d55;border-radius:4px}.hpn{font-variant-numeric:tabular-nums}.vsbadge{background:transparent;border:0;border-bottom:1px solid #b59b68;border-radius:0;color:#e0c28a;font-family:Georgia,serif;font-size:25px;padding:0 18px}.hud{background:#101b24e8;border:1px solid #65777d55;border-radius:12px;padding:14px;backdrop-filter:blur(12px)}
 .skill{min-height:74px;border-radius:8px;background:linear-gradient(145deg,#263a45,#182833);border-color:#49616b;font-weight:600}.skill small{font-weight:400;line-height:1.6}.log{background:#09151dcc;border-color:#30434d;border-radius:7px;line-height:1.85}.chip{border-radius:6px}.chip.active{outline:1px solid #7ac9b0;background:#23473e}.pp{border-radius:4px}
 #modeScreen{overflow-y:auto;overflow-x:hidden;justify-content:flex-start;gap:16px;padding:64px 32px 32px;background:radial-gradient(ellipse at 76% 30%,#31595655,transparent 50%),radial-gradient(ellipse at 0 90%,#80633e22,transparent 50%),#0b151c;isolation:isolate}
 #modeScreen::before{content:'';position:absolute;inset:24px;border:1px solid #c4a16b26;pointer-events:none;z-index:-1}
@@ -18234,6 +18275,531 @@ function openSealFrameDemo(){
  ov.querySelector('[data-close]').onclick=()=>{SealFrameMotion.clear();ov.remove();};
 }
 </script>
+<style id="chiyin-facing">.pet.me[data-artkey="chiyin"] .art{transform:none}.pet.foe[data-artkey="chiyin"] .art{transform:scaleX(-1)}</style>
+<script id="chiyin-claw-echo">
+// Transparent, contact-relative ink. The base artwork and combat clock are owned by the caller.
+window.ChiyinClawEcho=(()=>{
+  const delay=24,duration=744;
+  const texture=document.createElement('canvas');
+  const box={x:-197,y:-45,w:241,h:425},resolution=4;
+  texture.width=box.w*resolution;texture.height=box.h*resolution;
+  const g=texture.getContext('2d');
+  g.scale(resolution,resolution);g.translate(-box.x,-box.y);
+
+  // The three lifted ink marks fan out in the order of the painted talons.
+  const strokes=[
+    {points:[[-183,303],[-90,286],[-17,121],[-15,-29]],width:8,seed:2,
+     colors:['#7f3653','#c84854','#f0806e','#ffb297']},
+    {points:[[-158,350],[-64,316],[6,139],[0,0]],width:13.5,seed:6,
+     colors:['#733251','#ac3d54','#d65b61','#ffab7c']},
+    {points:[[-99,360],[-15,312],[28,179],[12,32]],width:6.4,seed:13,
+     colors:['#663a77','#975186','#c57098','#f3a6ae']}
+  ];
+  function edge(stroke,u,side,noise=0){
+    const [a,b,c,d]=stroke.points,v=1-u;
+    const x=v*v*v*a[0]+3*v*v*u*b[0]+3*v*u*u*c[0]+u*u*u*d[0];
+    const y=v*v*v*a[1]+3*v*v*u*b[1]+3*v*u*u*c[1]+u*u*u*d[1];
+    const dx=v*v*(b[0]-a[0])+2*v*u*(c[0]-b[0])+u*u*(d[0]-c[0]);
+    const dy=v*v*(b[1]-a[1])+2*v*u*(c[1]-b[1])+u*u*(d[1]-c[1]);
+    const env=Math.sin(Math.PI*u)**.82*(1.15-.33*u);
+    const fine=Math.sin(45*u+stroke.seed)+.42*Math.sin(127*u+stroke.seed);
+    const width=env*(stroke.width*side+noise*fine),len=Math.hypot(dx,dy)||1;
+    return [x-width*dy/len,y+width*dx/len];
+  }
+  function band(stroke,start,end,inner,outer,fill,noise=0){
+    const path=new Path2D();const n=Math.ceil(72*(end-start));
+    for(let j=0;j<=n;j++){
+      const p=edge(stroke,start+(end-start)*j/n,outer,noise);
+      if(j===0)path.moveTo(...p);else path.lineTo(...p);
+    }
+    for(let j=n;j>=0;j--)path.lineTo(...edge(stroke,start+(end-start)*j/n,inner));
+    path.closePath();g.fillStyle=fill;g.fill(path);
+  }
+  for(const s of strokes){
+    const grad=g.createLinearGradient(...s.points[0],...s.points[3]);
+    for(const [i,at] of [0,.36,.78,1].entries())grad.addColorStop(at,s.colors[i]);
+    band(s,0,1,-.91,1,grad,.58);
+    band(s,.04,.97,.62,.91,'rgba(255,196,162,.77)',.22);
+    band(s,.22,.92,.82,.96,'rgba(255,231,195,.72)');
+    band(s,.10,.94,-.89,-.63,'rgba(77,26,73,.68)',.21);
+    // Tapered dry-brush splits expose the actual backdrop across each stroke.
+    g.save();g.globalCompositeOperation='destination-out';
+    band(s,.01,.46,-.35,-.23,'rgba(0,0,0,.84)',.34);
+    band(s,.50,.89,.34,.42,'rgba(0,0,0,.70)',.24);g.restore();
+    band(s,.11,.54,1.28,1.38,s.colors[2],.20);
+    band(s,.53,.84,-1.17,-1.08,s.colors[1],.15);
+  }
+  // The limits follow the ink, including the outer dry-brush threads.
+  const outline=[];
+  for(const stroke of strokes){
+    for(let i=0;i<=48;i++){
+      const u=i/48;
+      outline.push(edge(stroke,u,-1.28),edge(stroke,u,1.46));
+    }
+  }
+  const xs=outline.map(p=>p[0]),ys=outline.map(p=>p[1]);
+  const bounds={left:Math.min(...xs)-2,right:Math.max(...xs)+2,
+    top:Math.min(...ys)-2,bottom:Math.max(...ys)+2};
+  function fieldBounds(ctx,arena){
+    const canvas=ctx.canvas,transform=ctx.getTransform();
+    let x0=0,y0=0,x1=canvas.width,y1=canvas.height;
+    if(arena){
+      const view=canvas.getBoundingClientRect(),r=arena.getBoundingClientRect();
+      if(!view.width||!view.height)return null;
+      x0=Math.max(0,(r.left-view.left)*canvas.width/view.width);
+      x1=Math.min(canvas.width,(r.right-view.left)*canvas.width/view.width);
+      y0=Math.max(0,(r.top-view.top)*canvas.height/view.height);
+      y1=Math.min(canvas.height,(r.bottom-view.top)*canvas.height/view.height);
+    }
+    if(x1<=x0||y1<=y0||!transform.a||!transform.d)return null;
+    // The incoming transform consists of screen translation, scale, and facing.
+    const left=(x0-transform.e)/transform.a,right=(x1-transform.e)/transform.a;
+    return {right:Math.max(left,right),width:Math.abs(right-left),
+      top:(y0-transform.f)/transform.d,height:(y1-y0)/transform.d};
+  }
+  const clamp01=v=>Math.min(1,Math.max(0,v));
+  const ease=v=>{const q=clamp01(v);return q*q*(3-2*q)};
+  const mix=(a,b,t)=>a+(b-a)*t;
+  function draw(ctx,age,x,y,reachScale=1,reduced=false,arena=null){
+    const elapsed=age-delay;
+    if(elapsed<=0||elapsed>=duration)return;
+    const field=fieldBounds(ctx,arena);
+    if(!field)return;
+    const alpha=.91*ease(elapsed/64)*(1-ease((elapsed-532)/(duration-532)));
+    // Scale uniformly: a wide, shallow arena must still show the same cut angle.
+    const inkWidth=bounds.right-bounds.left,inkHeight=bounds.bottom-bounds.top;
+    const maxScale=Math.min(.65*field.width/inkWidth,.90*field.height/inkHeight);
+    const endX=field.right-.027*field.width-bounds.right*maxScale;
+    const endY=field.top+.47*(field.height-inkHeight*maxScale)-bounds.top*maxScale;
+    // The middle talon is the contact pivot. Fit the first imprint around that
+    // fixed point, then enlarge the whole group toward the defender's side.
+    const margin=2;
+    const initialScale=Math.max(0,Math.min(1,maxScale*.69,
+      (x-field.right+field.width-margin)/-bounds.left,(field.right-x-margin)/bounds.right,
+      (y-field.top-margin)/-bounds.top,(field.top+field.height-y-margin)/bounds.bottom));
+    const progress=ease((elapsed-22)/308)*(reduced?.18:1);
+    const zoom=mix(initialScale,maxScale,progress);
+    ctx.save();ctx.globalAlpha*=alpha;
+    ctx.translate(mix(x,endX,progress),mix(y,endY,progress));
+    ctx.scale(zoom,zoom);
+    ctx.drawImage(texture,box.x,box.y,box.w,box.h);ctx.restore();
+  }
+  const slopes=strokes.map(({points})=>{
+    const a=points[0],b=points[3];return Math.abs((b[1]-a[1])/(b[0]-a[0]));
+  });
+  return {draw,delay,duration,slopes};
+})();
+</script>
+<script id="chiyin-claw-motion">
+(() => {
+  const dragon=PETS.find(pet=>pet.id==='chiyin');
+  if(!dragon)return;
+  const idle='media/319084ddf81dd1a819c223f4.webp',atlas=new Image();
+  dragon.art=dragon.id;
+  PET_ART[dragon.id]={idle,attack:idle,hurt:idle,leap:idle};
+  atlas.src='media/ffa48f09a9e183a93995ecb2.webp';
+  let decoded=false;
+  const ready=atlas.decode().then(()=>decoded=true,()=>false);
+  const casts=new WeakMap(),running=new Map();
+  // The same pose, claw mask, and seal renderer drives the standalone preview.
+function makeClawScene(ctx,atlas){
+const W=840,H=452,fw=420,fh=330,S=1.12,ax=93,ay=301;
+const durations=[84,110,148,238,43,37,210,82,95,102,110,190],starts=[];let total=0;
+for(const ms of durations){starts.push(total);total+=ms}
+const launch=starts[4],hit=starts[6],recoil=starts[7],settle=starts[11];
+const clamp=x=>Math.max(0,Math.min(1,x)),ease=x=>{const q=clamp(x);return q*q*(3-2*q)},out=x=>1-(1-clamp(x))**2;
+const frame=(t)=>Math.max(0,starts.findLastIndex(s=>s<=t));
+const claws=[[321,282],[330,290],[305,292],[249,287],[273,286],[374,186],[398,93],[326,44],[323,100],[331,182],[344,284],[337,285]];
+const pivotY=349,groundY=pivotY+(300.5-ay)*S;
+let homeOffset=0;
+function root(t,local=false){
+ const cast=clamp((t-launch)/(hit-launch)),back=ease((t-recoil)/(settle-recoil));
+ const prep=ease(t/starts[3])*(1-cast);const x=151-5*prep+164*cast**1.7*(1-back);
+ const rest=local?0:1-cast**1.7*(1-back);
+ return [x+homeOffset*rest,pivotY];
+}
+// Painted tips, in cel-local coordinates: upper, middle and lower hook.
+const activeTips = {
+  4: [[276.5,294.5],[270.5,300.5],[257.5,307.5]],
+  5: [[376.5,182.5],[369.5,204.5],[350.5,214.5]],
+  6: [[385.5,70.5],[398.5,96.5],[386.5,125.5]]
+};
+function tip(t,lane=0,local=false){
+ const i=frame(t),c=activeTips[i]?.[lane+1]??claws[i],[x,y]=root(t,local);
+ return [x+(c[0]-ax)*S,y+(c[1]-ay)*S];
+}
+const target=tip(hit);const [hx,hy]=target;
+const sealAt=[hx+31,hy-5];
+function random(seed){let a=seed>>>0;return()=>((a=(Math.imul(a,1664525)+1013904223)>>>0)/4294967296)}
+function makeSurface(w,h){let c=document.createElement('canvas');c.width=w;c.height=h;return c}
+function line(g,points,color,width){
+ g.beginPath();g.moveTo(...points[0]);for(const p of points.slice(1))g.lineTo(...p);g.strokeStyle=color;g.lineWidth=width;g.stroke();
+}
+function shape(g,pts,color){g.beginPath();g.moveTo(...pts[0]);for(const p of pts.slice(1))g.lineTo(...p);g.closePath();g.fillStyle=color;g.fill()}
+function engravedSeal(){
+ const c=makeSurface(176,176),g=c.getContext('2d');g.scale(2,2);g.translate(44,44);
+ g.fillStyle='#96352f';g.fillRect(-31,-31,62,62);g.strokeStyle='#81272a';g.lineWidth=4;g.strokeRect(-35,-35,70,70);
+ g.lineJoin='miter';g.lineCap='square';g.globalCompositeOperation='destination-out';
+ // Negative-space carving: two horns, jaw and a coiled square dragon body.
+ line(g,[[-22,-17],[-22,-24],[-13,-24],[-13,-12],[0,-12],[0,-24],[9,-24],[9,-16],[22,-16],[22,-7],[9,-7],[5,-2],[19,-2],[19,9],[2,9],[2,20],[-18,20],[-18,11],[-6,11],[-6,3],[-23,3],[-23,-5],[-13,-5]],'#000',3.7);
+ g.fillRect(8,-12.5,3.8,3.2);g.fillRect(-25,24,49,1.3);
+ g.resetTransform();const img=g.getImageData(0,0,176,176),rand=random(8972);
+ for(let i=0;i<img.data.length;i+=4){if(!img.data[i+3])continue;const r=rand();img.data[i+3]=r<.035?0:Math.round(img.data[i+3]*(.80+.20*rand()));img.data[i]+=Math.round((rand()-.3)*24)}
+ g.putImageData(img,0,0);return c;
+}
+const sealArt=engravedSeal();
+// Each seam has the same vertices on both neighbouring fragments.
+const seams=[
+ [[-3,2],[-9,-8],[-6,-16],[-16,-25],[-15,-38]],
+ [[-3,2],[5,-9],[13,-10],[17,-20],[30,-38]],
+ [[-3,2],[8,3],[19,-2],[26,1],[38,-5]],
+ [[-3,2],[4,10],[4,17],[17,21],[23,38]],
+ [[-3,2],[-10,11],[-10,20],[-21,26],[-26,38]],
+ [[-3,2],[-14,4],[-22,10],[-30,7],[-38,14]]
+];
+const corners=[[],[[38,-38]],[[38,38]],[],[[-38,38]],[[-38,-38]]];
+const pieces=seams.map((seam,i)=>{
+ const next=seams[(i+1)%seams.length],edge=seam.at(-1),end=next.at(-1);
+ const angle=Math.atan2(edge[1]+end[1],edge[0]+end[0]);
+ return {seam,polygon:[...seam,...corners[i],...next.slice(1).reverse()],angle};
+});
+// Ink playback follows a slower clock after contact. Setup and travel use battle time.
+const impactStretch=1.6;
+const sealFracture=205,sealFinish=465;
+const burstAt=Math.round(sealFracture*impactStretch),burstEnd=Math.round(sealFinish*impactStretch);
+function glow(radius,strength){
+ const light=ctx.createRadialGradient(0,0,0,0,0,radius);
+ light.addColorStop(0,'rgba(255,247,196,'+strength+')');
+ light.addColorStop(.22,'rgba(255,206,108,'+strength*.89+')');
+ light.addColorStop(.57,'rgba(236,106,69,'+strength*.52+')');
+ light.addColorStop(1,'rgba(180,56,100,0)');
+ ctx.fillStyle=light;ctx.fillRect(-radius,-radius,2*radius,2*radius);
+}
+function seal(t,reduced=false){
+ const age=t-hit;if(age<16||age>=sealFinish)return;
+ const press=out((age-16)/76),charge=ease((age-126)/(sealFracture-126));
+ const burst=clamp((age-sealFracture)/(sealFinish-sealFracture)),flight=out(burst);
+ const flash=age<sealFracture?0:Math.exp(-(((age-sealFracture)/60)**2));
+ const fade=1-ease((burst-.50)/.50);
+ ctx.save();ctx.translate(...sealAt);ctx.rotate(-.15+.035*press);
+ const scale=.78+.22*press+.14*Math.sin(Math.PI*press);
+ ctx.scale(scale,scale);
+ if(charge>0){
+  ctx.save();glow(54+flight*62,(reduced?.40:.89)*(age<sealFracture?.52*charge:flash+(.12*(1-burst))));ctx.restore();
+ }
+ if(age<sealFracture){
+  ctx.save();ctx.globalAlpha=clamp((age-16)/28);ctx.beginPath();ctx.rect(-44,42-90*press,88,90);ctx.clip();
+  ctx.drawImage(sealArt,-44,-44,88,88);ctx.restore();
+ }
+ for(let i=0;i<pieces.length;i++){
+  const {seam,polygon,angle}=pieces[i];
+  ctx.save();
+  const dist=(reduced?26:56)*(1+(i%3)*.11)*flight;
+  ctx.translate(Math.cos(angle)*dist,Math.sin(angle)*dist+19*burst*burst);
+  ctx.rotate((i%2?1:-1)*(.24+i*.064)*flight);
+  if(age>=sealFracture){
+   ctx.beginPath();ctx.moveTo(...polygon[0]);for(const pt of polygon.slice(1))ctx.lineTo(...pt);ctx.closePath();ctx.clip();
+   ctx.globalAlpha=fade;ctx.drawImage(sealArt,-44,-44,88,88);
+   ctx.fillStyle='rgba(255,171,97,'+(.34*flash)+')';ctx.fillRect(-36,-36,72,72);
+  }
+  if(charge>0){
+   const progress=charge*(seam.length-1),n=Math.floor(progress);
+   const points=seam.slice(0,n+1);
+   if(n<seam.length-1)points.push(seam[n].map((v,k)=>v+(seam[n+1][k]-v)*(progress-n)));
+   ctx.globalAlpha=fade*charge;ctx.lineJoin='round';ctx.lineCap='round';
+   line(ctx,points,'rgba(255,132,61,.7)',4.8*(1-.48*burst));
+   line(ctx,points,'#fff4b9',1.6*(1-.45*burst));
+  }
+  ctx.restore();
+ }
+ if(burst>0&&!reduced){
+  const rng=random(774);ctx.save();
+  for(let i=0;i<16;i++){
+   const angle=rng()*2*Math.PI,len=36+rng()*66,r=1+rng()*2.6;
+   const p=clamp((burst-(i%4)*.028)*1.23);if(p<=0||p>=1)continue;
+   ctx.save();ctx.translate(Math.cos(angle)*(17+len*out(p)),Math.sin(angle)*(18+len*out(p))+18*p*p);
+   ctx.rotate(angle+p);ctx.globalAlpha=(1-p)*.96;
+   shape(ctx,[[r*2.4,0],[-r,r*.63],[-r*1.5,-r*.42]],i%3?'#ffc278':'#e98fcd');
+   ctx.restore();
+  }
+  ctx.restore();
+ }
+ ctx.restore();
+}
+function splash(t){
+ const age=t-hit;if(age<0||age>485)return;
+ const rnd=random(409);ctx.save();ctx.translate(...target);
+ for(let i=0;i<22;i++){
+  const a=-2.95+rnd()*4.6, reach=13+rnd()*66,rad=1+rnd()*3.4,delay=rnd()*80;
+  const q=clamp((age-delay)/(230+100*rnd()));if(q===0||q===1)continue;
+  const x=Math.cos(a)*reach*out(q),y=Math.sin(a)*reach*out(q)+16*q*q;
+  ctx.save();ctx.translate(x,y);ctx.rotate(a+.35);ctx.globalAlpha=(1-ease((q-.55)/.45))*.88;
+  ctx.fillStyle=i%4===0?'#713f78':i%3===0?'#4e293e':'#a32d32';ctx.beginPath();ctx.ellipse(0,0,rad*(2-.7*q),rad*.67,0,0,Math.PI*2);ctx.fill();ctx.restore();
+ }
+ ctx.restore();
+}
+function poison(t){
+ const age=t-hit;if(age<145||age>475)return;
+ const rng=random(883),q=clamp((age-145)/330);
+ ctx.save();ctx.translate(...sealAt);ctx.rotate(-.15);
+ // Fine purple wash blooms beneath the two broken lower corners.
+ for(const sign of [-1,1]){
+  const rise=out(q);
+  ctx.save();ctx.translate(sign*24,26);ctx.scale(sign,1);
+  ctx.globalAlpha=.26*Math.sin(Math.PI*q);ctx.fillStyle='#805180';
+  ctx.beginPath();ctx.moveTo(-5,0);
+  ctx.bezierCurveTo(2,8,18*rise,14*rise,9*rise,22*rise);
+  ctx.bezierCurveTo(-6*rise,32*rise,18*rise,39*rise,30*rise,41*rise);
+  ctx.bezierCurveTo(18*rise,42*rise,-9*rise,37*rise,0,24*rise);
+  ctx.bezierCurveTo(7*rise,12*rise,-3,10,-5,0);ctx.fill();ctx.restore();
+ }
+ for(let i=0;i<7;i++){
+  const x=-26+i*8.6+(rng()-.5)*5,max=15+rng()*30,delay=rng()*.22,drop=clamp((q-delay)/(1-delay));
+  if(drop<=0||drop>=1)continue;
+  let len=max*out(clamp(drop/.67));const detach=ease((drop-.45)/.55),y=32+len+detach*25;
+  ctx.globalAlpha=(1-ease((drop-.65)/.35))*.88;ctx.fillStyle=i%2?'#593665':'#76517c';
+  if(drop<.8){
+   ctx.beginPath();ctx.moveTo(x-2.1,27+detach*len);ctx.bezierCurveTo(x-1,33,x-.6,y-5,x-1.5,y);ctx.quadraticCurveTo(x,y+3,x+1.5,y);ctx.bezierCurveTo(x+.7,y-5,x+1,32+detach*len,x+2.1,27+detach*len);ctx.fill();
+  }
+  ctx.beginPath();ctx.ellipse(x,y,2.1,3.4,0,0,Math.PI*2);ctx.fill();
+ }
+ ctx.restore();
+}
+const inkSurface=makeSurface(W,H),ink=inkSurface.getContext('2d');
+// These broad regions isolate the near striking limb. The atlas alpha inside
+// each region supplies the actual silhouette, including the gaps between talons.
+const strikingLimb = {
+  4: [[136,222],[184,213],[211,249],[288,257],[287,317],[202,316],[161,283]],
+  5: [[189,180],[235,175],[256,189],[302,184],[326,155],[385,152],[388,222],[307,226],[262,237],[212,234]],
+  6: [[217,143],[247,124],[277,131],[315,106],[340,84],[338,51],[412,51],[411,135],[345,143],[295,180],[251,192],[220,176]],
+  7: [[205,150],[246,115],[278,102],[263,77],[261,11],[336,11],[341,94],[324,148],[282,179],[229,199]],
+  8: [[192,147],[225,152],[265,143],[264,73],[335,69],[338,146],[304,187],[246,207],[196,190]]
+};
+function drawSweep(t,i,x,y,slopes,verticalScale){
+ if(t<launch+2||t>=hit+245)return;
+ // Keep the painted sweep close to the swinging hand across wide arenas.
+ // Once contact is made, the residual ink stays fixed while the arm retracts.
+ const handTime=Math.min(t,hit),actual=root(handTime),local=root(handTime,true);
+ const shiftX=actual[0]-local[0],shiftY=actual[1]-local[1];
+ ink.clearRect(0,0,W,H);
+ const end=clamp((t-launch)/(hit-launch)),pull=ease((t-hit-55)/180),begin=pull*.99;
+ if(begin>=end-.001)return;
+ const alpha=1-ease((t-hit-105)/140);
+ function stroke(lane){
+  const from=tip(launch,lane,true),to=tip(hit,lane,true),live=tip(handTime,lane,true);
+  const p1=[from[0]+107+lane*10,from[1]+49+lane*7],p2=[to[0]+20+lane*9,to[1]+105];
+  const trailWidth=slopes?Math.abs((to[1]-from[1])*verticalScale/((to[0]-from[0])*slopes[lane+1])):1;
+  function curve(u){
+   const v=1-u;
+   return [v*v*v*from[0]+3*v*v*u*p1[0]+3*v*u*u*p2[0]+u*u*u*to[0],
+           v*v*v*from[1]+3*v*v*u*p1[1]+3*v*u*u*p2[1]+u*u*u*to[1]];
+  }
+  const endPoint=curve(end),edgeStart=begin+(end-begin)*(.055*(lane+1));
+  function at(k){
+   const u=edgeStart+(end-edgeStart)*k,p=curve(u);
+   const px=p[0]+(live[0]-endPoint[0])*k*k,py=p[1]+(live[1]-endPoint[1])*k*k;
+   return [slopes?live[0]+(px-live[0])*trailWidth:px,py];
+  }
+  function ribbon(width,color,bias,rough){
+   const left=[],right=[],n=52;
+   for(let j=0;j<=n;j++){
+    const k=j/n,p=at(k),a=at(Math.max(0,k-.003)),b=at(Math.min(1,k+.003));
+    const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1,nx=-dy/length,ny=dx/length;
+    const envelope=Math.sin(Math.PI*k),u=edgeStart+(end-edgeStart)*k;
+    const tailFactor=Math.sqrt(clamp((end-edgeStart)/.28));
+    const half=width*tailFactor*envelope**.74*(.72+.62*Math.sin(Math.PI*k*1.3))*(1-pull*.5);
+    const offset=tailFactor*envelope*(bias+lane*6.5);
+    const edge=tailFactor*rough*envelope*(Math.sin(94*u+lane)*.65+Math.sin(174*u-lane)*.35);
+    left.push([p[0]+nx*(offset+half+edge),p[1]+ny*(offset+half+edge)]);
+    right.push([p[0]+nx*(offset-half),p[1]+ny*(offset-half)]);
+   }
+   shape(ink,left.concat(right.reverse()),color);
+  }
+  ribbon(lane===0?10:lane===1?4.9:4.3,lane===1?'#492c50':'#692232',0,1.35);
+  ribbon(lane===0?7.4:2.9,lane===1?'#87577f':'#b33436',-1,.85);
+  ribbon(lane===0?1.45:.62,lane===1?'#c69eb8':'#e97e64',lane===0?-4.5:-1.8,.25);
+  if(lane!==0)return;
+  const rng=random(573);
+  for(let j=0;j<34;j++){
+   const u=.04+.9*rng(),side=rng()>.4?1:-1,offset=side*(15+rng()*17),size=.7+rng()*1.9,stretch=1.3+rng()*1.7;
+   if(u>=end-.018||u<edgeStart)continue;
+   const k=(u-edgeStart)/(end-edgeStart),p=at(k),v=at(Math.min(1,k+.005)),angle=Math.atan2(v[1]-p[1],v[0]-p[0]);
+   ink.save();ink.translate(p[0]-Math.sin(angle)*offset,p[1]+Math.cos(angle)*offset);ink.rotate(angle);
+   ink.globalAlpha*=.65;ink.fillStyle=j%5===0?'#66395e':'#893035';
+   ink.beginPath();ink.ellipse(0,0,size*stretch,size*.58,0,0,Math.PI*2);ink.fill();ink.restore();
+  }
+ }
+ ink.save();ink.globalAlpha=alpha;
+ for(const lane of [-1,0,1])stroke(lane);
+ ink.restore();
+ const limb=strikingLimb[i];
+ if(limb){
+  ink.save();ink.translate(x-shiftX-ax*S,y-shiftY-ay*S);ink.scale(S,S);
+  ink.beginPath();ink.moveTo(...limb[0]);for(const p of limb.slice(1))ink.lineTo(...p);ink.closePath();ink.clip();
+  ink.globalCompositeOperation='destination-out';
+  ink.drawImage(atlas,(i%4)*fw,Math.floor(i/4)*fh,fw,fh,0,0,fw,fh);ink.restore();
+ }
+ ctx.drawImage(inkSurface,shiftX,shiftY);
+}
+function tension(t){
+ if(t<starts[2]||t>hit)return;
+ const q=clamp((t-starts[2])/(launch-starts[2])),fade=1-ease((t-launch)/(hit-launch));
+ const [x,y]=tip(t);ctx.save();ctx.translate(x-4,y-2);ctx.globalAlpha=q*fade;
+ for(let i=0;i<3;i++){const angle=-.7+i*2.05,u=(t-starts[2])*.004+i;const r=8+4*Math.sin(u);
+ const dx=Math.cos(angle)*r,dy=Math.sin(angle)*r;ctx.fillStyle=i===2?'#8d5e98':'#96353a';
+ ctx.beginPath();ctx.ellipse(dx,dy,1.65,2.65,angle,0,Math.PI*2);ctx.fill();}
+ ctx.restore();
+}
+function spark(t){
+ const age=t-hit;if(age<0||age>110)return;
+ const q=clamp(age/110),r=1-ease(q);ctx.save();ctx.translate(...target);ctx.rotate(-.7);ctx.globalAlpha=r;
+ shape(ctx,[[0,-19*r],[2,-3],[28*r,0],[3,2],[0,17*r],[-2,3],[-27*r,0],[-3,-2]],'#f8d9ac');
+ shape(ctx,[[0,-10*r],[1,-1],[18*r,0],[1,1],[0,10*r],[-1,1],[-18*r,0],[-1,-1]],'#fffae0');ctx.restore();
+}
+function drawAction(t,{effects=true,connects=true,reduced=false,impactScale=1,reachScale=1,deltaX=0,slopes=null}={}){
+ homeOffset=deltaX;
+ const i=frame(t),[x,y]=root(t);
+ const inkTime=t<=hit?t:hit+(t-hit)/impactStretch;
+ if(effects&&connects){
+  ctx.save();ctx.translate(hx,groundY+(hy-groundY)*reachScale);ctx.scale(impactScale,impactScale);ctx.translate(-hx,-hy);
+  seal(inkTime,reduced);poison(inkTime);if(!reduced){splash(inkTime);spark(inkTime)}
+  ctx.restore();
+ }
+ const extension=ease((t-launch)/(hit-launch))*(1-ease((t-recoil)/(settle-recoil)));
+ const verticalScale=1+(reachScale-1)*extension;
+ ctx.save();ctx.translate(0,groundY);ctx.scale(1,verticalScale);ctx.translate(0,-groundY);
+ ctx.drawImage(atlas,(i%4)*fw,Math.floor(i/4)*fh,fw,fh,x-ax*S,y-ay*S,fw*S,fh*S);
+ if(effects){drawSweep(inkTime,i,x,y,slopes,verticalScale);tension(t)}
+ ctx.restore();return i;
+}
+return {drawAction,root,groundY,tip,target,sealAt,activeTips,strikingLimb,starts,durations,total,hit,burstAt,burstEnd,frame};
+}
+
+  const reference=makeClawScene(document.createElement('canvas').getContext('2d'),atlas);
+  const {hit,total}=reference;
+  function animate(cast){
+    const {from,to,owner,actor,target,connects}=cast;
+    const body=document.querySelector('#fig_'+from+' .artimg'),victim=document.getElementById('fig_'+to);
+    if(!decoded||!body?.naturalWidth||!victim?.querySelector('.art'))return false;
+    const layer=document.createElement('canvas'),ctx=layer.getContext('2d');
+    if(!ctx)return false;
+    running.get(from)?.();
+    const scene=makeClawScene(ctx,atlas),direction=from==='me'?1:-1;
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const effects=localStorage.getItem('lingchong_fxpro_mode')!=='off';
+    layer.className='chiyin-claw';layer.setAttribute('aria-hidden','true');
+    layer.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:43';
+    const initialVisibility=body.style.visibility,started=performance.now();
+    let raf,stopped=false,locked=false,spot;
+    function stop(){
+      if(stopped)return;
+      stopped=true;cancelAnimationFrame(raf);body.style.visibility=initialVisibility;
+      layer.remove();running.delete(from);
+    }
+    function paint(time){
+      if(stopped)return false;
+      if(locked)time=Math.max(hit,time);
+      if(time>=total||owner!==S||owner.cancelled||!body.isConnected||!victim.isConnected||
+         active(owner[from])!==actor||active(owner[to])!==target){stop();return false}
+      const home=BattleSpriteGeometry.contain(body);
+      if(!home.width||!home.height){stop();return false}
+      const unit=home.width/420,scale=unit/1.12;
+      const ground=home.top+300.5*unit;
+      const [tx,ty]=scene.target;
+      const neutralHit=ground+(ty-scene.groundY)*scale;
+      if(!locked){
+        spot=BattleSpriteGeometry.targetPoint(victim,neutralHit);
+        if(!connects){
+          const box=victim.getBoundingClientRect();
+          spot={x:direction>0?box.left-home.width*.15:box.right+home.width*.15,y:neutralHit};
+        }
+        locked=time>=hit;
+      }
+      const bounds=layer.getBoundingClientRect(),pixelRatio=Math.min(devicePixelRatio||1,2);
+      const width=Math.round(bounds.width*pixelRatio),height=Math.round(bounds.height*pixelRatio);
+      if(layer.width!==width)layer.width=width;
+      if(layer.height!==height)layer.height=height;
+      ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,width,height);
+      const pivotX=home.left+(direction===1?93:420-93)*unit;
+      const deltaX=(pivotX-spot.x)/(direction*scale)+tx-scene.root(0,true)[0];
+      const reachScale=(ground-spot.y)/(ground-neutralHit);
+      ctx.setTransform(pixelRatio*direction*scale,0,0,pixelRatio*scale,
+        (spot.x-bounds.left-direction*scale*tx)*pixelRatio,(ground-bounds.top-scale*scene.groundY)*pixelRatio);
+      if(effects&&connects)window.ChiyinClawEcho.draw(ctx,time-hit,tx,scene.groundY+(ty-scene.groundY)*reachScale,reachScale,reduced,victim.closest('.stage'));
+      const i=scene.drawAction(time,{deltaX,reachScale,effects,connects,reduced,impactScale:1.36,slopes:window.ChiyinClawEcho.slopes});
+      layer.dataset.frame=i+1;
+      layer.dataset.phase=time<hit?'approach':!connects?'miss':!effects?'contact':
+        time<hit+scene.burstAt?'contact':time<hit+scene.burstEnd?'burst':'recover';
+      body.style.visibility='hidden';
+      return true;
+    }
+    function tick(now){if(paint(now-started))raf=requestAnimationFrame(tick)}
+    document.body.appendChild(layer);running.set(from,stop);
+    if(!paint(0))return false;
+    raf=requestAnimationFrame(tick);
+    battleLater(()=>{if(!locked)paint(hit)},hit);
+    return true;
+  }
+
+  const priorSkill=window.doSkill;
+  window.doSkill=function(from,side,other,index){
+    const actor=active(side),move=actor?.moves[index];
+    if(actor?.def?.id!==dragon.id||!(move?.power>0)||move.cat==='变化')return priorSkill.apply(this,arguments);
+    const owner=S,to=other===owner.foe?'foe':'me',offset=owner.fx.length;
+    const cast={owner,from,to,actor,target:active(other),logOffset:owner.log.length,
+      allyHud:BattleSpriteGeometry.snapshotHud(from),enemyHud:BattleSpriteGeometry.snapshotHud(to),
+      previousBrand:document.querySelector('.hpside.'+from+' .brandrow')?.cloneNode(true)};
+    const result=priorSkill.apply(this,arguments);
+    cast.frames=owner.fx.slice(offset);
+    cast.launch=cast.frames.find(f=>f.lunge===from||(f.atkfx&&f.from===from));
+    if(cast.launch){
+      cast.connects=cast.frames.some(f=>f.on===to&&f.landed===true);
+      casts.set(cast.launch,cast);
+    }
+    return result;
+  };
+  function queued(frames){
+    if(!frames?.length||frames.some(f=>f.captainApproach||f.captainReply))return;
+    for(const frame of frames){const cast=casts.get(frame);if(cast?.owner===S)return cast}
+  }
+  function holdBrand(cast){
+    const bar=document.querySelector('.hpside.'+cast.from),row=bar?.querySelector('.strow');
+    const before=cast.previousBrand,after=bar?.querySelector('.brandrow');
+    if(!row||before?.outerHTML===after?.outerHTML)return;
+    after?.remove();if(before)row.before(before);
+    battleLater(()=>{
+      if(!bar.isConnected||active(cast.owner[cast.from])!==cast.actor)return;
+      before?.remove();if(after)bar.querySelector('.strow')?.before(after);
+    },hit);
+  }
+  const priorPlay=window.playFx;
+  window.playFx=function(){
+    const cast=queued(S?.fx);
+    if(cast&&animate(cast)){
+      cast.launch.customLaunch=true;
+      for(const frame of cast.frames){
+        if(frame.captainAt==null)frame.clawImpactAt=hit+(frame.delay||0);
+        if(frame.on===cast.to&&frame.shake&&!frame.heal)frame.customImpact=true;
+      }
+      const log=document.getElementById('log');
+      if(log&&cast.owner.log.length>cast.logOffset){
+        log.innerHTML=cast.owner.log.slice(0,cast.logOffset).join('<br>');log.scrollTop=log.scrollHeight;
+        battleLater(()=>{if(log.isConnected)flushLog()},hit);
+      }
+      holdBrand(cast);
+      BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.from,target:cast.actor,previousHUD:cast.allyHud},hit);
+      BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.to,target:cast.target,previousHUD:cast.enemyHud},hit);
+    }
+    return priorPlay.apply(this,arguments);
+  };
+  window.ChiyinMotion={ready,clear(){for(const stop of running.values())stop()},
+    queueEnd(frames){
+      const cast=decoded&&queued(frames);
+      return cast?Math.max(total,hit+Math.max(0,...cast.frames.map(f=>f.delay||0))+240):0;
+    }
+  };
+})();
+</script>
 </body>
 </html>
 
@@ -19235,10 +19801,15 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
     return { left: rect.left + (rect.width - width) / 2, top: rect.top + (rect.height - height) / 2, width, height };
   }
 
-  function visibleAnchor(image) {
+  const heightAnchors = new WeakMap();
+  function visibleAnchor(image, row = null) {
     const src = image.currentSrc;
     if (!src || !image.naturalWidth) return [0.5, 0.52];
-    if (victimAnchors.has(src)) return victimAnchors.get(src);
+    if (row === null && victimAnchors.has(src)) return victimAnchors.get(src);
+    if (row !== null) {
+      const cached = heightAnchors.get(image);
+      if (cached?.src === src && cached.row === row) return cached.anchor;
+    }
     let anchor = [0.5, 0.52];
     try {
       const size = 48;
@@ -19259,12 +19830,16 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
         }
       }
       const center = (left + right) / 2;
-      const height = top + (bottom - top) * 0.54;
+      const height = row === null ? top + (bottom - top) * 0.54 :
+        Math.max(top + (bottom - top) * 0.16, Math.min(top + (bottom - top) * 0.43, row));
+      const solid = (x, y) => x > 0 && x < size - 1 && y > 0 && y < size - 1 &&
+        opaque(x-1,y) && opaque(x+1,y) && opaque(x,y-1) && opaque(x,y+1);
       let best = Infinity;
       for (let y = top; y <= bottom; y++) {
         for (let x = left; x <= right; x++) {
           if (!opaque(x, y)) continue;
-          const distance = (x - center) ** 2 + 1.3 * (y - height) ** 2;
+          const distance = row === null ? (x - center) ** 2 + 1.3 * (y - height) ** 2 :
+            (x - center) ** 2 * .24 + 7 * (y - height) ** 2 + (solid(x,y) ? 0 : size*size);
           if (distance < best) {
             best = distance;
             anchor = [(x + 0.5) / size, (y + 0.5) / size];
@@ -19274,16 +19849,23 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
     } catch (error) {
       // A sprite that cannot be sampled still has a usable layout rectangle.
     }
+    if (row !== null) {
+      heightAnchors.set(image, {src, row, anchor});
+      return anchor;
+    }
     if (victimAnchors.size >= 64) victimAnchors.clear();
     victimAnchors.set(src, anchor);
     return anchor;
   }
 
-  function targetPoint(figure) {
+  function targetPoint(figure, preferredY) {
     const art = figure.querySelector('.art');
     const image = art.querySelector('.artimg');
     const rect = contain(image || art);
-    const [x, y] = image ? visibleAnchor(image) : [0.5, 0.52];
+    const row = Number.isFinite(preferredY) && rect.height > 0 ?
+      Math.round((preferredY - rect.top) / rect.height * 48 - 0.5) : null;
+    const [x, y] = image ? visibleAnchor(image, row) :
+      [0.5, row === null ? 0.52 : Math.max(.24, Math.min(.43, (row+.5)/48))];
     const scaleX = node => {
       const transform = getComputedStyle(node).transform;
       return transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
@@ -21640,3 +22222,1629 @@ function drawFallingFlames(ctx, point, progress, scale, reduced) {
   window.__CLEANBAR = { remove: cleanText, hasEmoji: function (t) { return EMO.test(String(t)); } };
 })();
 </script>
+
+<!-- ===== 队伍烙印框架（通用）：烙印属于队伍，不挂在具体宠物上 ===== -->
+<script id="teambrand-src">
+/* 队伍烙印框架（通用）
+   · 作用域：挂在「队伍」上（sd.__tbrands = { 烙印键: 层数 }），不是某只宠物的专有机制；
+     换人、倒下都不带走、不重置。本层内置两种：攻击烙印（atk）、极速烙印（spd）。
+   · 与本体「宠物烙印」（brand-src 层，p.__brands，负面叠层、可被「消除烙印」清除）按作用域分开，互不读写。
+   · 与属性烙印（sd.__wax = { 属性键: 层数 }，挂在敌方队伍、可被异属性威力技能引爆）也是两套独立数据。
+   · 新增一种队伍烙印：registerTeamBrand({ key, name, mods:{finalDmg:0.075} 或 mods:{speedLevel:1}, bg/fg/bd, extra(A,n), extraLabel, powerBonus(A,sk,L) })
+     技能侧声明 teamBrandAdd:{ key:'atk', n:2 }：变化技能直接生效，攻击技能需命中。
+     mods.finalDmg：每层最终伤害加成（加算）；mods.speedLevel：每层折算几级速度强化（只作用于己方当前场上宠物）
+     powerBonus(A,sk,L)：可选钩子，返回本次攻击技能追加的威力；伤害按段结算，所以每段都会吃到。
+   · 默认没有任何清除/消耗路径（净化、清强化、消除烙印、换人、倒下都不清）；需要消耗的烙印自行提供消耗逻辑。
+   公开接口：window.__TBRAND / window.TEAM_BRANDS / window.registerTeamBrand
+*/
+(function () {
+  'use strict';
+  if (window.__TEAMBRAND__) return;
+  window.__TEAMBRAND__ = 1;
+
+  var DEFS = window.TEAM_BRANDS = window.TEAM_BRANDS || {};
+  var ORDER = [];
+
+  function ok() { return typeof S !== 'undefined' && S && S.me && S.foe; }
+  function sideOf(p) {
+    if (!ok() || !p) return null;
+    if ((S.me.team || []).indexOf(p) >= 0) return S.me;
+    if ((S.foe.team || []).indexOf(p) >= 0) return S.foe;
+    return null;
+  }
+  function activeOf(sd) { return sd && sd.team ? sd.team[sd.active] : null; }
+  function store(sd) { if (!sd) return {}; if (!sd.__tbrands) sd.__tbrands = {}; return sd.__tbrands; }
+  function get(sd, key) { return (sd && sd.__tbrands && sd.__tbrands[key]) || 0; }
+  function add(sd, key, n) {
+    if (!sd || !DEFS[key] || !(n | 0)) return get(sd, key);
+    var b = store(sd);
+    b[key] = Math.max(0, (b[key] || 0) + (n | 0));
+    return b[key];
+  }
+  function each(sd, cb) {
+    var b = store(sd);
+    ORDER.forEach(function (k) { if ((b[k] || 0) > 0) cb(k, b[k], DEFS[k]); });
+  }
+  function finalMul(sd) {
+    var m = 0;
+    each(sd, function (k, n, d) { if (d.mods && d.mods.finalDmg) m += d.mods.finalDmg * n; });
+    return m;
+  }
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) { } }
+
+  function registerTeamBrand(def) {
+    if (!def || !def.key || !def.name) return null;
+    if (!DEFS[def.key]) ORDER.push(def.key);
+    DEFS[def.key] = def;
+    return def;
+  }
+  window.registerTeamBrand = registerTeamBrand;
+
+  /* ---------- 内置队伍烙印①：攻击烙印（每层 +7.5% 最终伤害，加算，不消耗，无引爆机制） ---------- */
+  registerTeamBrand({
+    key: 'atk',
+    name: '攻击烙印',
+    short: '攻击印',
+    mods: { finalDmg: 0.075 },
+    bg: 'rgba(196,58,48,.20)', fg: '#ffd6cc', bd: 'rgba(255,120,96,.55)',
+    extraLabel: '后发铭刻',
+    /* 可选钩子：本回合额外层数（后发铭刻：对手本回合已出手则 +1，每次行动最多 1 层） */
+    extra: function (A) {
+      try {
+        var pv = A && A.def && A.def.passive;
+        if (!pv || !pv.lateBrand) return 0;
+        var sd = sideOf(A);
+        if (!sd) return 0;
+        var fk = (sd === S.me) ? 'foe' : 'me';
+        return (S && S.acted && S.acted[fk]) ? 1 : 0;
+      } catch (e) { return 0; }
+    }
+  });
+
+  /* ---------- 内置队伍烙印②：极速烙印（每层 = 1 级速度强化；有威力的攻击技能按先手值加威力） ---------- */
+  registerTeamBrand({
+    key: 'spd',
+    name: '极速烙印',
+    short: '极速印',
+    mods: { speedLevel: 1 },
+    bg: 'rgba(64,158,178,.20)', fg: '#d2f6ff', bd: 'rgba(112,220,240,.55)',
+    /* 有威力的攻击技能：额外威力 =（本次技能实际先手值 − 8）× 层数 × 15 */
+    powerBonus: function (A, sk, L) {
+      try {
+        var pri = (typeof skSpd === 'function') ? skSpd(sk) : ((sk && sk.spd != null) ? sk.spd : 8);
+        var gap = pri - 8;
+        return gap > 0 ? gap * (L | 0) * 15 : 0;
+      } catch (e) { return 0; }
+    }
+  });
+
+  /* 速度等级：极速烙印只作用于「己方当前场上宠物」，与本体速度强化同表叠加（层数无上限，不占强化 ±6 的格子） */
+  function speedLevels(sd) {
+    var n = 0;
+    each(sd, function (k, v, d2) { if (d2.mods && d2.mods.speedLevel) n += d2.mods.speedLevel * v; });
+    return n;
+  }
+  var _bmul = window.bmul;
+  if (typeof _bmul === 'function' && !window.__TEAMBRAND_BMUL) {
+    window.__TEAMBRAND_BMUL = 1;
+    window.bmul = function (p, k) {
+      var v = _bmul.apply(this, arguments);
+      try {
+        if (k === 'spe' && p) {
+          var sd = sideOf(p);
+          if (sd && activeOf(sd) === p) {
+            var extra = speedLevels(sd);
+            if (extra) {
+              var lv = (p.buffs && p.buffs.spe && p.buffs.spe.lv) || 0;
+              var tot = lv + extra;
+              v = Math.max(0.1, 1 + (tot >= 0 ? 0.20 : 0.10) * tot);
+            }
+          }
+        }
+      } catch (e) { }
+      return v;
+    };
+  }
+
+  /* ---------- 1) 最终伤害：按队伍烙印加算 ---------- */
+  var _calc = window.calcDamage;
+  if (typeof _calc === 'function') {
+    window.calcDamage = function (A, D, skill) {
+      /* 攻击技能：先把队伍「威力」类烙印的加成交给本次结算（每段都算，所以逐段生效） */
+      var sq = skill;
+      try {
+        if (A && skill && skill.cat !== '变化' && (skill.power || 0) > 0 && skill.pp != null) {
+          var sd0 = sideOf(A);
+          if (sd0 && activeOf(sd0) === A) {
+            var addPow = 0;
+            each(sd0, function (kk, n, d2) {
+              if (typeof d2.powerBonus !== 'function') return;
+              var b = d2.powerBonus(A, skill, n) || 0;
+              if (b > 0) addPow += b;
+            });
+            if (addPow > 0) sq = Object.assign({}, skill, { power: skill.power + addPow });
+          }
+        }
+      } catch (e) { }
+      var args = Array.prototype.slice.call(arguments);
+      args[2] = sq;
+      var r = _calc.apply(this, args);
+      try {
+        if (r && r.dmg > 0 && A) {
+          var sd = sideOf(A);
+          if (sd && activeOf(sd) === A) {
+            var m = finalMul(sd);
+            if (m > 0) { r.dmg = r.dmg * (1 + m); r.teamBrandBonus = m; }
+          }
+        }
+        if (sq !== skill && r) r.teamPowerBonus = sq.power - skill.power;
+      } catch (e) { }
+      return r;
+    };
+  }
+
+  /* ---------- 2) 技能结算后：按技能声明的 teamBrandAdd 给队伍叠层 ---------- */
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, other, mi) {
+      var A = activeOf(side);
+      var sk = (A && A.moves && typeof mi === 'number') ? A.moves[mi] : null;
+      var fx0 = (ok() && Array.isArray(S.fx)) ? S.fx.length : -1;
+      var tgtKey = (sideKey === 'me') ? 'foe' : 'me';
+
+      function landedNow() {
+        try {
+          if (fx0 < 0) return false;
+          var direct = S.fx.slice(fx0).filter(function (f) {
+            return f && f.on === tgtKey && f.landed != null;
+          });
+          return direct.length > 0 && direct.some(function (f) { return f.landed; });
+        } catch (e) { return false; }
+      }
+
+      var res = _do.apply(this, arguments);
+      try {
+        var spec = sk && sk.teamBrandAdd;
+        if (!spec || !spec.key || !DEFS[spec.key]) return res;
+        var d = DEFS[spec.key];
+        var n = Math.max(0, spec.n | 0);
+        if (!n) return res;
+        var isAtk = (sk.cat !== '变化' && (sk.power || 0) > 0);
+        if (isAtk && !landedNow()) return res;
+        var sd = sideOf(A);
+        if (!sd) return res;
+        var extra = 0;
+        if (typeof d.extra === 'function') extra = Math.max(0, d.extra(A, n, sk) | 0);
+        var now = add(sd, spec.key, n + extra);
+        say('　↳ <b>' + sk.name + '</b>：己方队伍 +<b>' + (n + extra) + '</b> 层【' + d.name + '】' +
+          (extra ? '（<b>' + (d.extraLabel || '额外') + '</b> +' + extra + '）' : '') +
+          ' —— 现 <b>' + now + '</b> 层。');
+      } catch (e) { }
+      return res;
+    };
+  }
+
+  /* ---------- 3) 血条上方：队伍烙印只显示名称×层数 ---------- */
+  try {
+    if (typeof window.barsHTML === 'function' && !window.__TEAMBRAND_BARS) {
+      window.__TEAMBRAND_BARS = 1;
+      var _bars = window.barsHTML;
+      window.barsHTML = function (sideKey, side) {
+        var out = _bars.apply(this, arguments);
+        try {
+          var sd = side || ((sideKey === 'me') ? S.me : S.foe);
+          var tags = '';
+          each(sd, function (k, n, d) {
+            tags += '<span class="st" style="background:' + (d.bg || 'rgba(196,58,48,.20)') +
+              ';color:' + (d.fg || '#ffd6cc') +
+              ';border:1px solid ' + (d.bd || 'rgba(255,120,96,.55)') +
+              ';border-radius:999px;padding:0 7px;margin-right:3px">' + d.name + '×' + n + '</span>';
+          });
+          if (tags) out = out.replace('<div class="strow">',
+            '<div class="brandrow" style="margin:3px 0 1px">' + tags + '</div><div class="strow">');
+        } catch (e) { }
+        return out;
+      };
+    }
+  } catch (e) { }
+
+  window.__TBRAND = window.teamBrand = {
+    defs: DEFS,
+    order: ORDER,
+    register: registerTeamBrand,
+    get: get,
+    add: add,
+    each: each,
+    finalMul: finalMul,
+    speedLevels: speedLevels,
+    sideOf: sideOf,
+    activeOf: activeOf,
+    self: function () {
+      if (!ok()) return null;
+      return { me: S.me.__tbrands || {}, foe: S.foe.__tbrands || {} };
+    }
+  };
+  try { if (window.__BRAND) window.__BRAND.team = window.__TBRAND; } catch (e) { }
+})();
+</script>
+
+<!-- ===== 赤印虬龙（专属层：破阵龙牙 + 被动文案；烙印本身走 teambrand-src 通用框架） ===== -->
+<script id="chiyin-src">
+/* 赤印虬龙
+   · 【攻击烙印】是通用队伍烙印，定义在 teambrand-src 层，本宠只是使用者（技能声明 teamBrandAdd）；
+   · 本层只做本宠专属的两件事：
+       1. 【后发铭刻】的技能侧额外层数由通用烙印的 extra 钩子处理（见 teambrand-src）；
+       2. 【破阵龙牙】：命中后先清空目标全部正面能力等级，再结算伤害；落空则还原。
+*/
+(function () {
+  'use strict';
+  if (window.__CHIYIN__) return;
+  window.__CHIYIN__ = 1;
+
+  var TB = window.__TBRAND;
+  var ATK = TB && TB.defs && TB.defs.atk;
+  var PER = (ATK && ATK.mods && ATK.mods.finalDmg) || 0.075;
+
+  /* ---------- 【破阵龙牙】：伤害前清空目标正面等级 ---------- */
+  var _calc = window.calcDamage;
+  var pendingClear = null;
+  if (typeof _calc === 'function') {
+    window.calcDamage = function (A, D, skill) {
+      if (window.__POS_CLEAR_ARM && skill && skill.posClear && D && !D.fainted) {
+        window.__POS_CLEAR_ARM = false;
+        try {
+          if (typeof buffLockOwner === 'function' && buffLockOwner()) {
+            try { logLine('　↳ 🔒 能力等级被【禁锢】锁定，' + D.name + ' 的正面等级未能清除。'); } catch (e) { }
+          } else {
+            var saved = {}, lv = 0;
+            for (var k in (D.buffs || {})) {
+              var v = (D.buffs[k] && D.buffs[k].lv) || 0;
+              if (v > 0) { saved[k] = D.buffs[k]; lv += v; delete D.buffs[k]; }
+            }
+            if (lv > 0) {
+              pendingClear = { D: D, saved: saved, lv: lv, name: D.name };
+              try {
+                logLine('　↳ 🖋 <b>' + (skill.name || '破阵龙牙') + '</b>：先清除 ' + D.name +
+                  ' 的正面能力等级（' + lv + ' 级），再结算伤害。');
+              } catch (e) { }
+            }
+          }
+        } catch (e) { }
+      }
+      return _calc.apply(this, arguments);
+    };
+  }
+
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, other, mi) {
+      var A = TB.activeOf(side);
+      var sk = (A && A.moves && typeof mi === 'number') ? A.moves[mi] : null;
+      var fx0 = (typeof S !== 'undefined' && S && Array.isArray(S.fx)) ? S.fx.length : -1;
+      var tgtKey = (sideKey === 'me') ? 'foe' : 'me';
+      if (sk && sk.posClear) window.__POS_CLEAR_ARM = true;
+      var res;
+      try {
+        res = _do.apply(this, arguments);
+      } catch (e) {
+        window.__POS_CLEAR_ARM = false;
+        restoreClear('异常');
+        throw e;
+      }
+      window.__POS_CLEAR_ARM = false;
+      if (pendingClear) {
+        var hit = false;
+        try {
+          if (fx0 >= 0) {
+            var direct = S.fx.slice(fx0).filter(function (f) {
+              return f && f.on === tgtKey && f.landed != null;
+            });
+            hit = direct.length > 0 && direct.some(function (f) { return f.landed; });
+          }
+        } catch (e) { }
+        if (hit) pendingClear = null;
+        else restoreClear('未命中');
+      }
+      return res;
+    };
+  }
+
+  function restoreClear(why) {
+    if (!pendingClear) return;
+    try {
+      var d = pendingClear.D;
+      d.buffs = d.buffs || {};
+      for (var k in pendingClear.saved) d.buffs[k] = pendingClear.saved[k];
+      try { logLine('　↳ ' + why + '：' + d.name + ' 的正面能力等级保持原样。'); } catch (e) { }
+    } catch (e) { }
+    pendingClear = null;
+  }
+
+  /* ---------- 被动名 / 说明 ---------- */
+  try {
+    if (typeof window.passiveName === 'function' && !window.__CHIYIN_PN) {
+      window.__CHIYIN_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try {
+          var pv = pet && (pet.passive || (pet.def && pet.def.passive));
+          if (pv && pv.lateBrand) return '后发铭刻';
+        } catch (e) { }
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) { }
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__CHIYIN_PD) {
+      window.__CHIYIN_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          var pv = pet && (pet.passive || (pet.def && pet.def.passive));
+          if (pv && pv.lateBrand) {
+            var extra = (typeof pv.lateBrand === 'number' && pv.lateBrand > 0) ? pv.lateBrand : 1;
+            return '【后发铭刻】本宠施放会施加【攻击烙印】的技能时，若对手在本回合已经完成技能行动（已出手），额外叠加 ' + extra +
+              ' 层攻击烙印（每次行动最多 +1 层，不重复触发）。攻击烙印：属于己方队伍，每 1 层使己方场上宠物的最终伤害提升 7.5%' +
+              '（加算、不消耗、不被净化清除，也没有引爆机制）。';
+          }
+        } catch (e) { }
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) { }
+
+  window.__CHIYIN = {
+    PER: PER,
+    def: ATK,
+    layers: function (k) { return TB.get(k === 'foe' ? S.foe : S.me, 'atk'); },
+    bonus: function (k) { return TB.finalMul(k === 'foe' ? S.foe : S.me); },
+    self: function () {
+      var p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x && x.id === 'chiyin'; })[0] : null;
+      return {
+        pet: p ? p.name : 'MISSING',
+        passive: p ? p.passive : null,
+        skills: p ? (p.own || []).map(function (s) { return s.name; }) : null,
+        brands: TB.self()
+      };
+    }
+  };
+})();
+</script>
+
+<!-- ===== 掠风机隼（专属层：变速机翼 / 掠风斩命中降防 / 极限超频生命门槛） ===== -->
+<script id="luefeng-src">
+/* 掠风机隼
+   · 【极速烙印】是通用队伍烙印（定义在 teambrand-src 层），本层只负责「怎么用」：
+       极限超频用 teamBrandAdd 叠 1 层；速度等级与威力加成由通用框架统一处理；
+   · 【变速机翼】：实际速度低于对手 → 受到直接伤害 -20%；否则自身直接伤害 +15%；
+   · 【掠风斩】：命中后才令对手防御 -1 级（落空不触发）；
+   · 【极限超频】：自身生命 > 35% 时，按钮禁用 + 结算前拦截 + AI 不选（三重保险）。
+*/
+(function () {
+  'use strict';
+  if (window.__LUEFENG__) return;
+  window.__LUEFENG__ = 1;
+
+  var TB = window.__TBRAND;
+
+  function ok() { return typeof S !== 'undefined' && S && S.me && S.foe; }
+  function sideOf(p) {
+    if (!ok() || !p) return null;
+    if ((S.me.team || []).indexOf(p) >= 0) return S.me;
+    if ((S.foe.team || []).indexOf(p) >= 0) return S.foe;
+    return null;
+  }
+  function activeOf(sd) { return sd && sd.team ? sd.team[sd.active] : null; }
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) { } }
+  function spdOf(p) { try { return (typeof cur === 'function') ? cur(p, 'spe') : 0; } catch (e) { return 0; } }
+  function pvOf(p) { return p && p.def && p.def.passive; }
+  /* 只认真正的伤害技能：变化技能、场地/持续/引爆等不含 PP 的结算不参与被动 */
+  function directSkill(sk) {
+    return !!(sk && sk.cat && sk.cat !== '变化' && (sk.power || 0) > 0 && sk.pp != null);
+  }
+
+  /* ---------- ①【变速机翼】 ---------- */
+  var _calc = window.calcDamage;
+  if (typeof _calc === 'function') {
+    window.calcDamage = function (A, D, skill) {
+      var r = _calc.apply(this, arguments);
+      try {
+        if (!r || !(r.dmg > 0) || !A || !D || !directSkill(skill)) return r;
+        var sA = spdOf(A), sD = spdOf(D);
+        var pa = pvOf(A), pd = pvOf(D);
+        if (pa && pa.speedGear && sA >= sD) {           // 不慢于对手：自身造成的直接伤害 +15%
+          r.dmg = Math.max(1, Math.round(r.dmg * 1.15));
+          r.speedGearBoost = 0.15;
+        }
+        if (pd && pd.speedGear && sD < sA) {            // 比对手慢：受到的直接伤害 -20%
+          r.dmg = Math.max(1, Math.round(r.dmg * 0.8));
+          r.speedGearDR = 0.2;
+        }
+      } catch (e) { }
+      return r;
+    };
+  }
+
+  /* ---------- ②③ 技能结算：极限超频门槛 + 掠风斩命中降防 ---------- */
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, other, mi) {
+      var A = activeOf(side);
+      var sk = (A && A.moves && typeof mi === 'number') ? A.moves[mi] : null;
+
+      /* ③ 极限超频：生命高于 35% 不允许使用（按钮已禁用，这里兜底；不扣 PP、不给烙印） */
+      if (sk && sk.needHpBelow != null && A && (A.hp / Math.max(1, A.maxhp)) > sk.needHpBelow) {
+        say('　↳ 自身生命高于 ' + Math.round(sk.needHpBelow * 100) + '%，【' + sk.name + '】无法使用。');
+        return;
+      }
+
+      var D = activeOf(other);
+      var fx0 = (ok() && Array.isArray(S.fx)) ? S.fx.length : -1;
+      var tgtKey = (sideKey === 'me') ? 'foe' : 'me';
+      var res = _do.apply(this, arguments);
+      try {
+        var hd = sk && sk.hitDebuff;
+        if (hd && D && !D.fainted) {
+          var hit = false;
+          if (fx0 >= 0) {
+            var direct = S.fx.slice(fx0).filter(function (f) {
+              return f && f.on === tgtKey && f.landed != null;
+            });
+            hit = direct.length > 0 && direct.some(function (f) { return f.landed; });
+          }
+          if (hit) {
+            var want = hd.lv || -1;
+            var before = (D.buffs && D.buffs[hd.k] && D.buffs[hd.k].lv) || 0;
+            if (typeof applyStat === 'function') applyStat(D, hd.k, want);
+            var now = (D.buffs && D.buffs[hd.k] && D.buffs[hd.k].lv) || 0;
+            if (now !== before) {
+              var nm = (typeof SNAME !== 'undefined' && SNAME[hd.k]) ? SNAME[hd.k] : hd.k;
+              say('　↳ <b>' + sk.name + '</b>：' + D.name + ' 的' + nm + ' ' + want + ' 级（现 ' + now + ' 级）。');
+              try { S.fx.push({ bside: tgtKey, k: hd.k, lv: want, dir: 'down' }); } catch (e) { }
+            }
+          }
+        }
+      } catch (e) { }
+      return res;
+    };
+  }
+
+  /* ---------- ③ 敌方 AI：生命高于门槛时不选【极限超频】 ---------- */
+  function fixAct(act) {
+    try {
+      if (!ok() || !act || act.kind !== 'skill') return act;
+      var me = activeOf(S.foe);
+      if (!me || !me.moves) return act;
+      var hp = me.hp / Math.max(1, me.maxhp);
+      var mv = me.moves[act.i];
+      if (!mv || mv.needHpBelow == null || hp <= mv.needHpBelow) return act;
+      var pick = -1, best = -1;
+      me.moves.forEach(function (m, i) {
+        if (!m || m.pp <= 0) return;
+        if (m.needHpBelow != null && hp > m.needHpBelow) return;
+        var s = (m.cat !== '变化' && (m.power || 0) > 0) ? 3 : 1;
+        if (s > best) { best = s; pick = i; }
+      });
+      if (pick >= 0) act = { kind: 'skill', i: pick };
+    } catch (e) { }
+    return act;
+  }
+  var _ai = window.aiChoose;
+  if (typeof _ai === 'function') {
+    window.aiChoose = function () { return fixAct(_ai.apply(this, arguments)); };
+  }
+
+  /* ---------- ③ 玩家按钮：生命高于门槛时禁用并标注原因 ---------- */
+  try {
+    if (typeof window.renderBattle === 'function' && !window.__LUEFENG_UI) {
+      window.__LUEFENG_UI = 1;
+      var _rb = window.renderBattle;
+      window.renderBattle = function () {
+        var out = _rb.apply(this, arguments);
+        try {
+          if (!ok()) return out;
+          var me = activeOf(S.me);
+          if (!me || !me.moves) return out;
+          var hp = me.hp / Math.max(1, me.maxhp);
+          me.moves.forEach(function (m, i) {
+            if (!m || m.needHpBelow == null || hp <= m.needHpBelow) return;
+            var b = document.querySelector('[data-skill="' + i + '"]');
+            if (!b || b.getAttribute('data-lf-gate')) return;
+            b.setAttribute('data-lf-gate', '1');
+            b.disabled = true;
+            b.style.opacity = '0.45';
+            b.style.filter = 'grayscale(0.5)';
+            b.title = '自身生命需不高于 ' + Math.round(m.needHpBelow * 100) + '% 才能使用';
+            var sm = b.querySelector('small');
+            if (sm) {
+              var w = document.createElement('span');
+              w.style.color = '#ff9c6b';
+              w.textContent = '⚠ 生命≤' + Math.round(m.needHpBelow * 100) + '% 才可使用 · ';
+              sm.insertBefore(w, sm.firstChild);
+            }
+          });
+        } catch (e) { }
+        return out;
+      };
+    }
+  } catch (e) { }
+
+  /* ---------- 被动名 / 说明 ---------- */
+  try {
+    if (typeof window.passiveName === 'function' && !window.__LUEFENG_PN) {
+      window.__LUEFENG_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try {
+          var pv = pet && (pet.passive || (pet.def && pet.def.passive));
+          if (pv && pv.speedGear) return '变速机翼';
+        } catch (e) { }
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) { }
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__LUEFENG_PD) {
+      window.__LUEFENG_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          var pv = pet && (pet.passive || (pet.def && pet.def.passive));
+          if (pv && pv.speedGear) {
+            return '【变速机翼】自身实际速度低于敌方场上宠物时，受到的直接伤害降低 20%；否则，自身造成的直接伤害提高 15%。' +
+              '【极速烙印】属于己方队伍：场上宠物每 1 层获得 1 级速度强化；有威力的攻击技能额外获得威力（本次技能先手值 − 8）× 层数 × 15；' +
+              '层数无上限，不消耗、不被净化清除，只有专门手段能清除。';
+          }
+        } catch (e) { }
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) { }
+
+  window.__LUEFENG = {
+    fixAct: fixAct,
+    spd: function (k) { var sd = (k === 'foe') ? S.foe : S.me; var p = activeOf(sd); return p ? spdOf(p) : 0; },
+    layers: function (k) { return TB ? TB.get((k === 'foe') ? S.foe : S.me, 'spd') : 0; },
+    self: function () {
+      var p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x && x.id === 'luefeng'; })[0] : null;
+      return {
+        pet: p ? p.name : 'MISSING',
+        passive: p ? p.passive : null,
+        skills: p ? (p.own || []).map(function (s) { return s.name; }) : null,
+        brands: TB ? TB.self() : null
+      };
+    }
+  };
+})();
+</script>
+<style>.pet.me[data-artkey="luefeng"] .art{transform:none}.pet.foe[data-artkey="luefeng"] .art{transform:scaleX(-1)}</style>
+<script id="luefeng-flight">
+(()=>{
+const sources={"portrait":"media/8944c0c6cbb22a70a0c22557.webp","idle":"media/42f8867ed3953b85b8c0e5f4.webp","falcon":"media/cae635acad1f11199e652588.webp","claw":"media/9e4c33e52a982196f6d0073b.webp"};
+// Call draw with elapsed milliseconds; team direction is 1 (to the right) or -1.
+const action = {
+  pet: 'luefeng', scope: 'all_damaging_moves',
+  frameStarts: [0, 128, 272, 424, 640, 689, 726, 763, 1280, 1400, 1530, 1700],
+  exitMs: 820, hitMs: 844, effectEndMs: 1384, durationMs: 1920,
+  atlas: 'falcon.webp', claw: 'claw.webp'
+};
+const designWidth=920, designHeight=470, cellW=540, cellH=456, pivot=[275,242];
+const leave=[
+  [0,0,0,0], [128,-1,-3,-1], [272,-6,-1,1], [424,-24,5,3],
+  [561,-43,10,5], [630,-43,10,5], [659,-30,5,1], [689,43,-12,-7],
+  [714,178,-50,-12], [735,335,-109,-17], [760,550,-183,-16],
+  [786,789,-232,-12], [820,1090,-263,-9]
+];
+const arrive=[
+  [1250,-320,-65,10], [1280,-153,-37,12], [1330,-58,-14,12],
+  [1400,76,28,8], [1480,174,29,4], [1530,218,16,-2],
+  [1600,248,4,-4], [1700,253,-2,-2], [1810,245,0,0], [1920,245,0,0]
+];
+function tangent(track,i,j) {
+  if(i===0||i===track.length-1)return 0;
+  const a=track[i-1],b=track[i],c=track[i+1],d=b[0]-a[0],e=c[0]-b[0];
+  const l=(b[j]-a[j])/d,r=(c[j]-b[j])/e;
+  return l*r<=0?0:3*(d+e)/((2*e+d)/l+(e+2*d)/r);
+}
+function motion(track,t) {
+  const i=Math.max(0,Math.min(track.length-2,track.findLastIndex(k=>k[0]<=t)));
+  const a=track[i],b=track[i+1],dt=b[0]-a[0],u=Math.max(0,Math.min(1,(t-a[0])/dt));
+  return [1,2,3].map(j=>(2*u**3-3*u*u+1)*a[j]+(u**3-2*u*u+u)*dt*tangent(track,i,j)+(-2*u**3+3*u*u)*b[j]+(u**3-u*u)*dt*tangent(track,i+1,j));
+}
+function smooth(a,b,t){const u=Math.max(0,Math.min(1,(t-a)/(b-a)));return u*u*(3-2*u)}
+function poseAt(t){return Math.max(0,action.frameStarts.findLastIndex(s=>s<=t))}
+function createFalconAttack(atlas,claw){
+  // The only offscreen buffer belongs to the VFX. It never contains a target sprite.
+  const mask=document.createElement('canvas');mask.width=claw.naturalWidth||claw.width;mask.height=claw.naturalHeight||claw.height;
+  const ink=mask.getContext('2d');
+  function drawClaw(ctx,elapsed,x,y,unit=1,facing=1){
+    const e=elapsed-action.hitMs,length=action.effectEndMs-action.hitMs;
+    if(e<0||e>=length)return;
+    const w=mask.width,h=mask.height,trace=.035+.965*(1-(1-Math.min(1,e/132))**1.55);
+    let surface=claw;
+    if(trace<1){
+      ink.clearRect(0,0,w,h);ink.globalCompositeOperation='source-over';ink.drawImage(claw,0,0,w,h);
+      // Sweep along the cut and slightly across the three talons, so their starts are offset.
+      const gradient=ink.createLinearGradient(w*.96,-h*.07,w*.05,h*1.07);
+      const front=Math.min(1,trace+.055);
+      gradient.addColorStop(0,'white');gradient.addColorStop(Math.max(0,trace-.035),'white');
+      gradient.addColorStop(front,'transparent');gradient.addColorStop(1,'transparent');
+      ink.globalCompositeOperation='destination-in';ink.fillStyle=gradient;ink.fillRect(0,0,w,h);
+      ink.globalCompositeOperation='source-over';surface=mask;
+    }
+    if(e>116 && e<290){
+      if(surface===claw){
+        ink.clearRect(0,0,w,h);ink.drawImage(claw,0,0,w,h);
+      }
+      const center=(e-116)/174*1.5-.25;
+      const gleam=ink.createLinearGradient(w*(1-center+.12),h*(center-.12),w*(1-center-.12),h*(center+.12));
+      gleam.addColorStop(0,'rgba(255,250,202,0)');gleam.addColorStop(.5,'rgba(255,250,202,.46)');gleam.addColorStop(1,'rgba(255,250,202,0)');
+      ink.globalCompositeOperation='source-atop';ink.fillStyle=gleam;ink.fillRect(0,0,w,h);ink.globalCompositeOperation='source-over';
+      surface=mask;
+    }
+    const tail=smooth(275,length,e);
+    const zoom=.88+.12*smooth(0,128,e)+.125*tail;
+    const opacity=1-smooth(290,length,e);
+    ctx.save();ctx.translate(x,y);ctx.scale(facing*unit,unit);ctx.globalAlpha*=opacity;
+    ctx.translate(-14*tail,7*tail);ctx.scale(zoom,zoom);
+    const dw=480,dh=362;ctx.drawImage(surface,-dw*.54,-dh*.51,dw,dh);ctx.restore();
+  }
+  function draw(ctx,t,{width,height,origin,target,direction=1,actor=true,effect=true,actorScale,pathScale}){
+    if(t<0||t>action.durationMs)return;
+    const unit=pathScale??Math.min(width/designWidth,height/designHeight);
+    const face=direction<0?-1:1, localX=face>0?origin.x:width-origin.x;
+    const i=poseAt(t);
+    ctx.save();ctx.beginPath();ctx.rect(0,0,width,height);ctx.clip();
+    if(actor && (t<action.exitMs||t>=1250)){
+      const outbound=t<action.exitMs;
+      const [dx,dy,angle]=motion(outbound?leave:arrive,t);
+      // Normalize the path to the available distance, including enough room for the full tail.
+      const travel=(width-localX+285*unit)/1090;
+      const x=outbound?localX+(dx<0?dx*unit:dx*travel):
+        (dx<0?dx*unit:dx/245*localX);
+      ctx.save();ctx.translate(face>0?x:width-x,origin.y+dy*unit);ctx.scale(face,1);
+      ctx.rotate(angle*Math.PI/180);ctx.scale(actorScale??unit*.81,actorScale??unit*.81);
+      ctx.drawImage(atlas,i%4*cellW,Math.floor(i/4)*cellH,cellW,cellH,-pivot[0],-pivot[1],cellW,cellH);
+      ctx.restore();
+    }
+    if(effect)drawClaw(ctx,t,target.x,target.y,unit,face);
+    ctx.restore();
+  }
+  return {draw,drawClaw};
+}
+  const pet=PETS.find(p=>p.id===action.pet);
+  if(!pet)return;
+  pet.art=pet.id;
+  PET_ART[pet.id]={idle:sources.portrait,battleIdle:sources.idle,attack:sources.idle,leap:sources.idle};
+  const load=async src=>{const im=new Image();im.src=src;await im.decode();return im};
+  let renderer;
+  const ready=Promise.all([load(sources.falcon),load(sources.claw),load(sources.idle)]).then(([atlas,claw])=>{
+    renderer=createFalconAttack(atlas,claw);return true;
+  },()=>false);
+  const casts=new WeakMap(),running=new Map();
+  const priorSkill=window.doSkill;
+  window.doSkill=function(from,side,other){
+    const actor=active(side);
+    if(actor?.def?.id!==pet.id)return priorSkill.apply(this,arguments);
+    const owner=S,to=other===owner.foe?'foe':'me',offset=owner.fx.length;
+    const cast={owner,from,to,actor,target:active(other),logStart:owner.log.length,
+      sourceHud:BattleSpriteGeometry.snapshotHud(from),targetHud:BattleSpriteGeometry.snapshotHud(to)};
+    const result=priorSkill.apply(this,arguments);
+    cast.frames=owner.fx.slice(offset);
+    const launch=cast.frames.find(f=>f.lunge===from||(f.atkfx&&f.from===from));
+    if(launch){
+      const landed=cast.frames.find(f=>f.on===to&&f.landed===true);
+      cast.effectOffset=landed?(landed.delay||0):null;
+      cast.launch=launch;casts.set(launch,cast);
+    }
+    return result;
+  };
+  function queued(frames){
+    if(!renderer||!frames?.length||frames.some(f=>f.captainApproach||f.captainReply))return;
+    for(const f of frames){const cast=casts.get(f);if(cast?.owner===S)return cast}
+  }
+  function animate(cast){
+    const {owner,from,to,actor,target}=cast,dir=from==='me'?1:-1;
+    const figure=side=>document.getElementById('fig_'+side);
+    if(!figure(from)?.querySelector('.artimg')||!figure(to)?.querySelector('.art'))return false;
+    const layer=document.createElement('canvas'),ctx=layer.getContext('2d');
+    if(!ctx)return false;
+    running.get(from)?.();
+    layer.className='luefeng-flight';layer.setAttribute('aria-hidden','true');
+    layer.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:43';
+    document.body.appendChild(layer);
+    const started=performance.now(),effects=localStorage.getItem('lingchong_fxpro_mode')!=='off';
+    let raf,stopped=false,body,visibility,spot,hitPainted=false;
+    function stop(){
+      if(stopped)return;stopped=true;cancelAnimationFrame(raf);layer.remove();
+      if(body)body.style.visibility=visibility;
+      running.delete(from);
+    }
+    function paint(age){
+      if(hitPainted)age=Math.max(age,action.hitMs);
+      if(stopped)return false;
+      const im=figure(from)?.querySelector('.artimg'),victim=figure(to);
+      if(owner!==S||owner.cancelled||active(owner[from])!==actor||active(owner[to])!==target||!im||!victim||age>=action.durationMs){stop();return false}
+      if(im!==body){if(body)body.style.visibility=visibility;body=im;visibility=body.style.visibility}
+      const home=BattleSpriteGeometry.contain(body),stage=document.getElementById('stage');
+      if(!stage||!home.width||!home.height)return true;
+      const box=layer.getBoundingClientRect(),w=box.width,h=box.height,dpr=Math.min(2,devicePixelRatio||1);
+      if(!w||!h)return true;
+      const pw=Math.round(w*dpr),ph=Math.round(h*dpr);
+      if(layer.width!==pw||layer.height!==ph){layer.width=pw;layer.height=ph}
+      ctx.setTransform(pw/w,0,0,ph/h,0,0);ctx.clearRect(0,0,w,h);
+      if(!hitPainted||!spot){
+        const pos=BattleSpriteGeometry.targetPoint(victim);
+        spot={x:pos.x-box.left,y:pos.y-box.top};
+      }
+      hitPainted=age>=action.hitMs;
+      const scale=home.width/368;
+      const origin={x:home.left-box.left+(dir>0?216:152)*scale,y:home.top-box.top+230*scale};
+      const options={width:w,height:h,origin,target:spot,direction:dir,actorScale:scale,pathScale:scale/.81,effect:false};
+      renderer.draw(ctx,age,options);
+      const effectAge=age-(cast.effectOffset??0);
+      if(effects&&cast.effectOffset!==null){
+        const arena=stage.getBoundingClientRect();
+        const size=Math.min(w*.52,Math.max(w*.46,home.width*1.9),arena.height*2.08);
+        // Edge slots take the blow on the upper part of each diagonal cut.
+        // Keep the three tips inside the viewport as the afterimage grows.
+        const local=dir>0?spot.x:w-spot.x;
+        const focus=Math.max(size*.64+3,Math.min(w-size*.50-3,local));
+        const centerY=Math.min(spot.y+(local-focus)*.44,arena.bottom-box.top-size*.235);
+        const squash=Math.min(1,(arena.height+64)/(size*362/480));
+        ctx.save();ctx.translate(dir>0?focus:w-focus,centerY);ctx.scale(1,squash);
+        renderer.drawClaw(ctx,effectAge,0,0,size/480,dir);ctx.restore();
+      }
+      body.style.visibility='hidden';
+      layer.dataset.phase=age<640?'windup':age<action.exitMs?'exit':age<1250?'offscreen':'return';
+      layer.dataset.frame=poseAt(age)+1;
+      layer.dataset.claw=String(effects&&cast.effectOffset!==null&&effectAge>=action.hitMs&&effectAge<action.effectEndMs);
+      return true;
+    }
+    function tick(now){if(paint(now-started))raf=requestAnimationFrame(tick)}
+    running.set(from,stop);
+    if(!paint(0))return false;
+    raf=requestAnimationFrame(tick);
+    battleLater(()=>{if(!hitPainted)paint(action.hitMs)},action.hitMs);
+    return true;
+  }
+  const priorPlay=window.playFx;
+  window.playFx=function(){
+    const cast=queued(S?.fx);
+    if(cast&&animate(cast)){
+      cast.launch.customLaunch=true;
+      for(const f of cast.frames){
+        if(f.captainAt==null)f.falconImpactAt=action.hitMs+(f.delay||0);
+        if(f.on===cast.to&&f.landed!=null)f.customImpact=true;
+      }
+      const log=document.getElementById('log');
+      if(log&&cast.owner.log.length>cast.logStart){
+        log.innerHTML=cast.owner.log.slice(0,cast.logStart).join('<br>');log.scrollTop=log.scrollHeight;
+        battleLater(()=>{if(log.isConnected)flushLog()},action.hitMs);
+      }
+      BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.from,target:cast.actor,previousHUD:cast.sourceHud},action.hitMs);
+      BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.to,target:cast.target,previousHUD:cast.targetHud},action.hitMs);
+    }
+    return priorPlay.apply(this,arguments);
+  };
+  window.LuefengMotion={ready,
+    clear(){for(const stop of running.values())stop()},
+    queueEnd(frames){
+      const cast=queued(frames);
+      return cast?Math.max(action.durationMs,action.hitMs+Math.max(0,...cast.frames.map(f=>f.delay||0))+240):0;
+    }
+  };
+
+})();
+</script>
+
+<script id="shuangji-src">
+/* ===== 霜脊玄龙层（shuangji · 冰/龙）=====
+   新宠【霜脊玄龙】（冰/龙，种族值合计 476）
+     ① 特性【风霜龙息】—— 回合开始时检测对手当前出战宠物的 4 个携带技能（含 PP 已为 0 的），
+        只要有任一技能「显示威力」≥ 220，本回合获得状态【风霜龙息】：
+          · 受到伤害 −85%（护盾/装甲/上限之后统一结算）
+          · 自身攻击无视属性抵抗（最终克制倍率 < 1 时按 1 计，原本的克制/弱点照旧）
+          · 自身受到「原本被抵抗的属性伤害」×1.75（与 −85% 乘算）
+          · 每段攻击命中后随机删目标 1 个仍有 PP 的技能 1 点 PP（多段按段数，烙印爆炸不算一段）
+        · 每回合只判定一次；中途换人 / 威力变化 / PP 归零都不改变本回合结果，下回合重判
+        · 场下存活的霜脊也记录判定结果，中途换上可承接本回合状态
+     ② 【寒霜印】（队伍级，挂在被打的一方，层数共享）
+        己方（任意宠物）用「非冰属性」伤害技能命中带印的对手，在该技能完整结算后引爆全部层数：
+        每层 30 威力冰系伤害（沿用引爆技能的物理/魔法类别，用引爆者的攻防结算），一次消耗光。
+        固定伤害 / 持续伤害 / 烙印自身伤害不触发；多段攻击打完只引爆一次。
+     ③ 本层同时提供该宠的 4 个专属技能（写在 PETS 数据里）：
+        寒灾铭息 / 裂霜龙啸 / 寒域封势 / 玄冰复苏
+   公开接口：window.__SHUANGJI
+*/
+(function () {
+  'use strict';
+  if (window.__SHUANGJI__) return;
+  window.__SHUANGJI__ = 1;
+
+  var PID = 'shuangji';
+  var THR = 220;          // 触发阈值：显示威力 ≥ 220
+  var DR_MUL = 0.15;      // 受到伤害 ×0.15（−85%）
+  var WARD = 1.75;        // 受到被抵抗属性伤害 ×1.75
+  var ICE_PER = 30;       // 每层寒霜印引爆威力
+  var IKEY = '__sjIce';
+
+  /* ---------------- 宠物与专属技能 ---------------- */
+  try {
+    if (typeof PETS !== 'undefined' && Array.isArray(PETS) && !PETS.some(function (x) { return x && x.id === PID; })) {
+      PETS.push({
+        id: PID, name: '霜脊玄龙', type: ['冰', '龙'], emoji: '🐉',
+        passive: { frostBreath: 1 },
+        base: { hp: 112, atk: 38, def: 84, spa: 100, spd: 84, spe: 58 },   // 合计 476
+        own: [
+          { name: '寒灾铭息', star: 1, cat: '魔法', power: 85, pp: 5, type: '冰', iceBrandAdd: 1,
+            desc: '专属 · 85威力冰系魔法；命中并先引爆已有的【寒霜印】后，给敌方全队刷上 1 层【寒霜印】' },
+          { name: '裂霜龙啸', star: 1, cat: '魔法', power: 45, pp: 4, type: '龙', spd: 9, multi: [3, 3],
+            desc: '专属 · 先手+1 · 连续攻击 3 次，每段 45 威力；【风霜龙息】期间每段命中各削对手 1 点 PP' },
+          { name: '寒域封势', star: 1, cat: '变化', power: 0, pp: 3, type: '冰', spd: 10,
+            shield: 60, shieldTurns: 3, clearPos: true,
+            desc: '专属 · 先手+2 · 清除对手全部正面能力等级；自身获得 60 点护盾（持续 3 回合）' },
+          { name: '玄冰复苏', star: 1, cat: '变化', power: 0, pp: 4, type: '冰', spd: 10, heal: 0.35, cleanse: true,
+            desc: '专属 · 先手+2 · 回复自身 35% 最大生命，并清除自身全部负面' }
+        ]
+      });
+    }
+  } catch (e) { try { console.error('[霜脊] 数据注入失败', e); } catch (_) {} }
+
+  /* ---------------- 小工具 ---------------- */
+  function ok() { return typeof S !== 'undefined' && S && S.me && S.foe; }
+  function act(sd) { return (sd && sd.team) ? sd.team[sd.active] : null; }
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) {} }
+  function ftype(p) { return p ? (Array.isArray(p.type) ? p.type[0] : p.type) : ''; }
+  function hasFrost(p) { return !!(p && p.def && p.def.passive && p.def.passive.frostBreath); }
+  function isOn(p) { return !!(ok() && p && !p.fainted && hasFrost(p) && p._sjFrostOn && p._sjFrostTurn === S.turn); }
+  function isDirect(sk) { return !!(sk && sk.cat && sk.cat !== '变化' && (sk.power || 0) > 0 && sk.pp != null); }
+  function sideKeyOf(sd) { return sd === S.foe ? 'foe' : 'me'; }
+
+  /* ---------------- ① 回合开始判定 ---------------- */
+  function dispPower(oppSide, p, sk, defTypes) {
+    if (!sk || sk.cat === '变化' || !((sk.power || 0) > 0)) return 0;
+    var e = 1;                                          // 面板显示威力 = 原始威力 × 属性克制倍率
+    try {
+      if (defTypes) e = +eff(sk.type || p.type, defTypes);
+      if (!(e > 0)) e = 1;
+    } catch (x) { e = 1; }
+    var best = 0;
+    function take(v) {
+      if (!isFinite(v)) return;
+      var disp = Math.round(+v * e);
+      if (disp > best) best = disp;
+    }
+    if (typeof livePowerVals === 'function') {
+      try {
+        var vals = livePowerVals(oppSide, p, sk) || [];
+        for (var i = 0; i < vals.length; i++) take(vals[i]);
+      } catch (x) {}
+    }
+    if (best <= 0) {
+      var arr = sk.powers || [sk.power || 0];
+      for (var j = 0; j < arr.length; j++) take(arr[j]);
+    }
+    return best;
+  }
+
+  function judge() {
+    if (!ok() || S.over || S.busy) return;
+    if (S.__sjJudgeTurn === S.turn) return;
+    S.__sjJudgeTurn = S.turn;
+    [[S.me, S.foe], [S.foe, S.me]].forEach(function (pair) {
+      var sd = pair[0], od = pair[1];
+      var opp = act(od);
+      var ap0 = act(sd), defTypes = (ap0 && ap0.type) ? ap0.type : null;
+      var trig = null;
+      if (opp && opp.moves) {
+        opp.moves.forEach(function (m) {
+          var p = dispPower(od, opp, m, defTypes);
+          if (p >= THR && (!trig || p > trig.pow)) trig = { pow: p, name: m.name };
+        });
+      }
+      sd.team.forEach(function (p) {
+        if (!p || p.fainted || !hasFrost(p)) return;    // 场下也记录，换上场即可承接
+        p._sjFrostTurn = S.turn;
+        p._sjFrostOn = !!trig;
+        p._sjFrostBy = trig ? trig.name : '';
+        p._sjFrostPow = trig ? Math.round(trig.pow) : 0;
+      });
+      var ap = act(sd);
+      if (trig && ap && !ap.fainted && hasFrost(ap)) {
+        say('　↳ ❄️ <b>' + ap.name + '</b> 的【风霜龙息】被 <b>' + trig.name + '</b>（显示威力 ' +
+            Math.round(trig.pow) + '）激起：本回合受伤 −85%、攻击无视抵抗、受抵抗伤害 +75%、每段命中削 1 点 PP。');
+      }
+    });
+  }
+
+  /* ---------------- ② 无视抵抗 / ③ 被抵抗伤害 +75% ---------------- */
+  var _effRaw = window.eff;
+  if (typeof _effRaw === 'function') {
+    window.eff = function (a, d) {
+      var r = _effRaw.apply(this, arguments);
+      try { if (window.__SJ_PIERCE_EFF__ && r > 0 && r < 1) return 1; } catch (e) {}
+      return r;
+    };
+  }
+  function rawEff(a, d) {
+    try { return +_effRaw(a, d); } catch (e) { return 1; }
+  }
+
+  var _calc = window.calcDamage;
+  if (typeof _calc === 'function') {
+    window.calcDamage = function (A, D, skill) {
+      var pierce = false, ward = false, e0 = 0, prev = null, r = null;
+      try {
+        pierce = isOn(A) && isDirect(skill);         // ② 自身攻击无视抵抗
+        ward = isOn(D);                              // ③ 自身受到被抵抗属性伤害
+        if ((pierce || ward) && D && typeof _effRaw === 'function') {
+          e0 = rawEff((skill && skill.type) ? skill.type : (A && A.type), D.type);
+        }
+        if (pierce) { prev = window.__SJ_PIERCE_EFF__; window.__SJ_PIERCE_EFF__ = 1; }
+      } catch (e) { pierce = false; }
+      try { r = _calc.apply(this, arguments); }
+      finally { if (pierce) { try { window.__SJ_PIERCE_EFF__ = prev; } catch (e) {} } }
+      try {
+        if (!r || !(r.dmg > 0) || !A || !D) return r;
+        if (ward && e0 > 0 && e0 < 1) {              // ③ 原本被抵抗 → ×1.75
+          r.dmg = Math.max(1, Math.round(r.dmg * WARD));
+          r.sjWard = WARD;
+        }
+        if (pierce && e0 > 0 && e0 < 1) r.sjPierce = 1;
+      } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------------- ① 受到伤害 −85% ---------------- */
+  var _cap = window.capDmg;
+  if (typeof _cap === 'function') {
+    window.capDmg = function (p, d) {
+      var out = _cap.apply(this, arguments);
+      try {
+        if (p && isOn(p) && out > 0) out = Math.max(1, Math.round(out * DR_MUL));
+      } catch (e) {}
+      return out;
+    };
+  }
+
+  /* ---------------- ② 寒霜印 ---------------- */
+  function iceStacks(sd) { return (sd && sd[IKEY]) || 0; }
+  function iceAdd(sd, n) {
+    if (!sd) return 0;
+    n = Math.max(0, Math.floor(n || 0));
+    if (!n) return 0;
+    sd[IKEY] = (sd[IKEY] || 0) + n;
+    return n;
+  }
+  function iceTake(sd) { var n = (sd && sd[IKEY]) || 0; if (n > 0) sd[IKEY] = 0; return n; }
+
+  function bust(foeSide, A, D, sk) {
+    if (!ok() || !foeSide || !A || !D || D.fainted || !sk) return 0;
+    if (sk.cat === '变化' || !((sk.power || 0) > 0)) return 0;
+    if ((sk.type || ftype(A)) === '冰') return 0;       // 非冰属性伤害技能才引爆
+    var n = iceStacks(foeSide);
+    if (!n) return 0;
+
+    var cat = (sk.cat === '物理') ? '物理' : '魔法';
+    var power = ICE_PER * n;
+    var dmg = 0;
+    try {
+      var c = calcDamage(A, D, { name: '寒霜印引爆', cat: cat, power: power, type: '冰' });
+      dmg = Math.max(1, Math.round((c && c.dmg) || 0));
+    } catch (e) { dmg = Math.max(1, Math.round(power * 0.6)); }
+
+    iceTake(foeSide);                                   // 引爆即消耗全部层数
+    var onKey = sideKeyOf(foeSide);
+    var absorbed = 0;
+    if (D.shield > 0 && dmg > 0) {
+      absorbed = Math.min(D.shield, dmg);
+      D.shield -= absorbed; dmg -= absorbed;
+      if (D.shield <= 0) { D.shield = 0; D.shieldT = 0; }
+    }
+    try { if (typeof capDmg === 'function') dmg = capDmg(D, dmg); } catch (e) {}
+    var pre = D.hp;
+    if (dmg > 0) {
+      D.hp = Math.max(0, D.hp - dmg);
+      D.turnDmgTaken = (D.turnDmgTaken || 0) + dmg;
+      D._lastHitDmg = dmg;
+      try {
+        S.fx.push({ on: onKey, txt: '-' + dmg, shake: true,
+          hpFrom: Math.round(pre / Math.max(1, D.maxhp) * 100),
+          hpTo: Math.round(D.hp / Math.max(1, D.maxhp) * 100) });
+      } catch (e) {}
+    }
+    say('　↳ ❄️ <b>寒霜印</b> 炸开：' + A.name + ' 引爆 ' + n + ' 层 —— 追加 ' + power +
+        ' 威力冰系' + cat + '伤害，造成 <b>' + dmg + '</b> 点' +
+        (absorbed > 0 ? '（护盾吸收 ' + absorbed + '）' : '') + '。');
+    if (D.hp <= 0) {
+      try { if (typeof tryFaint === 'function') tryFaint(D); else D.fainted = true; }
+      catch (e) { D.fainted = true; }
+      if (D.fainted) { say('💥 ' + D.name + ' 倒下了！'); try { S.fx.push({ die: onKey }); } catch (e) {} }
+    }
+    return n;
+  }
+
+  /* ---------------- ④ 每段命中削 1 点 PP ---------------- */
+  function ppDrain(A, D) {
+    if (!A || !D) return;
+    var got = [];
+    try { got = (typeof drainPPMulti === 'function') ? drainPPMulti(D, 1, 1, A) : []; } catch (e) { got = []; }
+    if (!got || !got.length) return;
+    var left = -1;
+    try {
+      for (var i = 0; i < D.moves.length; i++) if (D.moves[i].name === got[0]) { left = D.moves[i].pp; break; }
+    } catch (e) {}
+    say('　↳ ❄️ <b>风霜龙息</b>：' + D.name + ' 的「' + got[0] + '」−1 次' + (left >= 0 ? '（剩 ' + left + '）' : '') + '。');
+  }
+
+  /* ---------------- 寒域封势：只清正面能力等级 ---------------- */
+  function clearPos(T) {
+    if (!T || T.fainted) return;
+    var locked = false;
+    try { locked = (typeof buffLockOwner === 'function') && !!buffLockOwner(); } catch (e) { locked = false; }
+    if (locked) { say('　↳ 🔒 能力等级被【禁锢】锁定，' + T.name + ' 的正面等级无法清除。'); return; }
+    var lv = 0, names = [];
+    for (var k in (T.buffs || {})) {
+      var v = (T.buffs[k] && T.buffs[k].lv) || 0;
+      if (v > 0) { lv += v; names.push((typeof SNAME !== 'undefined' ? SNAME[k] : k) + '+' + v); delete T.buffs[k]; }
+    }
+    if (lv > 0) say('　↳ ❄️ <b>寒域封势</b>：清除 ' + T.name + ' 的全部正面能力等级（' + names.join('、') + '，共 ' + lv + ' 级）。');
+    else say('　↳ ❄️ <b>寒域封势</b>：' + T.name + ' 没有正面能力等级。');
+  }
+
+  /* ---------------- 出招包装：削 PP / 引爆寒霜印 / 叠寒霜印 ---------------- */
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, other, mi, who) {
+      var A = act(side), D0 = act(other);
+      var sk = (A && A.moves && mi != null) ? A.moves[mi] : null;
+      var ppBefore = (sk && typeof sk.pp === 'number') ? sk.pp : 0;
+      var tgtKey = ok() ? sideKeyOf(other) : 'foe';
+      var fx0 = ok() ? S.fx.length : -1;
+      var guard = !!(isOn(A) && isDirect(sk) && D0 && !D0.fainted);
+
+      var arr = null, origPush = null;
+      if (guard) {
+        try {
+          arr = S.fx; origPush = arr.push;
+          arr.push = function (e) {
+            var r = origPush.apply(this, arguments);
+            try {
+              if (e && e.landed === true && e.on === tgtKey && !e.__sjPP) {
+                e.__sjPP = 1;
+                ppDrain(A, D0);
+              }
+            } catch (x) {}
+            return r;
+          };
+        } catch (e) { arr = null; }
+      }
+
+      var res, err = null;
+      try { res = _do.apply(this, arguments); }
+      catch (e) { err = e; }
+      finally { if (arr) { try { arr.push = origPush; } catch (e) {} } }
+
+      /* —— 完整结算后 —— */
+      try {
+        if (ok() && fx0 >= 0) {
+          var win = S.fx.slice(fx0);
+          var landed = false;
+          for (var i = 0; i < win.length; i++) { if (win[i] && win[i].on === tgtKey && win[i].landed === true) { landed = true; break; } }
+          var D = act(other) || D0;
+          if (landed && sk && D && !D.fainted) {
+            bust(other, A, D, sk);                       // 先引爆旧寒霜印
+          }
+          if (landed && sk && sk.iceBrandAdd) {          // 再叠本次新印
+            var add = iceAdd(other, sk.iceBrandAdd);
+            if (add) say('　↳ ❄️ <b>' + (other === S.foe ? '敌方' : '己方') + '队伍</b>被刷上【寒霜印】+' + add +
+              ' 层（现 ' + iceStacks(other) + ' 层）—— 己方非冰属性伤害技能命中即可引爆。');
+          }
+          if (sk && sk.clearPos && ppBefore > 0) clearPos(act(other));
+        }
+      } catch (e) { try { console.error('[霜脊] 出招结算失败', e); } catch (_) {} }
+
+      if (err) throw err;
+      return res;
+    };
+  }
+
+  /* ---------------- 回合开始挂点 ---------------- */
+  var _rt = window.resolveTurn;
+  if (typeof _rt === 'function') {
+    window.resolveTurn = function (playerAct) {
+      try { judge(); } catch (e) { try { console.error('[霜脊] 回合判定失败', e); } catch (_) {} }
+      return _rt.apply(this, arguments);
+    };
+  }
+
+  /* ---------------- 换上场承接提示 ---------------- */
+  var _enter = window.onEnter;
+  if (typeof _enter === 'function') {
+    window.onEnter = function (p) {
+      var r = _enter.apply(this, arguments);
+      try {
+        if (ok() && p && !p.fainted && isOn(p) && hasFrost(p)) {
+          say('　↳ ❄️ <b>' + p.name + '</b> 带上本回合的【风霜龙息】判定上场。');
+        }
+      } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------------- 状态条：寒霜印 / 风霜龙息 ---------------- */
+  var _bars = window.barsHTML;
+  if (typeof _bars === 'function') {
+    window.barsHTML = function (sideKey, side, label) {
+      var out = _bars.apply(this, arguments);
+      try {
+        var tags = '';
+        var n = iceStacks(side);
+        if (n > 0) tags += '<span class="st" style="background:linear-gradient(135deg,#dff6ff,#8dd6ff);color:#06293d;' +
+          'border:1px solid #eafaff;border-radius:999px;padding:0 7px;margin-right:3px;box-shadow:0 0 6px rgba(120,215,255,.45)">' +
+          '❄️ 寒霜印×' + n + '</span>';
+        var p = side && side.team ? side.team[side.active] : null;
+        if (p && isOn(p)) tags += '<span class="st up" style="background:linear-gradient(135deg,#c9ecff,#86cbff);color:#04283a;' +
+          'border:1px solid #e8fbff;border-radius:999px;padding:0 7px;margin-right:3px">❄ 风霜龙息</span>';
+        if (tags) out = out.replace('<div class="strow">', '<div class="waxrow" style="margin:3px 0 1px">' + tags + '</div><div class="strow">');
+      } catch (e) {}
+      return out;
+    };
+  }
+
+  /* ---------------- 被动名 / 说明 ---------------- */
+  try {
+    if (typeof window.passiveName === 'function' && !window.__SJ_PN) {
+      window.__SJ_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.frostBreath) return '风霜龙息'; } catch (e) {}
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__SJ_PD) {
+      window.__SJ_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.frostBreath) {
+            return '【风霜龙息】回合开始时检测对手当前出战宠物的全部携带技能（PP 为 0 的也算）：' +
+              '只要有任一技能「显示威力」≥ 220（显示威力＝面板数值，已折算属性克制/抵抗；多段只算每段），本回合获得【风霜龙息】—— ' +
+              '① 受到伤害 −85%；② 自身攻击无视属性抵抗（克制倍率不足 1 按 1 计，原本的克制照旧）；' +
+              '③ 自身受到原本被抵抗的属性伤害 ×1.75；④ 每段攻击命中后随机删目标 1 点 PP。' +
+              '判定每回合只做一次，中途换人 / 威力变化都不改变本回合结果，下回合重判；' +
+              '场下存活时同样记录判定，换上可承接。' +
+              '　【寒霜印】挂在敌方全队、层数共享：己方非冰系伤害技能命中后，于整招结算末尾引爆全部层数，' +
+              '每层造成 30 威力冰系伤害（物理/魔法随触发技能），随后全部消耗；固定伤害、持续伤害与寒霜印本身造成的伤害不触发，引爆不计命中段数。';
+          }
+        } catch (e) {}
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+
+  /* ---------------- 自检 ---------------- */
+  window.__SHUANGJI = {
+    thr: THR, drMul: DR_MUL, ward: WARD, icePer: ICE_PER,
+    pet: function () {
+      var p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x && x.id === PID; })[0] : null;
+      return p ? { name: p.name, type: p.type, base: p.base, passive: p.passive,
+        skills: (p.own || []).map(function (s) { return { name: s.name, pp: s.pp, multi: s.multi || null }; }) } : 'MISSING';
+    },
+    judge: function (side) { try { judge(); } catch (e) { return String(e); } return this.frost(side || 'me'); },
+    frost: function (k) {
+      if (!ok()) return null;
+      var sd = (k === 'foe') ? S.foe : S.me, p = act(sd);
+      return p ? { name: p.name, on: isOn(p), turn: p._sjFrostTurn || 0, turnNow: S.turn,
+        by: p._sjFrostBy || '', pow: p._sjFrostPow || 0 } : null;
+    },
+    force: function (k, v) {
+      if (!ok()) return null;
+      var sd = (k === 'foe') ? S.foe : S.me, p = act(sd);
+      if (!p) return null;
+      p._sjFrostTurn = S.turn; p._sjFrostOn = !!v;
+      return p.name;
+    },
+    bench: function (k) {
+      if (!ok()) return null;
+      return ((k === 'foe') ? S.foe : S.me).team.filter(hasFrost).map(function (p) {
+        return { name: p.name, fainted: !!p.fainted, on: isOn(p), turn: p._sjFrostTurn || 0 };
+      });
+    },
+    ice: function (k) { return ok() ? iceStacks((k === 'foe') ? S.foe : S.me) : 0; },
+    addIce: function (k, n) { return ok() ? iceAdd((k === 'foe') ? S.foe : S.me, n) : 0; },
+    bust: function (k) {
+      if (!ok()) return 0;
+      var sd = (k === 'foe') ? S.foe : S.me, od = (sd === S.foe) ? S.me : S.foe;
+      return bust(sd, act(od), act(sd), { name: '测试', cat: '物理', power: 60, type: '龙', pp: 1 });
+    }
+  };
+})();
+</script>
+<style>
+.pet.me[data-artkey="shuangji"] .art{transform:none}
+.pet.foe[data-artkey="shuangji"] .art{transform:scaleX(-1)}
+.shuangji-wingbeat{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:43}
+.shuangji-realm{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+</style>
+<script id="shuangji-wing-array">
+(()=>{
+const sources={"idle":"media/acd682e76860a61934ef2099.webp","portrait":"media/84a946c63bb5a287cc73eeb7.webp","realm":"media/ce6858ac3a36662a733af85c.webp","lance":"media/62bc0898ded27b5dbad7b618.webp","sheets":["media/4a7e2a075f791c19e629cf8e.webp","media/c2558a66896c83691b2c66ff.webp","media/b561dccd9fae775f709f835e.webp","media/9c17d0baa804c11067391e08.webp","media/dd26818bb3f45f3b4f0426ea.webp","media/8a5b3da1d49b1b674ae12382.webp","media/9e86314167f9816832df23d1.webp","media/4a1f79ce6bbba4b1315d89c9.webp","media/704d2db988aeb489e008f245.webp"]};
+const timing={"pet":"shuangji","scope":"all_damaging_moves","track":{"keys":[0,280,480,650,737,815,892,961,1045,1250,1450,1770],"samples":[0,28,56,84,112,140,168,196,224,252,280,308,336,364,392,420,448,476,480,504,532,560,588,616,644,650,672,690,700,706,722,728,737,738,754,756,770,784,786,802,812,815,818,834,840,850,866,868,882,892,896,898,914,924,930,946,952,961,962,978,980,994,1008,1010,1026,1036,1042,1045,1058,1064,1074,1090,1092,1106,1120,1122,1148,1176,1204,1232,1250,1260,1288,1316,1344,1372,1400,1428,1450,1456,1484,1512,1540,1568,1596,1624,1652,1680,1708,1736,1764,1770],"hold":100,"cell":[432,292],"perSheet":12},"idleBox":[38,34,542,386],"designSize":[600,405],"attackDuration":1870,"idleMs":[140,145,145,155,175,140,110,120,150,160,155,150]};
+// actionTime is relative to the first attack cel. Begin at -leadIn, draw the
+// frost field over the current arena, then the actor, then the lances. Keep
+// drawing the field for returnFade milliseconds after the last cel.
+const frostTiming = { leadIn: 240, fadeIn: 665, returnFade: 540, clearHold: 140, contact: 961 };
+
+// Anchor x,y to the first strike. Subsequent lances open across the opponent's
+// field in the direction of the wingbeat, with independent angles and depth.
+const frostLances = [
+  {delay:0,   angle:29,  x:0,   y:0,   length:193,travel:65,flight:123},
+  {delay:52,  angle:-13, x:25,  y:44,  length:218,travel:59,flight:115},
+  {delay:113, angle:21,  x:54,  y:-22, length:195,travel:70,flight:126},
+  {delay:179, angle:-32, x:80,  y:22,  length:226,travel:64,flight:119},
+  {delay:244, angle:12,  x:111, y:-33, length:199,travel:71,flight:125},
+  {delay:310, angle:-23, x:138, y:44,  length:211,travel:60,flight:117},
+  {delay:379, angle:36,  x:167, y:4,   length:202,travel:68,flight:122},
+  {delay:451, angle:-31, x:194, y:-47, length:186,travel:58,flight:115}
+];
+
+function frostEase(value) {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
+}
+
+function drawFrostField(ctx, field, actionTime, attackDuration) {
+  const opacity = frostEase((actionTime + frostTiming.leadIn) / frostTiming.fadeIn)
+    * (1 - frostEase((actionTime - attackDuration) / frostTiming.returnFade));
+  if (opacity <= 0) return;
+  const {width, height} = ctx.canvas;
+  const scale = Math.max(width / field.width, height / field.height);
+  const w = field.width * scale, h = field.height * scale;
+  ctx.save();
+  const baseAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = baseAlpha * opacity * .90;
+  ctx.drawImage(field, (width - w) / 2, (height - h) / 2, w, h);
+  // Keep the silver dragon and narrow blades legible against the luminous ice.
+  ctx.globalAlpha = baseAlpha * opacity * .27;
+  ctx.fillStyle = '#102c49';
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+}
+
+function iceFacet(ctx, points, color) {
+  ctx.beginPath();
+  ctx.moveTo(points[0], points[1]);
+  for (let i = 2; i < points.length; i += 2) ctx.lineTo(points[i], points[i + 1]);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function drawLance(ctx, image, spec, age) {
+  const formation = spec.delay === 0 ? 190 : 64;
+  const spawn = -spec.flight - formation;
+  if (age <= spawn) return;
+  const form = frostEase((age - spawn) / formation);
+  const flight = Math.max(0, Math.min(1, 1 + age / spec.flight));
+  const remaining = spec.travel * (1 - flight * flight);
+  const length = spec.length * (.64 + .36 * form);
+  const width = .74 * length * image.width / image.height;
+  ctx.save();
+  ctx.translate(spec.x, spec.y);
+  ctx.rotate(spec.angle * Math.PI / 180);
+  ctx.translate(0, -remaining);
+  ctx.globalAlpha *= form;
+  if (flight > 0 && flight < 1) {
+    const tail = length * .30 * Math.sin(Math.PI * flight);
+    const streak = ctx.createLinearGradient(0, -length - tail, 0, -length * .36);
+    streak.addColorStop(0, 'rgba(124,233,255,0)');
+    streak.addColorStop(1, 'rgba(207,253,255,.74)');
+    iceFacet(ctx, [0,-length-tail, width*.27,-length*.5, 0,-length*.28, -width*.27,-length*.5], streak);
+  }
+  ctx.drawImage(image, -width / 2, -length, width, length);
+  ctx.restore();
+}
+
+function drawFrostStrike(ctx, spec, age, index) {
+  if (age < 0 || age >= 335) return;
+  const spread = frostEase(age / 228), fade = 1 - frostEase(age / 335);
+  ctx.save();
+  ctx.globalAlpha *= fade;
+  ctx.translate(spec.x, spec.y);
+  const radius = 9 + 15 * spread;
+  const halo = ctx.createRadialGradient(0,0,0,0,0,radius);
+  halo.addColorStop(0,'rgba(248,255,255,.94)');
+  halo.addColorStop(.25,'rgba(153,238,255,.60)');
+  halo.addColorStop(1,'rgba(107,219,255,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(-radius,-radius,radius*2,radius*2);
+  const flash = 1 - frostEase(age / 103);
+  if (flash > 0) {
+    const span = 11 * flash;
+    iceFacet(ctx, [-span,0,-1,-1.6,0,-span*.66,1.2,-1.4,span,0,1.3,1,0,span*.55,-1.2,1], '#f0ffff');
+  }
+  for (let j=0;j<6;j++) {
+    const a = -Math.PI*.94 + j*.54 + index*.028;
+    const dist = (8 + ((index*13+j*7)%19)) * spread;
+    const size = (1.5 + (j%3)*.8) * (1-spread*.6);
+    ctx.save();
+    ctx.translate(Math.cos(a)*dist,Math.sin(a)*dist + 6*spread*spread);
+    ctx.rotate(a + Math.PI*.5);
+    iceFacet(ctx, [0,-size*2,size*.72,0,0,size,-size*.64,0],j%2?'#c5faff':'#92d7ee');
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// Each puncture belongs to one lance; fracture branches lie flat on the lake.
+function drawFrostPuncture(ctx, spec, age, index) {
+  const approach = frostEase((age + 435) / 240);
+  if (approach <= 0) return;
+  const opened = frostEase(age / 125);
+  ctx.save();
+  ctx.translate(spec.x,spec.y);
+  ctx.scale(1,.30);
+  ctx.globalAlpha *= approach;
+  const r = 7 + 8 * approach + 12 * opened;
+  ctx.strokeStyle = 'rgba(187,242,253,.70)';
+  ctx.lineWidth = 1.45;
+  for (let i=0;i<3;i++) {
+    const start = i * Math.PI*2/3 + .28*index;
+    ctx.beginPath();ctx.arc(0,0,r,start,start+1.0);ctx.stroke();
+  }
+  if (age >= 0) {
+    ctx.strokeStyle = 'rgba(209,250,255,.93)';
+    ctx.lineWidth = 1.7;
+    for (let i=0;i<4;i++) {
+      const a = i*1.56 + index*.83;
+      const length = (16+(i*7+index*11)%17)*opened;
+      ctx.save();ctx.rotate(a);
+      ctx.beginPath();ctx.moveTo(0,0);
+      ctx.lineTo(length*.42,2*opened);
+      ctx.lineTo(length*.61,-2*opened);
+      ctx.lineTo(length,0);ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+function drawDecree(ctx, lance, time, x, y, scale=1, layout=frostLances) {
+  const age = time - frostTiming.contact;
+  const fade = 1 - frostEase((age - 527) / 225);
+  if (age <= -435 || fade <= 0) return;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale,scale);
+  ctx.globalAlpha *= fade;
+  layout.forEach((spec,i)=>drawFrostPuncture(ctx,spec,age-spec.delay,i));
+  for (const spec of layout) drawLance(ctx,lance,spec,age-spec.delay);
+  layout.forEach((spec,i)=>drawFrostStrike(ctx,spec,age-spec.delay,i));
+  ctx.restore();
+}
+
+// Track time is relative to the first pose. Frames between the twelve keys
+// follow the same illustrated wing, neck and tail rather than blending images.
+function drawWingArray(ctx, sheets, track, actionTime, x, y, width, height) {
+  const times = track.samples;
+  let lo = 0, hi = times.length;
+  while (lo + 1 < hi) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] <= actionTime) lo = mid;
+    else hi = mid;
+  }
+  // The final key is identical to the first. Reuse its actual texture so a
+  // different atlas page cannot introduce a compression shimmer on the loop.
+  if (actionTime >= track.keys[track.keys.length - 1]) lo = 0;
+  const slot = lo % track.perSheet;
+  const [w, h] = track.cell;
+  ctx.drawImage(sheets[Math.floor(lo / track.perSheet)],
+    (slot % 4) * w, Math.floor(slot / 4) * h, w, h, x, y, width, height);
+  return lo;
+}
+
+
+// Both sides of the breathing cycle meet the attack's neutral drawing.
+// The intake and the settling tail use opposite ends of the same rig.
+function drawWingIdle(ctx, sheets, track, idleTime, idleDuration, x, y, width, height) {
+  const wave = Math.sin(2*Math.PI*idleTime/idleDuration);
+  const actionTime = wave >= 0 ? 215*wave : track.keys[track.keys.length-1]+200*wave;
+  return drawWingArray(ctx, sheets, track, actionTime, x, y, width, height);
+}
+
+const pet = PETS.find(p => p.id === timing.pet);
+if (!pet) return;
+pet.art = pet.id;
+PET_ART[pet.id] = {idle: sources.portrait, battleIdle: sources.idle, attack: sources.idle, leap: sources.idle};
+const hit = frostTiming.leadIn + frostTiming.contact;
+const end = frostTiming.leadIn + timing.attackDuration + frostTiming.returnFade;
+const running = new Map(), casts = new WeakMap();
+let images;
+async function load(src) {
+  const image = new Image();
+  image.src = src;
+  await image.decode();
+  return image;
+}
+const ready = Promise.all([...sources.sheets, sources.lance, sources.realm].map(load))
+  .then(items => {
+    const realm = items.pop(), lance = items.pop();
+    images = {sheets: items, lance, realm};
+    return true;
+  }, () => false);
+
+const engineSkill = window.doSkill;
+window.doSkill = function(from, side, other, index) {
+  const actor = active(side), move = actor?.moves?.[index];
+  if (actor?.def?.id !== pet.id || !move || move.cat === '变化') return engineSkill.apply(this, arguments);
+  const owner = S, to = other === owner.foe ? 'foe' : 'me', start = owner.fx.length;
+  const cast = {owner, from, to, actor, target: active(other), logStart: owner.log.length,
+    sourceHud: BattleSpriteGeometry.snapshotHud(from), targetHud: BattleSpriteGeometry.snapshotHud(to)};
+  const result = engineSkill.apply(this, arguments);
+  cast.frames = owner.fx.slice(start);
+  cast.launch = cast.frames.find(f => f.lunge === from || (f.atkfx && f.from === from));
+  if (cast.launch) {
+    const landed = cast.frames.find(f => f.on === to && f.landed === true);
+    cast.firstLanded = landed ? (landed.delay || 0) : null;
+    casts.set(cast.launch, cast);
+  }
+  return result;
+};
+function queued(frames) {
+  if (!images || !frames?.length || frames.some(f => f.captainApproach || f.captainReply)) return;
+  for (const f of frames) {
+    const cast = casts.get(f);
+    if (cast?.owner === S) return cast;
+  }
+}
+function fitRealm(canvas, image, width, height) {
+  if (canvas.width === width && canvas.height === height) return;
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const iw = image.naturalWidth, ih = image.naturalHeight;
+  const scale = Math.min(width / iw, height / ih);
+  const vertical = width / height < iw / ih;
+  const fitted = (vertical ? ih : iw) * scale;
+  const extent = vertical ? height : width;
+  // Distribute surplus space smoothly through the outer sky, water or cliffs.
+  // The whole image is sampled once, with the central horizon close to its native scale.
+  const bands = 64;
+  let start = 0;
+  for (let i = 0; i < bands; i++) {
+    const p = (i + 1) / bands;
+    const weight = .2 * p + .8 * (.5 + 4 * (p - .5) ** 3);
+    const next = Math.round(fitted * p + (extent - fitted) * weight);
+    if (vertical) {
+      ctx.drawImage(image, 0, ih * i / bands, iw, ih / bands, 0, start, width, next - start);
+    } else {
+      ctx.drawImage(image, iw * i / bands, 0, iw / bands, ih, start, 0, next - start, height);
+    }
+    start = next;
+  }
+  const shade = ctx.createLinearGradient(0, 0, 0, height);
+  shade.addColorStop(0, 'rgba(8,24,43,.50)');
+  shade.addColorStop(.5, 'rgba(10,33,54,.12)');
+  shade.addColorStop(1, 'rgba(6,20,35,.38)');
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, width, height);
+}
+function animate(cast) {
+  const {owner, from, to, actor, target} = cast, dir = from === 'me' ? 1 : -1;
+  const figure = side => document.getElementById('fig_' + side);
+  if (!figure(from)?.querySelector('.artimg') || !figure(to)?.querySelector('.art')) return false;
+  const layer = document.createElement('canvas'), g = layer.getContext('2d');
+  if (!g) return false;
+  running.get(from)?.();
+  layer.className = 'shuangji-wingbeat';
+  layer.setAttribute('aria-hidden','true');
+  document.body.appendChild(layer);
+  const effects = localStorage.getItem('lingchong_fxpro_mode') !== 'off';
+  const realm = document.createElement('canvas');
+  realm.className = 'shuangji-realm';
+  realm.setAttribute('aria-hidden','true');
+  realm.width = 0;
+  if (effects) document.body.appendChild(realm);
+  const started = performance.now();
+  let raf, stopped = false, body, visibility, paintedHit = false;
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    cancelAnimationFrame(raf);
+    if (body) body.style.visibility = visibility;
+    layer.remove(); realm.remove(); running.delete(from);
+  }
+  function paint(age) {
+    if (stopped) return false;
+    if (paintedHit) age = Math.max(age,hit);
+    const stage = document.getElementById('stage'), victim = figure(to), im = figure(from)?.querySelector('.artimg');
+    if (owner !== S || owner.cancelled || active(owner[from]) !== actor || active(owner[to]) !== target ||
+        !im || !victim || !stage || age >= end) { stop(); return false; }
+    const home = BattleSpriteGeometry.contain(im), box = layer.getBoundingClientRect();
+    if (!home.width || !home.height || !box.width || !box.height) return true;
+    if (body !== im) {
+      if (body) body.style.visibility = visibility;
+      body = im; visibility = im.style.visibility;
+    }
+    const arena = stage.getBoundingClientRect(), time = age - frostTiming.leadIn;
+    const dpr = Math.min(2,devicePixelRatio || 1);
+    const pw = Math.round(box.width*dpr), ph = Math.round(box.height*dpr);
+    if (effects) {
+      fitRealm(realm, images.realm, pw, ph);
+      realm.style.opacity = frostEase(age / frostTiming.fadeIn) *
+        (1-frostEase((time - timing.attackDuration) / frostTiming.returnFade));
+    }
+    if (layer.width !== pw || layer.height !== ph) { layer.width = pw; layer.height = ph; }
+    g.setTransform(pw/box.width,0,0,ph/box.height,0,0);
+    g.clearRect(0,0,box.width,box.height);
+    const [left,top,right,bottom] = timing.idleBox, [w,h] = timing.designSize;
+    const sx = home.width/(right-left), sy = home.height/(bottom-top);
+    g.save();
+    g.translate((dir>0 ? home.left : home.left+home.width)-box.left,home.top-box.top);
+    g.scale(dir,1);
+    drawWingArray(g,images.sheets,timing.track,time,-left*sx,-top*sy,w*sx,h*sy);
+    g.restore();
+    body.style.visibility = 'hidden';
+    paintedHit = age >= hit;
+    layer.dataset.pose = String(timing.track.keys.reduce((n,t) => n + Number(t <= time),0) || 1);
+    if (effects && cast.firstLanded !== null) {
+      const spot = BattleSpriteGeometry.targetPoint(victim);
+      const size = Math.min(1.08,Math.max(.46,home.height/170),Math.max(.48,arena.height/265));
+      // The first tip belongs on the defender. On an edge slot, wrap the
+      // subsequent punctures back across its side rather than past the screen.
+      const ahead = dir>0 ? arena.right-spot.x : spot.x-arena.left;
+      const shift = Math.max(0, frostLances[frostLances.length-1].x-(ahead-14)/size);
+      const layout = shift ? frostLances.map((s,i) => i ? {...s,x:s.x-shift} : s) : frostLances;
+      g.save();
+      g.beginPath();g.rect(arena.left-box.left,arena.top-box.top,arena.width,arena.height);g.clip();
+      g.translate(spot.x-box.left,spot.y-box.top);g.scale(dir,1);
+      drawDecree(g,images.lance,time-cast.firstLanded,0,0,size,layout);
+      g.restore();
+    }
+    return true;
+  }
+  function tick(now) { if (paint(now-started)) raf = requestAnimationFrame(tick); }
+  running.set(from,stop);
+  if (!paint(0)) return false;
+  raf = requestAnimationFrame(tick);
+  battleLater(() => { if (!paintedHit) paint(hit); },hit);
+  return true;
+}
+const enginePlay = window.playFx;
+window.playFx = function() {
+  const cast = queued(S?.fx);
+  if (cast && animate(cast)) {
+    cast.launch.customLaunch = true;
+    for (const f of cast.frames) {
+      if (f.captainAt == null) f.frostImpactAt = hit+(f.delay || 0);
+      if (f.on === cast.to && f.landed != null) f.customImpact = true;
+    }
+    const log = document.getElementById('log');
+    if (log && cast.owner.log.length > cast.logStart) {
+      log.innerHTML = cast.owner.log.slice(0,cast.logStart).join('<br>');
+      log.scrollTop = log.scrollHeight;
+      battleLater(() => { if (log.isConnected) flushLog(); },hit);
+    }
+    BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.from,target:cast.actor,previousHUD:cast.sourceHud},hit);
+    BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.to,target:cast.target,previousHUD:cast.targetHud},hit);
+  }
+  return enginePlay.apply(this,arguments);
+};
+window.ShuangjiMotion = {
+  ready,
+  clear() { for (const stop of running.values()) stop(); },
+  queueEnd(frames) {
+    const cast = queued(frames);
+    return cast ? Math.max(end,hit+Math.max(0,...cast.frames.map(f=>f.delay||0))+240) : 0;
+  }
+};
+
+})();
+</script>
+
+
