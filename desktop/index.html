@@ -415,7 +415,7 @@ function petPool(pet){ const tys=Array.isArray(pet.type)?pet.type:[pet.type];
   pool=pool.concat((pet.own||pet.skills||[]).map(s=>Object.assign({},s,{type:s.type||tys[0]})));
   pool=pet.poolEveryType?pool:dedupePool(pool,tys);
   // 后置公共天气，保留已有配招存档的技能索引。
-  if(tys.includes('水') || pet.poolEveryType) pool.push({
+  if((tys.includes('水') || pet.poolEveryType) && !pool.some(s=>s.weather&&s.weather.id==='yin')) pool.push({
     name:'阴雨',type:'水',cat:'变化',power:0,pp:4,weather:{id:'yin',turns:5},
     desc:'通用天气 · 铺展5回合【阴雨】：水系伤害+25%，火系伤害−25%'
   });
@@ -642,7 +642,7 @@ PETS.push({id:'tianci',name:'疾械天泚',type:['机械','水'],emoji:'🤖',ar
     {name:'瀚闸涌泄',star:1,cat:'物理',power:95,pp:3,spd:11,type:'水',tidal:{turns:3,dmg:25},desc:'专属 · 先手+3 · 95威力水系物理；命中后铺展3回合【涌潮场域】：敌方每回合速度衰减并受25威力伤害；场域内自身机械技能命中时回复随机技能PP'},
     {name:'枢核溃震',star:1,cat:'物理',power:30,pp:3,type:'机械',consumeAll:{per:25},shieldBreak:{heal:0.4},desc:'专属 · 30威力机械物理；消耗全部充能，每层+25威力；命中震碎对手护盾，若对手无护盾则回复自身已损生命的40%'},
     {name:'沉甲潜航',star:1,cat:'变化',power:0,pp:4,spd:10,type:'水',backGuard:{mul:0.4,heal:0.18},desc:'专属 · 先手+2 · 本回合受到的对手后手伤害-60%；成功抵挡则回复18%生命并获得1层充能'},
-    {name:'雨天',cat:'变化',power:0,pp:4,type:'水',weather:{id:'rainy',turns:4},desc:'天气 · 铺展4回合【雨天】：水系+25%，火系-20%'}
+    {name:'阴雨',cat:'变化',power:0,pp:4,type:'水',weather:{id:'yin',turns:5},desc:'天气 · 铺展5回合【阴雨】：水系伤害 +25%，火系伤害 −25%'}
   ]});
 
 PETS.push({id:'mingting',name:'冥霆阊劫',type:['电','暗'],emoji:'🌩️',art:'mingting',passive:{nonSeDR:0.15},base:{hp:96,atk:50,def:66,spa:100,spd:74,spe:90},own:[
@@ -1084,14 +1084,11 @@ const CRIT=0.05, CRIT_MUL=2;   // 基础 5% 暴击，暴击 ×2（克制×2 + �
 /* ================= 天气系统框架 =================
    数据驱动：在 WEATHERS 里加条目即可；技能用 skill.weather={id,turns} 触发。
    天气是全局唯一（S.weather），不是场域那种分侧。
-   当前 8 种天气为阿琳 2026-10-20 19:26 定的正式表。 */
+   当前 16 种天气（2026-11-22：雨天并入阴雨，统一按水+25%/火-25%）。 */
 const WEATHERS={
   sunny:{id:'sunny',name:'晴天',emoji:'☀️',color:'#f0b24a',turns:5,
     powerMul:{火:1.25,水:0.8},
     desc:'火系伤害 +25%，水系 -20%'},
-  rainy:{id:'rainy',name:'雨天',emoji:'🌧️',color:'#5aa9e6',turns:5,
-    powerMul:{水:1.25,火:0.8},
-    desc:'水系伤害 +25%，火系 -20%'},
   sand:{id:'sand',name:'沙暴',emoji:'🌪️',color:'#c9a45c',turns:5,
     powerMul:{石:1.25},
     dot:{type:'石',pct:0.04,immune:['石']},
@@ -1157,6 +1154,7 @@ function setWeather(id,turns,src){
   }
   if(S.weather) resetWeatherPetState();
   S.weather={id:id,turns:t,src:src||'',protect:0};
+  window.BattleWeatherLandscape?.sync();
   logLine(`　↳ ${w.emoji} 天气变为【${w.name}】（${t} 回合）：${w.desc||''}`);
   return true;
 }
@@ -1169,6 +1167,7 @@ function clearWeather(){
   }
   const w=WEATHERS[S.weather.id];
   resetWeatherPetState(); S.weather=null;
+  window.BattleWeatherLandscape?.sync();
   logLine(`　↳ 🌤 天气结束${w?'（'+w.name+'）':''}，恢复为无天气。`);
   return true;
 }
@@ -1201,7 +1200,7 @@ function weatherTickSide(sd,od,w){
 }
 function resolveWeather(){
   if(!S||!S.weather) return;
-  const w=WEATHERS[S.weather.id]; if(!w){ S.weather=null; return; }
+  const w=WEATHERS[S.weather.id]; if(!w){ S.weather=null; window.BattleWeatherLandscape?.sync(); return; }
   weatherTickSide(S.me,S.foe,w); weatherTickSide(S.foe,S.me,w);
   if(w.dotAll&&(w.dotAll.pct||0)>0){
     [S.me,S.foe].forEach(function(sd){
@@ -1230,7 +1229,7 @@ function resolveWeather(){
   }
   if(S.weather.protect>0){ S.weather.protect--; if(S.weather.protect===0) logLine(`　↳ 🔓 【${w.name}】的天气锁定解除。`); }
   S.weather.turns--;
-  if(S.weather.turns<=0){ resetWeatherPetState(); logLine(`　↳ ${w.emoji} 【${w.name}】结束，天气恢复为无。`); S.weather=null; }
+  if(S.weather.turns<=0){ resetWeatherPetState(); logLine(`　↳ ${w.emoji} 【${w.name}】结束，天气恢复为无。`); S.weather=null; window.BattleWeatherLandscape?.sync(); }
 }
 function typeHas(t,ty){ return (Array.isArray(t)?t:[t]).indexOf(ty)>=0; }
 function grassBuffLevels(side){
@@ -1325,6 +1324,8 @@ function cancelBattle(){
   window.ChiyinMotion?.clear();
   window.LuefengMotion?.clear();
   window.ShuangjiMotion?.clear();
+  window.KuirongMotion?.clear();
+  window.BattleWeatherLandscape?.sync();
   if(window.ElementFX)ElementFX.clear();
   if(typeof WeatherStoatMotion!=='undefined')WeatherStoatMotion.clear();
   if(typeof SealFrameMotion!=='undefined')SealFrameMotion.clear();
@@ -2023,7 +2024,7 @@ function stepTurn(){
     clearCd();
     CaptainSeal.execute(st);
     const lastImpact=S.fx.reduce((last,f)=>Math.max(last,f.captainAt||0),0);
-    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0,window.MilafengMotion?.queueEnd(S.fx)||0,window.ChiyinMotion?.queueEnd(S.fx)||0,window.LuefengMotion?.queueEnd(S.fx)||0,window.ShuangjiMotion?.queueEnd(S.fx)||0);
+    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0,window.MilafengMotion?.queueEnd(S.fx)||0,window.ChiyinMotion?.queueEnd(S.fx)||0,window.LuefengMotion?.queueEnd(S.fx)||0,window.ShuangjiMotion?.queueEnd(S.fx)||0,window.KuirongMotion?.queueEnd(S.fx)||0);
     const next=S.queue[S.qi];
     const gateApproach=S.fx.find(f=>f.captainApproach?.kind==='gate')?.captainApproach;
     const nextIsGate=next?.a.kind==='skill' && active(next.side).moves[next.a.i]?.captainGate &&
@@ -3352,6 +3353,7 @@ function fxLayer(id,z){
 }
 function impactDelay(frame,frames){
   if(frame.captainAt!=null) return frame.captainAt;
+  if(frame.huaiImpactAt!=null) return frame.huaiImpactAt;
   if(frame.frostImpactAt!=null) return frame.frostImpactAt;
   if(frame.falconImpactAt!=null) return frame.falconImpactAt;
   if(frame.beeImpactAt!=null) return frame.beeImpactAt;
@@ -3385,10 +3387,10 @@ function playFx(){
     if(f.bside){
       const recipient=active(S[f.bside]);
       const show=()=>{if(active(S[f.bside])===recipient){spawnBuffFx(f.bside,f.k,f.lv,f.dir);SFX[f.dir==='down'?'debuff':'buff']()}};
-      if(f.falconImpactAt!=null||f.frostImpactAt!=null)battleLater(show,delay);else show();
+      if(f.falconImpactAt!=null||f.frostImpactAt!=null||f.huaiImpactAt!=null)battleLater(show,delay);else show();
     }
     // 受击反馈：抖动 + 变红（命中瞬间）
-    if(f.on&&f.shake && parseFloat(f.txt)!==0){ const recipient=(f.beeImpactAt!=null||f.clawImpactAt!=null||f.falconImpactAt!=null||f.frostImpactAt!=null)?active(S[f.on]):null;
+    if(f.on&&f.shake && parseFloat(f.txt)!==0){ const recipient=(f.beeImpactAt!=null||f.clawImpactAt!=null||f.falconImpactAt!=null||f.frostImpactAt!=null||f.huaiImpactAt!=null)?active(S[f.on]):null;
       battleLater(()=>{ if(recipient && active(S[f.on])!==recipient)return;
       const el=$('#fig_'+f.on); if(!el)return;
       const image=el.querySelector('.artimg')||el.querySelector('.art');
@@ -6092,7 +6094,7 @@ renderMode();
     b.onmouseleave = function () { b.style.opacity = .35; b.style.color = '#8fa0c0'; b.style.background = 'rgba(20,29,48,.62)'; };
     b.onclick = function () {
       MODE = MODE === 'high' ? 'mid' : MODE === 'mid' ? 'off' : 'high';
-      localStorage.setItem(LS, MODE);
+      localStorage.setItem(LS, MODE); window.BattleWeatherLandscape?.settingsChanged();
       b.textContent = LAB[MODE];
       if (MODE === 'off') parts.length = 0;wakeLoop();
     };
@@ -6102,7 +6104,7 @@ renderMode();
   /* 调试/截图用的小接口（不影响游戏） */
   window.FXPRO = {
     burst: burst, heal: healFx, parts: parts, petBox: petBox, pal: pal,
-    setMode: function (m) { MODE = m; localStorage.setItem(LS, m);wakeLoop(); var c = document.getElementById('fxproChip'); if (c) c.textContent = { high: '✨ 特效 强', mid: '✨ 特效 中', off: '✨ 特效 关' }[m]; },
+    setMode: function (m) { MODE = m; localStorage.setItem(LS, m); window.BattleWeatherLandscape?.settingsChanged(); wakeLoop(); var c = document.getElementById('fxproChip'); if (c) c.textContent = { high: '✨ 特效 强', mid: '✨ 特效 中', off: '✨ 特效 关' }[m]; },
     slash: screenSlash, mark: markBig, detect: detectBig,
     pause: function () { manualPause=true;stopLoop(); },
     running: function(){return running;},
@@ -8037,7 +8039,7 @@ renderMode();
       ] },
     /* 天衍月：暗 ——「月相 / 月链」机制 + 血月天气（实装在文件末尾 tianyan-src 层） */
     { id: 'tianyan', name: '天衍月', type: ['光', '暗'], emoji: '🌙',
-      passive: { moonPhase: true },     // 处于月链时：攻击附带30%吸血、免疫异常状态
+      passive: { moonPhase: true },     // 攻击附带20%吸血（不含固定伤害）；处于月链时免疫异常状态
       base: { hp: 101, atk: 32, def: 85, spa: 110, spd: 88, spe: 61 },   // 合计 477
       own: [
         { name: '朔月·涤尘', star: 1, cat: '变化', power: 0, pp: 4, type: '暗', spd: 15,
@@ -11249,7 +11251,13 @@ window.__SWITCHUI_INFO=function(){
         var p = actOf(side);
         var n = p && p.marks ? (p.marks.soulMark | 0) : 0;
         if (n > 0 && typeof html === 'string' && html.indexOf('灵魂印记') < 0) {
-          html += ' <span class="st dn">🩸灵魂印记·' + n + '</span>';
+          var chip = (window.__BB ? window.__BB.chip({
+            name: '灵魂印记', cat: 'debuff', n: n,
+            bg: 'rgba(150,40,60,.28)', fg: '#ffc9d4', bd: 'rgba(255,120,150,.60)',
+            title: '减益烙印 · 灵魂印记 · ' + n + ' 层'
+          }) : '');
+          if (chip && html.indexOf('<div class="strow">') >= 0) html = html.replace('<div class="strow">', '<div class="strow">' + chip);
+          else html += chip;
         }
       } catch (e) { }
       return html;
@@ -11706,8 +11714,12 @@ window.__SWITCHUI_INFO=function(){
   function bubbleHTML(p) {
     var out = '';
     list(p).forEach(function (x) {
-      out += '<span class="st" style="background:linear-gradient(135deg,#b06bff,#7c3aed);color:#fff;border:1px solid #d8b4fe;border-radius:999px;padding:0 7px;margin-right:3px;box-shadow:0 0 7px rgba(168,85,247,.75);text-shadow:0 1px 1px rgba(0,0,0,.35)">' +
-        x.def.icon + ' ' + x.def.name + '×' + x.n + '</span>';
+      var d = x.def || {};
+      out += (window.__BB ? window.__BB.chip({
+        key: d.key, name: d.name, cat: 'debuff', n: x.n,
+        bg: 'linear-gradient(135deg,#b06bff,#7c3aed)', fg: '#fff', bd: '#d8b4fe',
+        title: '减益烙印 · ' + d.name
+      }) : ('<span class="st dn">' + d.icon + ' ' + d.name + '×' + x.n + '</span>'));
     });
     return out;
   }
@@ -13436,7 +13448,7 @@ window.__SWITCHUI_INFO=function(){
     WEATHERS['yin'] = {
       id: 'yin', name: '阴雨', emoji: '🌧️', color: '#3f8fc4', turns: TIDE_TURNS,
       powerMul: { 水: 1.25, 火: 0.75 },
-      desc: '水系伤害 +25%，火系伤害 -25%（潮汐狸召唤的独立天气）'
+      desc: '水系伤害 +25%，火系伤害 -25%'
     };
   } catch (e) { ANCHERR(e); }
   function yinOn() { return !!(ok() && S.weather && S.weather.id === 'yin'); }
@@ -18940,7 +18952,8 @@ const RiftDragonMotion=(()=>{
   var WID = 'bloodmoon';
   var CHAIN_DMG = 100;      // 月链每回合固定伤害
   var CHAIN_MAX = 4;
-  var LIFESTEAL = 0.3;
+  var MOON_DRAIN = 0.2;     // 月相被动：攻击附带20%吸血（不含固定伤害）
+  var BLOOD_DRAIN = 0.3;    // 血月天气：暗系攻击30%吸血
   var DR = 0.25;
   var STATUS_NAMES = { burn: '灼烧', par: '麻痹', frz: '冻结', bind: '束缚', fear: '恐惧', root: '锁足' };
   var STATUS_KEYS = ['burn', 'par', 'frz', 'bind', 'fear', 'root'];
@@ -19057,15 +19070,16 @@ const RiftDragonMotion=(()=>{
       log('　↳ 🌙 <b>月链</b>成形：' + A.name + ' 之后 ' + turns + ' 次出招收招时各连带 ' + CHAIN_DMG + ' 点固定伤害。');
     }
 
-    /* 4.3 吸血：月相（连锁中30%）+ 血月（暗系30%），两者都满足时叠加 */
+    /* 4.3 吸血：月相被动（20%，不含固定伤害）+ 血月（暗系30%），两者都满足时叠加。
+       dealt 只统计 capDmg 捕获的直接伤害；月链/清算等固定伤害走 dealFixed，不计入。 */
     var rate = 0, tags = [];
-    if (chained(A)) { rate += LIFESTEAL; tags.push('月相'); }
-    if (bloodOn() && isDark(A)) { rate += LIFESTEAL; tags.push('血月'); }
+    if (isMoon(A)) { rate += MOON_DRAIN; tags.push('月相'); }
+    if (bloodOn() && isDark(A)) { rate += BLOOD_DRAIN; tags.push('血月'); }
     if (rate > 0 && dealt > 0 && !A.fainted) {
       var hm = (typeof healMul === 'function') ? healMul(A) : 1;
       var heal = Math.round(dealt * rate * hm);
       if (heal > 0) {
-        log('　↳ 🌙 <b>' + tags.join(' + ') + '</b>：' + A.name + ' 造成 ' + dealt + ' 点伤害，按 ' + Math.round(rate * 100) + '% 吸血。');
+        log('　↳ 🌙 <b>' + tags.join(' + ') + '</b>：' + A.name + ' 造成 ' + dealt + ' 点伤害，按 ' + Math.round(rate * 100) + '% 吸血（固定伤害不计）。');
         healPet(A, heal, sideKey);
       }
     }
@@ -19189,7 +19203,7 @@ const RiftDragonMotion=(()=>{
       window.passiveDesc = function (pet) {
         try {
           if (pet && pet.passive && pet.passive.moonPhase) {
-            return '处于【月链】时：攻击附带30%吸血，且免疫异常状态（灼烧/麻痹/冻结/束缚/恐惧/锁足）';
+            return '攻击附带20%吸血（不含固定伤害）；处于【月链】时免疫异常状态（灼烧/麻痹/冻结/束缚/恐惧/锁足）';
           }
         } catch (e) { }
         return _pd.apply(this, arguments);
@@ -19206,6 +19220,7 @@ const RiftDragonMotion=(()=>{
       pet: p ? p.name : 'MISSING',
       weather: !!((typeof WEATHERS !== 'undefined') && WEATHERS && WEATHERS[WID]),
       bloodOn: bloodOn(),
+      moonDrain: MOON_DRAIN, bloodDrain: BLOOD_DRAIN,
       hooks: {
         doSkill: !!window.__TY_SKILL, capDmg: !!window.__TY_CAP, calcDamage: !!window.__TY_CALC,
         applyStatus: !!window.__TY_STATUS, onEnter: !!window.__TY_ENTER, bars: !!window.__TY_BARS
@@ -19698,8 +19713,18 @@ window.ChenzhouMotion={cast,frames,durations,release,flight,hit,total,ready:Prom
           var mk = side && side.xjMarks;
           if (mk && (mk.xuxi || mk.huxing) && typeof out === 'string') {
             var chips = '';
-            if (mk.xuxi) chips += '<span class="st up">🌿 续息印' + (mk.xuxi.reserved ? '·托愿' : '') + '</span>';
-            if (mk.huxing) chips += '<span class="st up">🧿 护行印' + (mk.huxing.reserved ? '·托愿' : '') + '</span>';
+            if (mk.xuxi) chips += (window.__BB ? window.__BB.chip({
+              name: MARKS.xuxi.name, cat: 'uses',
+              note: mk.xuxi.reserved ? '托愿' : '',
+              bg: 'rgba(60,160,110,.25)', fg: '#b8f5cf', bd: 'rgba(100,220,160,.60)',
+              title: '次数烙印 · 续息印'
+            }) : '');
+            if (mk.huxing) chips += (window.__BB ? window.__BB.chip({
+              name: MARKS.huxing.name, cat: 'uses',
+              note: mk.huxing.reserved ? '托愿' : '',
+              bg: 'rgba(60,160,110,.25)', fg: '#b8f5cf', bd: 'rgba(100,220,160,.60)',
+              title: '次数烙印 · 护行印'
+            }) : '');
             out = out.replace('<div class="strow">', '<div class="strow">' + chips);
           }
         } catch (e) { }
@@ -21792,9 +21817,10 @@ function drawFallingFlames(ctx, point, progress, scale, reduced) {
     KEYS.forEach(function (k) {
       var n = stacks(side, k); if (!n) return;
       var bd = DEFS[k];
-      out += '<span class="st" style="background:' + bd.bg + ';color:' + bd.fg + ';border:1px solid ' + bd.bd +
-        ';border-radius:999px;padding:0 7px;margin-right:3px;box-shadow:0 0 6px rgba(255,150,190,.45)">' +
-        bd.icon + ' ' + bd.short + '×' + n + '</span>';
+      out += (window.__BB ? window.__BB.chip({
+        key: k, name: bd.name, cat: 'attr', n: n,
+        bg: bd.bg, fg: bd.fg, bd: bd.bd, title: '属性烙印 · ' + bd.name
+      }) : '');
     });
     return out;
   }
@@ -22285,6 +22311,7 @@ function drawFallingFlames(ctx, point, progress, scale, reduced) {
     key: 'atk',
     name: '攻击烙印',
     short: '攻击印',
+    icon: '⚔️',
     mods: { finalDmg: 0.075 },
     bg: 'rgba(196,58,48,.20)', fg: '#ffd6cc', bd: 'rgba(255,120,96,.55)',
     extraLabel: '后发铭刻',
@@ -22306,6 +22333,7 @@ function drawFallingFlames(ctx, point, progress, scale, reduced) {
     key: 'spd',
     name: '极速烙印',
     short: '极速印',
+    icon: '💨',
     mods: { speedLevel: 1 },
     bg: 'rgba(64,158,178,.20)', fg: '#d2f6ff', bd: 'rgba(112,220,240,.55)',
     /* 有威力的攻击技能：额外威力 =（本次技能实际先手值 − 8）× 层数 × 15 */
@@ -22435,10 +22463,13 @@ function drawFallingFlames(ctx, point, progress, scale, reduced) {
           var sd = side || ((sideKey === 'me') ? S.me : S.foe);
           var tags = '';
           each(sd, function (k, n, d) {
-            tags += '<span class="st" style="background:' + (d.bg || 'rgba(196,58,48,.20)') +
-              ';color:' + (d.fg || '#ffd6cc') +
-              ';border:1px solid ' + (d.bd || 'rgba(255,120,96,.55)') +
-              ';border-radius:999px;padding:0 7px;margin-right:3px">' + d.name + '×' + n + '</span>';
+            tags += (window.__BB ? window.__BB.chip({
+              key: k, name: d.name, cat: 'buff', n: n,
+              bg: (d.bg || 'rgba(196,58,48,.20)'),
+              fg: (d.fg || '#ffd6cc'),
+              bd: (d.bd || 'rgba(255,120,96,.55)'),
+              title: '增益烙印 · ' + d.name
+            }) : '');
           });
           if (tags) out = out.replace('<div class="strow">',
             '<div class="brandrow" style="margin:3px 0 1px">' + tags + '</div><div class="strow">');
@@ -23382,9 +23413,11 @@ function createFalconAttack(atlas,claw){
       try {
         var tags = '';
         var n = iceStacks(side);
-        if (n > 0) tags += '<span class="st" style="background:linear-gradient(135deg,#dff6ff,#8dd6ff);color:#06293d;' +
-          'border:1px solid #eafaff;border-radius:999px;padding:0 7px;margin-right:3px;box-shadow:0 0 6px rgba(120,215,255,.45)">' +
-          '❄️ 寒霜印×' + n + '</span>';
+        if (n > 0) tags += (window.__BB ? window.__BB.chip({
+          name: '寒霜印', cat: 'attr', n: n,
+          bg: 'linear-gradient(135deg,#dff6ff,#8dd6ff)', fg: '#06293d', bd: '#eafaff',
+          title: '属性烙印 · 冰系 · 寒霜印'
+        }) : '');
         var p = side && side.team ? side.team[side.active] : null;
         if (p && isOn(p)) tags += '<span class="st up" style="background:linear-gradient(135deg,#c9ecff,#86cbff);color:#04283a;' +
           'border:1px solid #e8fbff;border-radius:999px;padding:0 7px;margin-right:3px">❄ 风霜龙息</span>';
@@ -23847,4 +23880,1819 @@ window.ShuangjiMotion = {
 })();
 </script>
 
+
+
+<style id="battle-weather-landscapes-css">.weather-landscapes{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;opacity:0;transition:opacity .85s ease-in-out}
+.weather-landscapes.visible{opacity:.86}
+.weather-scene.on{opacity:1}
+.weather-scene,.weather-scene canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.weather-scene{opacity:0;transition:opacity .85s ease-in-out}
+.weather-scene::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,18,32,.43),rgba(12,18,32,.17) 32%,rgba(12,18,32,.07) 64%,rgba(12,18,32,.23))}
+.weather-landscapes.still,.weather-landscapes.still .weather-scene{transition:none}
+.weather-landscapes.still .weather-scene canvas:nth-child(2){visibility:hidden}
+@media(prefers-reduced-motion:reduce){.weather-landscapes,.weather-scene{transition:none}}
+</style>
+<script id="battle-weather-landscapes">
+(()=>{
+  const art={"bloodmoon":"media/0a9e4d1b894c022733d5a8e5.webp","dawn":"media/d3c289ebfb2865df10863490.webp","electric":"media/5215161d1fdb00f298eebb4b.webp","frost":"media/4ad79c64abf2e807a0abb999.webp","gale":"media/bc08d792aadc06b9485fdc50.webp","mist":"media/ad349a2610bbc71839fb48f6.webp","moe":"media/f51dfb654f64f658f5e0f7c4.webp","moyu":"media/f9cb4b11fd693f39b0dbf425.webp","nebula":"media/efc10685b09010e431f2bf03.webp","poison":"media/7361ca1637ffabbe528418db.webp","reverse":"media/c0017f151eeb5d3e52b32eb2.webp","sand":"media/69bb5b5f16369283cbd81c7d.webp","snow":"media/db2e21f56b8da7616beb0132.webp","starlight":"media/2ccf00f81ecd2048f4432d81.webp","sunny":"media/49c59e553a8e7b4bfeeb8a63.webp","yin":"media/7c6e94d5479926f60b4b276e.webp"};
+  function noiseTile(seed, colour) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const pixels = ctx.createImageData(canvas.width, canvas.height);
+    function hash(x,y) {
+      const h = Math.sin(x * 48.13 + y * 17.19 + seed * 53.73) * 43215.7;
+      return h - Math.floor(h);
+    }
+    function sample(x,y,n,m) {
+      const px = x*n, py = y*m, a = Math.floor(px), b = Math.floor(py);
+      const smooth = t => t*t*(3-2*t);
+      const u = smooth(px-a), v = smooth(py-b);
+      const top = hash(a%n,b)*(1-u) + hash((a+1)%n,b)*u;
+      const low = hash(a%n,b+1)*(1-u) + hash((a+1)%n,b+1)*u;
+      return top*(1-v) + low*v;
+    }
+
+    for(let y=0;y<128;y++) for(let x=0;x<512;x++) {
+      const u=x/512, v=y/128;
+      const val=.54*sample(u,v,7,3)+.29*sample(u,v,17,7)+.17*sample(u,v,43,14);
+      const envelope=Math.sin(Math.PI*v)**1.7;
+      const i=(y*512+x)*4;
+      pixels.data[i]=colour[0]; pixels.data[i+1]=colour[1]; pixels.data[i+2]=colour[2];
+      pixels.data[i+3]=255*Math.max(0,Math.min(1,(val-.26)*1.85))*envelope;
+    }
+    ctx.putImageData(pixels,0,0);
+    return canvas;
+  }
+  function drift(ctx,tile,y,h,width,offset,alpha) {
+    ctx.globalAlpha=alpha;
+    const start=((offset%width)+width)%width-width;
+    for(let x=start;x<1;x+=width) ctx.drawImage(tile,x,y,width,h);
+  }
+  // Keep the centre, including the fighters' horizon, close to its native scale.
+  // Distribute extra space gradually toward the far edges without discarding any art.
+  function layout(scene,w,h) {
+    const iw=scene.image.naturalWidth, ih=scene.image.naturalHeight;
+    const vertical=w/h < iw/ih, extent=vertical?h:w;
+    const fitted=(vertical?ih:iw)*Math.min(w/iw,h/ih);
+    const portrait=vertical && w/h < .9;
+    function map(p) {
+      if(portrait)return ((extent-fitted)*.55 + p*fitted)/extent;
+      let weight=.18*p+.82*(.5+4*(p-.5)**3);
+      if(scene.id==='bloodmoon'){
+        // Keep the lunar disc circular on a portrait screen or an ultrawide display.
+        const near=vertical?.085:.32, far=vertical?.39:.83, share=vertical?.36:.62;
+        weight=share*(1-Math.max(0,1-p/near)**2)+(1-share)*Math.max(0,(p-far)/(1-far))**1.6;
+      }
+      return (fitted*p+(extent-fitted)*weight)/extent;
+    }
+    return {vertical,portrait,map,x:p=>vertical?p:map(p),y:p=>vertical?map(p):p};
+  }
+  function paintStill(scene,w,h) {
+    const {still,image}=scene, ctx=still.getContext('2d'), iw=image.naturalWidth, ih=image.naturalHeight;
+    const geometry=layout(scene,w,h);
+    still.width=w; still.height=h;
+    if(geometry.portrait) {
+      const top=Math.round(geometry.y(0)*h), bottom=Math.round(geometry.y(1)*h);
+      // Carry the actual boundary colours into the extra sky and ground, softening
+      // nearby detail quickly so branches and rock spires retain their painted shape.
+      const palette=styles[scene.id];
+      const paintMargin=(edge,far,sourceY,colour)=>{
+        const distance=Math.abs(far-edge), step=4;
+        ctx.fillStyle=colour;ctx.fillRect(0,Math.min(edge,far),w,distance);
+        for(let offset=0;offset<distance;offset+=step) {
+          const from=edge+Math.sign(far-edge)*offset;
+          const size=Math.min(step,distance-offset);
+          const reach=offset/Math.max(1,w*.24);
+          const blur=Math.min(w*.08,offset*.25);
+          ctx.globalAlpha=Math.exp(-reach*reach*1.65);
+          if(ctx.globalAlpha<.004) break;
+          ctx.filter=blur>1?'blur('+blur+'px)':'none';
+          ctx.save();ctx.beginPath();
+          const y=far<edge?from-size:from;
+          ctx.rect(0,y,w,size);ctx.clip();
+          ctx.drawImage(image,0,sourceY,iw,1,-blur*2,y-blur*3,w+blur*4,size+blur*6);
+          ctx.restore();
+        }
+        ctx.filter='none';ctx.globalAlpha=1;
+      };
+      paintMargin(top,0,0,palette.sky);
+      paintMargin(bottom,h,ih-1,palette.ground);
+      ctx.drawImage(image,0,top,w,bottom-top);scene.geometry=geometry;return;
+    }
+    const extent=geometry.vertical?h:w, slices=64;
+    for(let i=0;i<slices;i++) {
+      const a=Math.round(extent*geometry.map(i/slices)), b=Math.round(extent*geometry.map((i+1)/slices));
+      if(geometry.vertical) ctx.drawImage(image,0,ih*i/slices,iw,ih/slices,0,a,w,b-a);
+      else ctx.drawImage(image,iw*i/slices,0,iw/slices,ih,a,0,b-a,h);
+    }
+    scene.geometry=geometry;
+  }
+  const grains=Array.from({length:135},(_,i)=>{
+    const fract=x=>x-Math.floor(x), value=k=>fract(Math.sin(i*39.74+k*92.13)*23541.63);
+    return {x:value(1),y:value(2),z:value(3),speed:value(4),bend:value(5)*Math.PI*2};
+  });
+  function paintMotion(scene,t,w,h) {
+    const {motion,tile,geometry}=scene;
+    const ctx=motion.getContext('2d');
+    ctx.setTransform(w,0,0,h,0,0);
+    ctx.clearRect(0,0,1,1);
+    if(scene.id==='sand') {
+      const gust=.68+.29*Math.sin(t*1.03)+.13*Math.sin(t*2.06+.5);
+      drift(ctx,tile,geometry.y(.09),geometry.y(.42)-geometry.y(.09),1.10,t*.023,.18*gust);
+      drift(ctx,tile,geometry.y(.43),.16,1.05,t*.031,.32);
+      drift(ctx,tile,geometry.y(.64),.17,.75,t*.095,.43*gust);
+      drift(ctx,tile,geometry.y(.78),.18,.80,t*.13,.35*gust);
+      ctx.strokeStyle='#ffe3a2';
+      ctx.beginPath();
+      for(const p of grains) {
+        const x=(p.x+t*(.096+.12*p.speed)*(1+p.z))%1.08-.04;
+        const y=geometry.y(.32+.67*p.y)+.014*Math.sin(t*1.4+p.bend+7*x);
+        const length=(.0012+.006*p.z)*gust;
+        ctx.moveTo(x,y);ctx.lineTo(x+length,y-.15*length);
+      }
+      ctx.lineWidth=.0011;ctx.globalAlpha=.58;ctx.stroke();
+    } else if(scene.id==='bloodmoon'){
+      drift(ctx,tile,geometry.y(.10),geometry.y(.38)-geometry.y(.10),.76,-t*.018,.74);
+      drift(ctx,tile,geometry.y(.53),.16,1.25,t*.012,.33);
+      const moon={x:.727,y:.232};
+      const cx=geometry.x(moon.x), cy=geometry.y(moon.y);
+      ctx.save();ctx.translate(cx,cy);ctx.scale(1,w/h);
+      const halo=ctx.createRadialGradient(0,0,0,0,0,.155);
+      halo.addColorStop(0,'rgba(255,87,80,.64)');halo.addColorStop(.5,'rgba(255,66,66,.30)');halo.addColorStop(1,'rgba(246,52,82,0)');
+      ctx.fillStyle=halo;ctx.globalAlpha=.18+.11*Math.sin(t*.81);ctx.fillRect(-.16,-.16,.32,.32);ctx.restore();
+      ctx.lineWidth=.0011;ctx.strokeStyle='#fba39a';
+      for(let i=0;i<23;i++) {
+        const p=grains[i], depth=p.y, span=.014+.045*depth;
+        const x=cx+(p.x-.5)*span*(1.8+depth), y=geometry.y(.598+.066*depth);
+        ctx.globalAlpha=(.06+.22*(.5+.5*Math.sin(t*(1+.3*p.z)+p.bend))**3);
+        ctx.beginPath();ctx.moveTo(x+.002*Math.sin(t+p.bend),y);ctx.lineTo(x+.005+.013*depth,y);ctx.stroke();
+      }
+    } else {
+      weatherPainters[scene.id](ctx,scene,t);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  const styles = {
+    sunny:    {sky:'#467c96',ground:'#7e623c',fog:[255,222,144]},
+    sand:     {sky:'#795534',ground:'#6c4b33',fog:[237,192,110]},
+    snow:     {sky:'#98b0cd',ground:'#94aabb',fog:[218,232,248]},
+    mist:     {sky:'#93a6a4',ground:'#4f6967',fog:[202,220,215]},
+    poison:   {sky:'#353454',ground:'#343b43',fog:[158,200,82]},
+    electric: {sky:'#273752',ground:'#333c49',fog:[92,101,158]},
+    starlight:{sky:'#152741',ground:'#28394b',fog:[169,175,220]},
+    reverse:  {sky:'#494566',ground:'#384652',fog:[177,147,205]},
+    gale:     {sky:'#568f92',ground:'#426252',fog:[203,226,194]},
+    dawn:     {sky:'#b598a4',ground:'#736775',fog:[255,209,167]},
+    moe:      {sky:'#ddb4c9',ground:'#797d70',fog:[255,210,222]},
+    frost:    {sky:'#354862',ground:'#223c50',fog:[149,210,235]},
+    nebula:   {sky:'#24233f',ground:'#3b354b',fog:[175,124,211]},
+    moyu:     {sky:'#262238',ground:'#2f2935',fog:[122,66,157]},
+    yin:      {sky:'#516272',ground:'#46565e',fog:[158,182,201]},
+    bloodmoon:{sky:'#1e1c30',ground:'#302934',fog:[27,22,47]}
+  };
+  const tau=2*Math.PI;
+  const fraction=n=>n-Math.floor(n);
+  const pulse=(t,period,center,width)=>Math.max(0,1-Math.abs(fraction(t/period)-center)/width);
+  function veil(c,s,t,top,bottom,velocity,alpha,span=1) {
+    const y=s.geometry.y;
+    drift(c,s.tile,y(top),y(bottom)-y(top),span,t*velocity,alpha);
+  }
+  function disc(c,x,y,rx,ry) {
+    c.beginPath();c.ellipse(x,y,rx,ry,0,0,tau);c.fill();
+  }
+  function luminousShafts(c,s,t,sunX,sunY,alpha,colour) {
+    const x=s.geometry.x(sunX), y=s.geometry.y(sunY);
+    const bottom=s.geometry.y(.89);
+    c.fillStyle=colour;
+    for(let i=0;i<4;i++){
+      const direction=(i-1.5)*.17+.026*Math.sin(t*.17+i);
+      const size=.022+.009*Math.sin(t*.32+i);
+      c.globalAlpha=alpha*(.55+.45*Math.sin(t*.48+i)**2);
+      c.beginPath();c.moveTo(x+(i-1.5)*.014,y);
+      c.lineTo(x+direction+size,bottom);c.lineTo(x+direction-size,bottom);c.closePath();c.fill();
+    }
+  }
+  function spark(c,x,y,r,aspect){
+    c.beginPath();c.moveTo(x-r,y);c.lineTo(x,y-r*.27*aspect);c.lineTo(x+r,y);c.lineTo(x,y+r*.27*aspect);
+    c.closePath();c.fill();c.beginPath();c.moveTo(x,y-r*aspect);c.lineTo(x+r*.22,y);
+    c.lineTo(x,y+r*aspect);c.lineTo(x-r*.22,y);c.closePath();c.fill();
+  }
+  function embers(c,s,t,colour,amount,start,height,speed,side) {
+    c.fillStyle=colour;
+    const aspect=s.motion.width/s.motion.height;
+    for(const p of grains.slice(0,amount)){
+      const u=fraction(p.y+t*speed*(.4+p.z));
+      const x=fraction(p.x+t*side+p.z*.021*Math.sin(u*9+p.bend));
+      const y=s.geometry.y(start-height*u);
+      const r=.0007+.0015*p.z;
+      c.globalAlpha=.65*Math.sin(Math.PI*u)*(.35+.65*p.speed);
+      disc(c,x,y,r,r*aspect);
+    }
+  }
+  function sun(c,s,t){
+    luminousShafts(c,s,t,.15,.045,.047,'#fff0ab');
+    const {still}=s, w=still.width,h=still.height;
+    // Refract a few narrow bands of distant rock; the foreground stays sharp.
+    c.globalAlpha=.35;
+    for(let i=0;i<13;i++){
+      const y=s.geometry.y(.43+.012*i), band=.009;
+      c.drawImage(still,0,y*h,w,band*h,.0016*Math.sin(t*2.9+i*.85),y,1,band);
+    }
+    embers(c,s,t,'#fff0ad',40,.79,.53,.035,.010);
+  }
+  function snow(c,s,t){
+    veil(c,s,t,.44,.70,-.014,.30);
+    c.fillStyle='#f3f9ff';const a=s.motion.width/s.motion.height;
+    for(const p of grains){
+      const depth=.28+p.z*.72;
+      const y=fraction(p.y+t*(.032+.068*depth));
+      const x=fraction(p.x-t*.023*depth+.026*Math.sin(y*7+p.bend));
+      const size=.0006+.0024*depth**2;
+      c.globalAlpha=.27+.55*depth;disc(c,x,y,size,size*a);
+    }
+  }
+  function mist(c,s,t){
+    veil(c,s,t,.28,.55,.013,.46,1.22);
+    veil(c,s,t,.46,.72,-.021,.55,.83);
+    veil(c,s,t,.65,.91,.035,.40,1.08);
+  }
+  function poison(c,s,t){
+    veil(c,s,t,.38,.64,-.012,.33);
+    veil(c,s,t,.55,.82,.028,.56,.87);
+    const a=s.motion.width/s.motion.height;
+    for(const p of grains.slice(0,38)){
+      const age=fraction(t*(.12+.09*p.speed)+p.bend);
+      const x=p.x+.011*Math.sin(age*5+p.bend), y=s.geometry.y(.70+.2*p.y-age*.16);
+      c.globalAlpha=.43*Math.sin(Math.PI*age);c.strokeStyle=p.z>.48?'#c4ec7b':'#cf8bea';c.lineWidth=.0009;
+      const r=.0015+age*.004*p.z;
+      c.beginPath();c.ellipse(x,y,r,r*a,0,0,tau);c.stroke();
+    }
+  }
+  function electric(c,s,t){
+    veil(c,s,t,.17,.51,-.026,.25);
+    const a=s.motion.width/s.motion.height;
+    c.fillStyle='#e0d6ff';
+    for(const p of grains.slice(0,24)){
+      const age=fraction(p.y+t*.46);
+      c.globalAlpha=.6*Math.sin(Math.PI*age)**3;
+      spark(c,p.x,s.geometry.y(.42+p.z*.27-age*.035),.0015+p.speed*.0018,a);
+    }
+    const beat=pulse(t,3.7,.29,.035)+.50*pulse(t,3.7,.36,.024);
+    if(!beat)return;
+    const count=Math.floor(t/3.7), left=.18+fraction(count*.617)*.40;
+    c.globalAlpha=.8*beat;c.strokeStyle='#eee3ff';c.lineWidth=.0016;c.beginPath();
+    let x=left, y=s.geometry.y(.14);c.moveTo(x,y);
+    for(let j=1;j<=9;j++){
+      x=left+j*.012+.025*Math.sin(count*2+j*6.95);y=s.geometry.y(.14+j*.035);c.lineTo(x,y);
+      if(j===4){c.lineTo(x-.027,y+.042);c.lineTo(x-.041,y+.047);c.moveTo(x,y);}
+    }
+    c.stroke();
+  }
+  function starlight(c,s,t){
+    const a=s.motion.width/s.motion.height;c.fillStyle='#ffeac0';
+    for(const p of grains.slice(0,80)){
+      const glow=(.5+.5*Math.sin(t*(.65+.85*p.z)+p.bend))**3;
+      c.globalAlpha=.18+.66*glow;
+      spark(c,p.x,s.geometry.y(.05+p.y*.48),.0009+.0024*glow*p.z,a);
+    }
+    const age=fraction(t/6.7);
+    if(age<.15){
+      const k=age/.15,x=.75-k*.29,y=s.geometry.y(.12+k*.15);
+      c.globalAlpha=.72*Math.sin(Math.PI*k);c.strokeStyle='#ffefcf';c.lineWidth=.0014;
+      c.beginPath();c.moveTo(x,y);c.lineTo(x+.040,y-.022);c.stroke();
+    }
+  }
+  function reverse(c,s,t){
+    veil(c,s,t,.34,.56,-.017,.18);
+    const a=s.motion.width/s.motion.height;
+    for(const p of grains.slice(0,42)){
+      const age=fraction(t*(.057+.045*p.z)+p.y),x=p.x+.012*Math.sin(age*8+p.bend),y=s.geometry.y(.87-.62*age);
+      c.globalAlpha=.65*Math.sin(Math.PI*age);c.fillStyle=p.z>.5?'#b9eff0':'#b195db';
+      c.save();c.translate(x,y);c.scale(1,a);c.rotate(-t*.55-p.bend);
+      const r=.0021+.0018*p.z;
+      c.beginPath();c.moveTo(0,-r*1.7);c.lineTo(r,0);c.lineTo(0,r);c.lineTo(-r*.8,0);c.closePath();c.fill();c.restore();
+    }
+  }
+  function gale(c,s,t){
+    veil(c,s,t,.22,.50,.083,.31,1.33);
+    c.lineWidth=.0009;c.strokeStyle='#daebd8';
+    for(const p of grains.slice(0,22)){
+      const x=fraction(p.x+t*(.14+.18*p.z))*1.25-.18,y=s.geometry.y(.29+.50*p.y)+.012*Math.sin(t*2+p.bend);
+      c.globalAlpha=.22+.18*p.z;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+.044,y-.019,x+.09,y-.012);c.stroke();
+    }
+    c.fillStyle='#d5d884';
+    for(const p of grains.slice(0,33)){
+      const x=fraction(p.x+t*(.13+.13*p.z)), y=s.geometry.y(.38+.43*p.y)+.045*Math.sin(x*10+p.bend+t*.8);
+      c.globalAlpha=.55;c.save();c.translate(x,y);c.rotate(.55*Math.sin(t*3+p.bend));
+      disc(c,0,0,.003+p.z*.0018,.0015);c.restore();
+    }
+  }
+  function dawn(c,s,t){
+    luminousShafts(c,s,t,.62,.405,.074,'#ffeac3');
+    veil(c,s,t,.43,.62,.011,.26,1.2);
+    embers(c,s,t,'#ffe7bc',40,.69,.28,.029,-.003);
+  }
+  function moe(c,s,t){
+    veil(c,s,t,.46,.67,.011,.22);
+    const a=s.motion.width/s.motion.height;
+    for(const p of grains.slice(0,64)){
+      const age=fraction(p.y+t*(.033+.039*p.z));
+      const x=fraction(p.x+.059*Math.sin(age*8+p.bend)+t*.016);
+      c.save();c.translate(x,age);c.scale(1,a);c.rotate(Math.sin(t+p.bend)*1.2);
+      const r=.0025+.0038*p.z;
+      c.scale(r*(.4+.6*Math.abs(Math.cos(t*1.35+p.bend))),r);
+      c.globalAlpha=.42+.43*p.z;c.fillStyle=p.speed>.45?'#ffcbe0':'#ffe2e7';
+      c.beginPath();c.moveTo(0,1.2);c.bezierCurveTo(-1.2,.3,-.95,-.8,-.3,-.78);
+      c.lineTo(0,-.42);c.lineTo(.26,-.85);c.bezierCurveTo(1.02,-1,.9,.2,0,1.2);c.fill();c.restore();
+    }
+  }
+  function frost(c,s,t){
+    veil(c,s,t,.60,.85,-.012,.26);
+    c.strokeStyle='#b3f3ff';c.lineWidth=.00125;
+    for(const p of grains.slice(0,18)){
+      const age=fraction(p.y+t*.097), range=age*10;
+      c.globalAlpha=.75*Math.sin(Math.PI*age);
+      let x=p.x,y=s.geometry.y(.83+.17*p.z);c.beginPath();c.moveTo(x,y);
+      for(let j=0;j<Math.floor(range);j++){
+        x+=.007*Math.sin(j*4+p.bend);y-=.008+.004*p.z;c.lineTo(x,y);
+        if(j%2===1){const k=j%4===1?1:-1;c.lineTo(x+.009*k,y-.009);c.lineTo(x+.013*k,y-.010);c.moveTo(x,y);}
+      }
+      c.stroke();
+    }
+  }
+  function nebula(c,s,t){
+    const a=s.motion.width/s.motion.height;
+    const x=s.geometry.x(.615),y=s.geometry.y(.25);
+    c.fillStyle='#dec3ff';
+    for(const p of grains.slice(0,90)){
+      const r=.026+.23*p.z,angle=t*(.075+.085*(1-p.z))+p.bend+3*p.z;
+      const dx=r*Math.cos(angle),dy=r*.37*Math.sin(angle);
+      c.globalAlpha=.24+.48*(.5+.5*Math.sin(t+p.bend));
+      disc(c,x+dx,y+(dy-dx*.23)*a,.0007+.00135*p.speed,(.0007+.00135*p.speed)*a);
+    }
+  }
+  function moyu(c,s,t){
+    veil(c,s,t,.33,.62,-.019,.45);veil(c,s,t,.58,.86,.024,.39,.78);
+    embers(c,s,t,'#ed678d',70,.90,.54,.057,-.014);
+  }
+  function rain(c,s,t){
+    veil(c,s,t,.41,.68,-.029,.28);
+    c.strokeStyle='#c8e2ef';c.lineWidth=.001;
+    for(const p of grains){
+      const depth=.3+.7*p.z, age=fraction(p.y+t*(.41+.42*depth));
+      const x=fraction(p.x-age*.12-t*.022),size=.009+.022*depth;
+      c.globalAlpha=.17+.35*depth;c.beginPath();c.moveTo(x,age);c.lineTo(x-.24*size,age+size);c.stroke();
+    }
+    c.strokeStyle='#c4dae0';c.lineWidth=.0007;
+    for(const p of grains.slice(0,28)){
+      const age=fraction(t*(.76+.2*p.z)+p.bend),r=(.002+.01*age)*(.45+.55*p.y);
+      c.globalAlpha=.47*(1-age);c.beginPath();c.ellipse(p.x,s.geometry.y(.65+.32*p.y),r,r*.28,0,0,tau);c.stroke();
+    }
+  }
+  const weatherPainters={sunny:sun,snow,mist,poison,electric,starlight,reverse,gale,dawn,moe,frost,nebula,moyu,yin:rain};
+
+  const host=document.createElement('div'), app=document.getElementById('app');
+  host.className='weather-landscapes';
+  host.setAttribute('aria-hidden','true');
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  const visible=new Map();
+  let owner=null, desired=null, front=null, request=0, raf=0, last=0, time=0, fadeEnd=0;
+  let mode=localStorage.getItem('lingchong_fxpro_mode') || 'high';
+  const fadeMs=()=>reduced.matches||mode==='off'?0:850;
+
+  function discard(scene) {
+    scene.el.remove();scene.still.width=scene.motion.width=0;
+    visible.delete(scene.id);
+  }
+  function reset() {
+    ++request;desired=front=owner=null;fadeEnd=0;last=0;
+    cancelAnimationFrame(raf);raf=0;
+    for(const scene of visible.values())discard(scene);
+    host.remove();host.classList.remove('visible');
+  }
+  function wake() {
+    if(!raf && host.isConnected && !document.hidden)raf=requestAnimationFrame(frame);
+  }
+  function draw(scene,now,force=false) {
+    const dpr=Math.min(devicePixelRatio||1,1.5);
+    const w=Math.max(1,Math.round(host.clientWidth*dpr)),h=Math.max(1,Math.round(host.clientHeight*dpr));
+    const resized=!scene.geometry || scene.still.width!==w || scene.still.height!==h;
+    if(resized){
+      paintStill(scene,w,h);
+      scene.motion.width=w;scene.motion.height=h;
+    }
+    if(mode==='off')return;
+    if(resized || force || (!reduced.matches && now-scene.lastDraw>=(mode==='mid'?65:32))) {
+      paintMotion(scene,reduced.matches?1.2:time,w,h);
+      scene.lastDraw=now;
+    }
+  }
+  function frame(now) {
+    raf=0;
+    if(document.hidden || !host.isConnected)return;
+    if(last)time+=Math.min(.12,(now-last)/1000);
+    last=now;
+    if(!desired && now>=fadeEnd){reset();return;}
+    for(const scene of visible.values()){
+      if(scene.id!==front && scene.retire<=now){discard(scene);continue;}
+      draw(scene,now);
+    }
+    if((front && !reduced.matches && mode!=='off') || now<fadeEnd || visible.size>1)wake();
+  }
+  function makeScene(id,image) {
+    const el=document.createElement('div'),still=document.createElement('canvas'),motion=document.createElement('canvas');
+    el.className='weather-scene';el.dataset.weather=id;el.append(still,motion);
+    const tile=noiseTile(id==='bloodmoon'?2:1,styles[id].fog);
+    return {id,image,el,still,motion,tile,lastDraw:-Infinity,retire:Infinity};
+  }
+  function present(id,image) {
+    const bg=document.getElementById('bg');
+    if(!bg)return;
+    if(host.previousElementSibling!==bg)bg.after(host);
+    const now=performance.now(), previous=front;
+    // Keep a fully drawn outgoing scene underneath until the incoming artwork is opaque.
+    for(const scene of visible.values())if(scene.id!==id && scene.id!==previous)discard(scene);
+    const next=visible.get(id)||makeScene(id,image);
+    visible.set(id,next);
+    if(previous && previous!==id && visible.has(previous))visible.get(previous).retire=now+fadeMs()+45;
+    front=id;next.retire=Infinity;
+    host.append(next.el);
+    draw(next,now,true);
+    void next.el.offsetWidth;
+    next.el.classList.add('on');host.classList.add('visible');
+    fadeEnd=now+fadeMs()+65;last=0;wake();
+  }
+  async function load(id,serial) {
+    const image=new Image();image.src=art[id];
+    try {await image.decode();}
+    catch {
+      if(serial===request){reset();}
+      return;
+    }
+    if(serial===request && desired===id)present(id,image);
+  }
+  function sync() {
+    const match=typeof S!=='undefined' && S && !S.cancelled && app.querySelector('.battle') ? S : null;
+    if(owner!==match){reset();owner=match;}
+    if(!match)return;
+    const id=match.weather?.id;
+    const next=Object.hasOwn(art,id)?id:null;
+    if(next===desired)return;
+    desired=next;const serial=++request;
+    if(!next){
+      host.classList.remove('visible');fadeEnd=performance.now()+fadeMs()+40;wake();return;
+    }
+    if(visible.has(next)){present(next,visible.get(next).image);return;}
+    load(next,serial);
+  }
+  function settingsChanged(){
+    mode=localStorage.getItem('lingchong_fxpro_mode')||'high';
+    host.classList.toggle('still',mode==='off');
+    last=0;
+    for(const scene of visible.values())draw(scene,performance.now(),true);
+    wake();
+  }
+  let pending=false;
+  function scheduleSync(){
+    if(pending)return;
+    pending=true;queueMicrotask(()=>{pending=false;sync();});
+  }
+  window.BattleWeatherLandscape={sync:scheduleSync,settingsChanged};
+  new MutationObserver(scheduleSync).observe(app,{childList:true});
+  new ResizeObserver(()=>{last=0;wake();}).observe(host);
+  document.addEventListener('visibilitychange',()=>{last=0;wake()});
+  window.addEventListener('storage',event=>{if(event.key==='lingchong_fxpro_mode')settingsChanged()});
+  reduced.addEventListener('change',settingsChanged);
+  settingsChanged();sync();
+
+})();
+</script>
+
+
+<script id="brandui-src">
+/* ===== 烙印气泡统一层（brandui · v1 · 纯显示，不改任何烙印数值/逻辑） =====
+   目标：游戏里所有「烙印/印记」共用同一种气泡——同一个 DOM 结构、同一套尺寸与圆角，
+         只按类别/来源换颜色。
+   四类：属性烙印 attr（萌化/虫蚀/寒霜印）
+         增益烙印 buff（攻击/极速）
+         减益烙印 debuff（棘刺/灵魂印记）
+         次数烙印 uses（护行印/续息印）
+   统一规则：
+   · 名称一律用烙印的完整名（例：萌化烙印，不再缩成「萌化印」）
+   · 有层数的显示 ×层数；次数型不显示层数，保留「托愿」等小注
+   · 气泡颜色由调用方传入（各体系维持自己的配色），形状/字号/内边距完全一致
+   提供：window.__BB.chip({ name, cat, n, note, bg, fg, bd, title })（文字型，不带 emoji，与状态栏其它徽章一致）
+   只做显示，不读写 sd.__wax / sd.__tbrands / p.__brands / side.xjMarks 等数据。
+*/
+(function () {
+  'use strict';
+  if (window.__BRAND_UI_LAYER__) return;
+  window.__BRAND_UI_LAYER__ = 1;
+
+  var CSS = ''
+    + '.bbrand{display:inline-flex;align-items:center;gap:3px;font-size:11px;line-height:15px;'
+    + 'padding:1px 8px;border-radius:999px;border:1px solid var(--bb-bd,rgba(255,255,255,.45));'
+    + 'background:var(--bb-bg,rgba(255,255,255,.12));color:var(--bb-fg,#eef4ff);'
+    + 'box-shadow:0 0 6px -2px var(--bb-bd,rgba(255,255,255,.45));white-space:nowrap;'
+    + 'font-weight:600;letter-spacing:.2px;vertical-align:middle;margin-right:3px}'
+    + '.bbrand .bb-n{font-weight:800;opacity:.95}'
+    + '.bbrand .bb-note{font-size:10px;opacity:.8;margin-left:1px;font-weight:500}'
+    + '.hpside.foe .brandrow,.hpside.foe .waxrow{text-align:right}';
+  try {
+    var st = document.createElement('style');
+    st.id = 'brandui-style';
+    st.textContent = CSS;
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) {}
+
+  function esc(t) {
+    return String(t == null ? '' : t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  var CAT = { attr: '属性烙印', buff: '增益烙印', debuff: '减益烙印', uses: '次数烙印' };
+
+  /* 唯一的气泡构造器：所有烙印都走这里，保证「气泡种类」一致 */
+  function chip(o) {
+    o = o || {};
+    var cat = CAT[o.cat] ? o.cat : 'attr';
+    var name = o.name || '烙印';
+    var n = (o.n == null) ? 0 : (o.n | 0);
+    var tip = o.title || (CAT[cat] + ' · ' + name + (n > 0 ? (' · ' + n + ' 层') : ''));
+    var vars = '';
+    if (o.bg) vars += '--bb-bg:' + o.bg + ';';
+    if (o.fg) vars += '--bb-fg:' + o.fg + ';';
+    if (o.bd) vars += '--bb-bd:' + o.bd + ';';
+    return '<span class="bbrand bb-' + cat + '" title="' + esc(tip) + '"'
+      + (vars ? ' style="' + vars + '"' : '') + '>'
+      + '<span class="bb-nm">' + esc(name) + '</span>'
+      + (n > 0 ? '<span class="bb-n">×' + n + '</span>' : '')
+      + (o.note ? '<span class="bb-note">·' + esc(o.note) + '</span>' : '')
+      + '</span>';
+  }
+
+  window.__BB = { chip: chip, cat: CAT };
+})();
+</script>
+
+
+
+<script id="kuirong-src">
+/* ===== 枯荣槐君层（kuirong · 草/幽）=====
+   新宠【枯荣槐君】（草／幽，种族值合计 480｜体力112 攻击30 防御90 魔攻103 魔抗90 速度55）
+     ① 被动【残春归枝】—— 自身存活（含场下）时，己方任意宠物每引爆 1 层【蔓生烙印】，
+        引爆者回复自身最大生命 5%，单次引爆最多按 5 层计（≤25%）。
+     ② 【蔓生烙印】（队伍级，挂在被打的一方，层数共享）
+        · 生长：该队场上宠物「通过技能实际回复生命」后，若已有烙印，+1 层
+                （每回合最多因回血生长 1 层；借春催芽逼对手回血也算一次正常触发）
+        · 引爆：另一方用「非草属性」的威力技能命中后，在整招结算末尾引爆全部层数，
+                每层追加 30 威力草系伤害（物理/魔法随触发技能），随后全部消耗。
+                固定伤害 / 持续伤害 / 烙印自身伤害不触发；多段攻击整招只引爆一次。
+     ③ 专属技能：青槐落印 / 借春催芽 / 冥根葬花 / 槐影归林
+   公开接口：window.__KUIRONG
+*/
+(function () {
+  'use strict';
+  if (window.__KUIRONG_LAYER__) return;
+  window.__KUIRONG_LAYER__ = 1;
+
+  var PID = 'kuirong';
+  var MK = '__ms';            // 蔓生烙印层数（存在被打的那一方）
+  var PER_LAYER = 30;         // 每层引爆追加威力
+  var HEAL_PER = 0.05;        // 残春归枝：每层回复 5% 最大生命
+  var HEAL_CAP_N = 5;         // 单次引爆最多按 5 层计
+  var SHIELD_CAP = 120;       // 护盾上限（与全队护盾同口径）
+  var PIVOT_SHIELD = 60;      // 槐影归林：接手者护盾
+  var PIVOT_TAG = '槐影归林';
+  var SUPP = 0;               // >0 时本层自己的回血不算「技能回复」
+  var TAG = '🌿';
+
+  /* ---------------- ① 宠物与专属技能 ---------------- */
+  try {
+    if (typeof PETS !== 'undefined' && Array.isArray(PETS) && !PETS.some(function (x) { return x && x.id === PID; })) {
+      PETS.push({
+        id: PID, name: '枯荣槐君', type: ['草', '幽'], emoji: '🌳',
+        passive: { canchun: 1 },
+        base: { hp: 112, atk: 30, def: 90, spa: 103, spd: 90, spe: 55 },   // 合计 480
+        own: [
+          { name: '青槐落印', star: 1, cat: '魔法', power: 85, pp: 6, type: '草', msBrandAdd: 1,
+            desc: '专属 · 85 威力草系魔法；命中后给敌方全队种下 1 层【蔓生烙印】（队伍共享）' },
+          { name: '借春催芽', star: 1, cat: '变化', power: 0, pp: 3, type: '草', spd: 10, heal: 0.30, msFoeHeal: 0.20,
+            desc: '专属 · 先手+2 · 自身回复 30% 最大生命；对手场上宠物回复其已损生命的 20%（若真的回血，会让【蔓生烙印】生长 1 层）' },
+          { name: '冥根葬花', star: 1, cat: '魔法', power: 105, pp: 4, type: '幽', spd: 9, msDebuffAt: 2,
+            desc: '专属 · 先手+1 · 105 威力幽系魔法；命中后引爆【蔓生烙印】，本次引爆 ≥2 层时令目标魔抗 −1 级' },
+          { name: '槐影归林', star: 1, cat: '变化', power: 0, pp: 3, type: '幽', spd: 10, heal: 0.20, cleanse: true, msPivot: 60,
+            desc: '专属 · 先手+2 · 回复自身 20% 最大生命并清除自身全部负面，随即换下场；接手的队友获得 60 点护盾' }
+        ]
+      });
+    }
+  } catch (e) { try { console.error('[枯荣] 数据注入失败', e); } catch (_) {} }
+
+  /* ---------------- 小工具 ---------------- */
+  function ok() { return typeof S !== 'undefined' && S && S.me && S.foe; }
+  function live() { return !!ok() && !S.over; }
+  function act(sd) { return (sd && sd.team) ? sd.team[sd.active] : null; }
+  function sideKeyOf(sd) { return sd === S.foe ? 'foe' : 'me'; }
+  function sideOf(p) {
+    try {
+      if (S.me.team.indexOf(p) >= 0) return S.me;
+      if (S.foe.team.indexOf(p) >= 0) return S.foe;
+    } catch (e) {}
+    return null;
+  }
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) {} }
+  function render() { try { if (typeof renderBattle === 'function') renderBattle(); } catch (e) {} }
+  function sname(k) { try { return (typeof SNAME !== 'undefined' && SNAME[k]) || k; } catch (e) { return k; } }
+  function ftype(p) { return p ? (Array.isArray(p.type) ? p.type[0] : p.type) : ''; }
+  function isDamageSkill(sk) {
+    if (!sk || sk.cat === '变化') return false;
+    if ((sk.power || 0) > 0) return true;
+    return !!(Array.isArray(sk.powers) && sk.powers.length);
+  }
+  function isGrassSkill(sk, A) { return ((sk && sk.type) ? sk.type : ftype(A)) === '草'; }
+  function hasCanchun(p) {
+    return !!(p && ((p.def && p.def.passive && p.def.passive.canchun) || (p.passive && p.passive.canchun)));
+  }
+  function canchunAlive(sd) {
+    return !!(sd && sd.team && sd.team.some(function (p) { return p && !p.fainted && hasCanchun(p); }));
+  }
+  function mheal(p) {      // 本层自己的回血：不参与「技能回复」判定
+    var m = 1;
+    SUPP++;
+    try { if (typeof healMul === 'function') m = healMul(p); } catch (e) { m = 1; } finally { SUPP--; }
+    return (typeof m === 'number' && isFinite(m)) ? Math.max(0, m) : 1;   // 0 = 禁疗，要如实为 0
+  }
+  function benchIdx(sd) {
+    var out = [];
+    if (!sd || !sd.team) return out;
+    for (var i = 0; i < sd.team.length; i++) {
+      var t = sd.team[i];
+      if (!t || i === sd.active || t.fainted) continue;
+      var hm = false;
+      try { hm = (typeof hasMoves === 'function') ? !!hasMoves(t) : (t.moves || []).some(function (m) { return m.pp > 0; }); } catch (e) { hm = false; }
+      if (hm) out.push(i);
+    }
+    return out;
+  }
+  function snap(sd) {
+    var p = act(sd);
+    return p ? { p: p, hp: p.hp } : null;
+  }
+
+  /* ---------------- ② 蔓生烙印：层数 ---------------- */
+  function msGet(sd) { return (sd && sd[MK]) || 0; }
+  function msAdd(sd, n) {
+    if (!sd) return 0;
+    n = Math.max(0, Math.floor(n || 0));
+    if (!n) return 0;
+    sd[MK] = (sd[MK] || 0) + n;
+    return n;
+  }
+  function msTake(sd) { var n = (sd && sd[MK]) || 0; if (n > 0) sd[MK] = 0; return n; }
+
+  /* 生长：每回合每方最多因回血长 1 层 */
+  function growOnce(sd, p, g, why) {
+    if (!live() || !sd || !p || !(g > 0)) return 0;
+    if (!(msGet(sd) > 0)) return 0;
+    if (sd._msGrowTurn === S.turn) return 0;
+    sd._msGrowTurn = S.turn;
+    msAdd(sd, 1);
+    say('　↳ ' + TAG + ' <b>蔓生烙印</b> 生长：' + p.name + why + ' —— ' + (sd === S.foe ? '敌方' : '己方') +
+        '队伍烙印 +1 层（现 ' + msGet(sd) + ' 层，本回合不再因回血生长）。');
+    return 1;
+  }
+  function growCheck(sd, pre) {          // 技能回复检测：healMul 打点 + 净回血 > 0
+    if (!live() || !sd || !pre || !pre.p) return 0;
+    var p = pre.p;
+    if (p.fainted) return 0;
+    if (!(msGet(sd) > 0)) return 0;
+    if (sd._msGrowTurn === S.turn) return 0;
+    if (!(p._msHealSeq === (S.__msSeq | 0))) return 0;
+    var g = p.hp - pre.hp;
+    if (!(g > 0)) return 0;
+    return growOnce(sd, p, g, ' 借技能回复 ' + g + ' 点生命');
+  }
+
+  /* ---------------- ③ 引爆 ---------------- */
+  function bust(defSide, A, D, sk) {
+    if (!live() || !defSide || !A || !D || D.fainted || !sk) return 0;
+    var n = msGet(defSide);
+    if (!n) return 0;
+
+    var cat = (sk.cat === '物理') ? '物理' : '魔法';
+    var power = PER_LAYER * n;
+    var dmg = 0;
+    try {
+      var c = calcDamage(A, D, { name: '蔓生烙印引爆', cat: cat, power: power, type: '草' });
+      dmg = Math.max(1, Math.round((c && c.dmg) || 0));
+    } catch (e) { dmg = Math.max(1, Math.round(power * 0.6)); }
+
+    msTake(defSide);                                   // 引爆即消耗全部层数
+    var onKey = sideKeyOf(defSide);
+    var absorbed = 0;
+    if (D.shield > 0 && dmg > 0) {
+      absorbed = Math.min(D.shield, dmg);
+      D.shield -= absorbed; dmg -= absorbed;
+      if (D.shield <= 0) { D.shield = 0; D.shieldT = 0; }
+    }
+    try { if (typeof capDmg === 'function') dmg = capDmg(D, dmg); } catch (e) {}
+    var pre = D.hp;
+    if (dmg > 0) {
+      D.hp = Math.max(0, D.hp - dmg);
+      D.turnDmgTaken = (D.turnDmgTaken || 0) + dmg;
+      D._lastHitDmg = dmg;
+      try {
+        S.fx.push({ on: onKey, txt: '-' + dmg, shake: true,
+          hpFrom: Math.round(pre / Math.max(1, D.maxhp) * 100),
+          hpTo: Math.round(D.hp / Math.max(1, D.maxhp) * 100) });
+      } catch (e) {}
+    }
+    say('　↳ ' + TAG + ' <b>蔓生烙印</b> 炸开：' + A.name + ' 引爆 ' + n + ' 层 —— 追加 ' + power +
+        ' 威力草系' + cat + '伤害，造成 <b>' + dmg + '</b> 点' +
+        (absorbed > 0 ? '（护盾吸收 ' + absorbed + '）' : '') + '。');
+    if (D.hp <= 0) {
+      try { if (typeof tryFaint === 'function') tryFaint(D); else D.fainted = true; }
+      catch (e) { D.fainted = true; }
+      if (D.fainted) { say('💥 ' + D.name + ' 倒下了！'); try { S.fx.push({ die: onKey }); } catch (e) {} }
+    }
+    try { canchunHeal(A, n); } catch (e) {}           // 被动：残春归枝
+    return n;
+  }
+
+  /* 被动【残春归枝】：引爆者按层回血，单次最多 25% */
+  function canchunHeal(A, n) {
+    if (!live() || !A || A.fainted || !(n > 0)) return 0;
+    var sd = sideOf(A);
+    if (!sd || !canchunAlive(sd)) return 0;
+    if (A.hp >= A.maxhp) return 0;
+    var use = Math.min(HEAL_CAP_N, n);
+    var amt = Math.round((A.maxhp || 1) * HEAL_PER * use * mheal(A));
+    if (!(amt > 0)) return 0;
+    var pre = A.hp;
+    A.hp = Math.min(A.maxhp, A.hp + amt);
+    var g = A.hp - pre;
+    if (g > 0) {
+      say('　↳ ' + TAG + ' <b>残春归枝</b>：' + A.name + ' 借 ' + use + ' 层烙印回复 ' + g +
+          ' 点生命（每层 5%，单次最多 25%）。');
+      try {
+        S.fx.push({ on: sideKeyOf(sd), heal: true, txt: '+' + g,
+          hpFrom: Math.round(pre / Math.max(1, A.maxhp) * 100),
+          hpTo: Math.round(A.hp / Math.max(1, A.maxhp) * 100) });
+      } catch (e) {}
+    }
+    return g;
+  }
+
+  /* 借春催芽：逼对手回血（回血后烙印生长） */
+  function springHealFoe(D, sd, rate) {
+    if (!live() || !D || D.fainted || !(rate > 0)) return 0;
+    var miss = Math.max(0, (D.maxhp || 0) - D.hp);
+    if (!(miss > 0)) {
+      say('　↳ ' + TAG + ' <b>借春催芽</b>：' + D.name + ' 生命已满，被催不动。');
+      return 0;
+    }
+    var amt = Math.round(miss * rate * mheal(D));
+    if (!(amt > 0)) { say('　↳ ' + TAG + ' <b>借春催芽</b>：' + D.name + ' 被禁疗，催不出生机。'); return 0; }
+    var p0 = D.hp;
+    D.hp = Math.min(D.maxhp, D.hp + amt);
+    var g = D.hp - p0;
+    if (g > 0) {
+      say('　↳ ' + TAG + ' <b>借春催芽</b>：' + D.name + ' 被催出一线生机，回复 ' + g +
+          ' 点生命（已损生命的 ' + Math.round(rate * 100) + '%）。');
+      try {
+        S.fx.push({ on: sideKeyOf(sd), heal: true, txt: '+' + g,
+          hpFrom: Math.round(p0 / Math.max(1, D.maxhp) * 100),
+          hpTo: Math.round(D.hp / Math.max(1, D.maxhp) * 100) });
+      } catch (e) {}
+      growOnce(sd, D, g, ' 被【借春催芽】催得回复 ' + g + ' 点生命');
+    }
+    return g;
+  }
+
+  /* ---------------- ④ 换人机关（槐影归林） ---------------- */
+  function pendStore() { if (!S._msPend) S._msPend = {}; return S._msPend; }
+  function queueShield(k, amt, tag) {
+    if (!(amt > 0) || !k) return;
+    var st = pendStore();
+    st[k] = { shield: amt, tag: tag || '', turn: S.turn };
+  }
+  function flushEnter(p) {
+    try {
+      if (!live() || !p || p.fainted) return 0;
+      var sd = sideOf(p);
+      if (!sd) return 0;
+      var k = sideKeyOf(sd);
+      var q = S._msPend && S._msPend[k];
+      if (!q) return 0;
+      S._msPend[k] = null;                       // 先清队列与待换标记，避免交接失败卡住
+      if (q.tag === PIVOT_TAG) S._msPivot = null;
+      if (!(q.shield > 0)) return 0;
+      var before = p.shield || 0;
+      if (before >= SHIELD_CAP) {
+        say('　↳ 🛡 <b>槐影归林</b>：' + p.name + ' 护盾已满（' + before + '），无需再叠加。');
+        return 0;
+      }
+      p.shield = Math.min(SHIELD_CAP, before + q.shield);
+      /* shieldT 不主动改：原本永久就永久，原本有回合数就沿用旧计时 */
+      say('　↳ 🛡 <b>槐影归林</b>：' + p.name + ' 接手上场，获得 ' + (p.shield - before) +
+          ' 点护盾（现有 ' + p.shield + '）。');
+      return p.shield - before;
+    } catch (e) { return 0; }
+  }
+  function doPivot(A, sd, sk) {
+    if (!live() || !A || !sd) return;
+    var cand = benchIdx(sd);
+    var shield = (sk && sk.msPivot) ? sk.msPivot : PIVOT_SHIELD;
+    if (!cand.length) {
+      say('　↳ 🌳 <b>槐影归林</b>：场下没有可接手的宠物，' + A.name + ' 留在了场上。');
+      return;
+    }
+    queueShield(sideKeyOf(sd), shield, PIVOT_TAG);
+    if (sd === S.foe) {
+      var pick = cand[Math.floor(Math.random() * cand.length)];
+      var np = sd.team[pick];
+      sd.lastOut = A;
+      sd.active = pick;
+      say('　↳ 🌳 <b>槐影归林</b>：' + A.name + ' 退回队中，<b>' + (np ? np.name : '?') + '</b> 顶了上来。');
+      try { if (typeof onEnter === 'function') onEnter(np, true); } catch (e) {}
+      render();
+    } else {
+      S._msPivot = { tag: PIVOT_TAG, shield: shield, turn: S.turn, orig: sd.active, logged: false };
+      say('　↳ 🌳 <b>槐影归林</b>：' + A.name + ' 即将退回队中 —— 请选择换上场的宠物（接手者获得 ' +
+          shield + ' 点护盾）。');
+    }
+  }
+
+  /* ---------------- ⑤ 回血检测（healMul 打点） ---------------- */
+  try {
+    if (typeof window.healMul === 'function' && !window.__KUR_HEAL) {
+      window.__KUR_HEAL = true;
+      var _hm = window.healMul;
+      window.healMul = function (p) {
+        var m = _hm.apply(this, arguments);
+        try {
+          if (!SUPP && p && typeof p === 'object' && ok()) p._msHealSeq = (S.__msSeq | 0);
+        } catch (e) {}
+        return m;
+      };
+    }
+  } catch (e) { try { console.error('[枯荣] 回血检测挂载失败', e); } catch (_) {} }
+
+  /* ---------------- ⑥ 出招包装 ---------------- */
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, other, mi, who) {
+      var A = null, D0 = null, sk = null, tgtKey = 'foe', fx0 = -1;
+      var pre = { me: null, foe: null };
+      try {
+        A = act(side); D0 = act(other);
+        sk = (A && A.moves && mi != null) ? A.moves[mi] : null;
+        if (ok()) {
+          tgtKey = sideKeyOf(other);
+          fx0 = S.fx.length;
+          pre.me = snap(S.me); pre.foe = snap(S.foe);
+          S.__msSeq = (S.__msSeq | 0) + 1;
+        }
+      } catch (e) { sk = sk || null; }
+
+      var res, err = null;
+      try { res = _do.apply(this, arguments); }
+      catch (e) { err = e; }
+
+      try {
+        if (live() && sk) {
+          var D = act(other) || D0;
+          var landed = false;
+          if (fx0 >= 0) {
+            var win = S.fx.slice(fx0);
+            for (var i = 0; i < win.length; i++) {
+              if (win[i] && win[i].on === tgtKey && win[i].landed === true) { landed = true; break; }
+            }
+          }
+          var n = 0;
+          if (landed && D && !D.fainted && isDamageSkill(sk) && !isGrassSkill(sk, A)) {
+            n = bust(other, A, D, sk);                 // 先引爆旧烙印
+          }
+          if (landed && sk.msBrandAdd) {               // 再叠本次新印（对敌方全队）
+            var add = msAdd(other, sk.msBrandAdd);
+            if (add) {
+              say('　↳ ' + TAG + ' <b>' + (other === S.foe ? '敌方' : '己方') + '队伍</b>被种下【蔓生烙印】+' +
+                  add + ' 层（现 ' + msGet(other) + ' 层）—— 另一方非草属性威力技能命中即可引爆。');
+            }
+          }
+          if (n > 0 && sk.msDebuffAt && n >= sk.msDebuffAt && D && !D.fainted) {
+            try { if (typeof applyStat === 'function') applyStat(D, 'spd', -1); } catch (e) {}
+            say('　↳ 🌳 <b>冥根葬花</b>：' + n + ' 层烙印炸开，' + D.name + ' 的' + sname('spd') + ' −1 级。');
+            try { S.fx.push({ bside: sideKeyOf(other), k: 'spd', lv: -1, dir: 'down' }); } catch (e) {}
+          }
+          if (sk.msFoeHeal && D && !D.fainted) springHealFoe(D, other, sk.msFoeHeal);
+          try { growCheck(S.me, pre.me); } catch (e) {}
+          try { growCheck(S.foe, pre.foe); } catch (e) {}
+          if (sk.msPivot) doPivot(A, side, sk);
+        }
+      } catch (e) { try { console.error('[枯荣] 出招结算失败', e); } catch (_) {} }
+
+      if (err) throw err;
+      return res;
+    };
+  }
+
+  /* ---------------- ⑦ 换人机关：上场时结算护盾 ---------------- */
+  var _enter = window.onEnter;
+  if (typeof _enter === 'function') {
+    window.onEnter = function (p) {
+      var r = _enter.apply(this, arguments);
+      try { flushEnter(p); } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------------- ⑧ 回合末：玩家方延迟换人 ---------------- */
+  var _at = window.afterTurn;
+  if (typeof _at === 'function') {
+    window.afterTurn = function () {
+      var r = _at.apply(this, arguments);
+      try {
+        /* 保险：已经换过人（active 变了）就撤掉待换标记，避免卡住出招 */
+        if (live() && S._msPivot && S.me.active !== S._msPivot.orig) S._msPivot = null;
+        if (live() && !S.over && S._msPivot && benchIdx(S.me).length) {
+          S.pendSwitch = true;
+          if (!S._msPivot.logged) {
+            S._msPivot.logged = true;
+            say('　↳ 🌳 <b>槐影归林</b>：本回合结束，请选择换上场接手的宠物（接手者获得 ' +
+                (S._msPivot.shield || PIVOT_SHIELD) + ' 点护盾）。');
+          }
+          render();
+          try { if (typeof flushLog === 'function') flushLog(); } catch (e) {}
+          patchHint();
+        }
+      } catch (e) {}
+      return r;
+    };
+  }
+  /* 按当前界面写法给换宠指引：有队伍名条（switchui）就指名条，没有就提老版「🐾 队伍」按钮 */
+  function howToSwitch() {
+    try {
+      if (document.getElementById('myswitch')) {
+        return '请点下方「你的队伍」名条 → 换宠 ▸ 选择接手的宠物';
+      }
+      if (document.getElementById('rosterbtn')) {
+        return '请点上方「🐾 队伍」选择接手的宠物';
+      }
+    } catch (e) {}
+    return '请打开队伍面板选择接手的宠物';
+  }
+
+  function patchHint() {
+    try {
+      var all = document.querySelectorAll('.center.hint');
+      for (var i = 0; i < all.length; i++) {
+        var t = all[i].textContent || '';
+        if (t.indexOf('不能出手') >= 0) {
+          all[i].innerHTML = '🌳 枯荣槐君 · 槐影归林：' + howToSwitch() + '（接手者获得 ' +
+            (S._msPivot && S._msPivot.shield ? S._msPivot.shield : PIVOT_SHIELD) + ' 点护盾）';
+          return;
+        }
+      }
+    } catch (e) {}
+  }
+
+  /* ---------------- ⑨ 状态条：蔓生烙印 ---------------- */
+  var _bars = window.barsHTML;
+  if (typeof _bars === 'function') {
+    window.barsHTML = function (sideKey, side, label) {
+      var out = _bars.apply(this, arguments);
+      try {
+        var n = msGet(side);
+        if (n > 0) {
+          var chips = window.__BB ? window.__BB.chip({
+            name: '蔓生烙印', cat: 'attr', n: n,
+            bg: 'linear-gradient(135deg,#e9f9d5,#8fd05c)', fg: '#1c3a06', bd: '#f3ffe3',
+            title: '属性烙印 · 草系 · 蔓生烙印（全队共享）：另一方非草属性威力技能命中后，每层追加 30 威力草系伤害'
+          }) : '';
+          if (chips) out = out.replace('<div class="strow">',
+            '<div class="waxrow" style="margin:3px 0 1px">' + chips + '</div><div class="strow">');
+        }
+      } catch (e) {}
+      return out;
+    };
+  }
+
+  /* ---------------- ⑩ 被动名 / 说明 ---------------- */
+  try {
+    if (typeof window.passiveName === 'function' && !window.__KUR_PN) {
+      window.__KUR_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.canchun) return '残春归枝'; } catch (e) {}
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__KUR_PD) {
+      window.__KUR_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.canchun) {
+            return '【残春归枝】自身存活时（在场下也算），己方任意宠物每引爆 1 层【蔓生烙印】，' +
+              '引爆者回复自身最大生命的 5%，单次引爆最多按 5 层计（≤25%）。' +
+              '　【蔓生烙印】挂在被打的一方、全队共享层数：① 该队场上宠物「通过技能实际回复生命」后，' +
+              '若已有烙印则 +1 层（每回合最多因回血生长 1 层）；② 另一方使用「非草属性」的威力技能命中后，' +
+              '于整招结算末尾引爆全部层数，每层追加 30 威力草系伤害（物理/魔法随触发技能），随后全部消耗；' +
+              '固定伤害、持续伤害与烙印本身造成的伤害不触发，多段攻击整招只引爆一次。';
+          }
+        } catch (e) {}
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+
+  /* ---------------- ⑪ 自检 ---------------- */
+  window.__KUIRONG = {
+    pet: function () {
+      var p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x && x.id === PID; })[0] : null;
+      return p ? { name: p.name, type: p.type, base: p.base, passive: p.passive,
+        skills: (p.own || []).map(function (s) { return { name: s.name, pp: s.pp, cat: s.cat, power: s.power, type: s.type, spd: s.spd }; }) } : 'MISSING';
+    },
+    marks: function (k) { return ok() ? msGet((k === 'foe') ? S.foe : S.me) : 0; },
+    add: function (k, n) { return ok() ? msAdd((k === 'foe') ? S.foe : S.me, n == null ? 1 : n) : 0; },
+    growTurn: function (k) { return ok() ? (((k === 'foe') ? S.foe : S.me)._msGrowTurn || 0) : 0; },
+    seq: function () { return ok() ? (S.__msSeq | 0) : 0; },
+    pend: function () { try { return JSON.parse(JSON.stringify(S._msPend || {})); } catch (e) { return null; } },
+    pivot: function (k) {
+      if (!live()) return 'NO BATTLE';
+      var sd = (k === 'foe') ? S.foe : S.me;
+      doPivot(act(sd), sd, { name: PIVOT_TAG, msPivot: PIVOT_SHIELD });
+      return 'ok';
+    },
+    bust: function (k) {
+      if (!live()) return 0;
+      var sd = (k === 'foe') ? S.foe : S.me, od = (sd === S.foe) ? S.me : S.foe;
+      return bust(sd, act(od), act(sd), { name: '测试引爆', cat: '魔法', power: 80, type: '幽' });
+    },
+    canchun: function (k) {
+      if (!live()) return null;
+      var sd = (k === 'foe') ? S.foe : S.me;
+      return { alive: canchunAlive(sd), who: (sd.team || []).filter(hasCanchun).map(function (p) { return p.name + (p.fainted ? '(倒)' : ''); }) };
+    }
+  };
+})();
+</script>
+<style>
+.pet[data-artkey="kuirong"] .art{position:relative}
+.pet.me[data-artkey="kuirong"] .art{transform:none}
+.pet.foe[data-artkey="kuirong"] .art{transform:scaleX(-1)}
+.pet[data-artkey="kuirong"] .artimg{display:block}
+.kuirong-pose,.kuirong-leaf-pass{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.kuirong-front{z-index:3}
+</style>
+<style id="kuirong-court-style">
+.kuirong-charge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.kuirong-realm{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:0;pointer-events:none}
+</style>
+<script id="kuirong-leaf-attack">
+(()=>{
+const sources={"court":"media/5be1d87cbdc15ad445b1a280.webp","idle":"media/61dec2fb916f3dc248d5555b.webp","portrait":"media/eba4e2e692611075c6a24318.webp","attack":["media/2c9e4bf70dcae46019145c6b.webp","media/6f420635c764f08fae225e3d.webp","media/39de15bb64068ead0959f156.webp","media/9e5151ac3ea21b13eabee3a3.webp","media/b1402f474f1f98f89617670e.webp","media/9d7708534c3dc25c8895c950.webp"]};
+const timing={"cell":[428,338],"keys":[0,150,300,440,590,740,900,1080,1260,1440,1610,1800],"samples":[0,40,80,120,150,160,200,240,280,300,320,360,400,440,480,520,560,590,600,640,680,720,740,760,800,840,845,855,865,875,880,885,895,900,905,920,960,1000,1040,1080,1120,1160,1200,1240,1260,1280,1320,1360,1400,1440,1480,1520,1560,1600,1610,1640,1680,1720,1760,1800,1840,1880,1920],"footX":0.5727731092436975,"cropInCell":[32.348837209302324,41.00735294117647,370.1453488372093,286.43014705882354],"hit":866,"duration":1940,"pet":"kuirong","actorCrop":[52,66,595,461]};
+const leafEffect=(()=>{
+// Scene coordinates are logical pixels. Pass the caster's foot and the target's torso.
+// Draw each pass surrounding the normal character draw, with one shared millisecond clock.
+const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x));
+const smooth = x => { const u = clamp(x); return u * u * (3 - 2 * u); };
+const tau = 2 * Math.PI;
+function random(seed) {
+  return () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+}
+// x, upper edge, lower edge. The hand-drawn corners are deliberately smoothed.
+const sections = [
+  [-160, 8, 206], [0, 90, 259], [146, 160, 303], [280, 202, 329],
+  [413, 252, 343], [550, 280, 348], [658, 298, 347], [746, 306, 345],
+  [808, 302, 337], [915, 277, 313], [1024, 251, 285], [1175, 211, 246]
+];
+function edge(x, column) {
+  let i = 0;
+  while (i < sections.length - 2 && x > sections[i + 1][0]) i++;
+  const p = sections[i], q = sections[i + 1];
+  const before = sections[Math.max(0, i - 1)];
+  const after = sections[Math.min(sections.length - 1, i + 2)];
+  const span = q[0] - p[0], u = clamp((x - p[0]) / span);
+  const s0 = (q[column] - before[column]) / (q[0] - before[0]);
+  const s1 = (after[column] - p[column]) / (after[0] - p[0]);
+  const k = u * (1 - u);
+  return (1 - smooth(u)) * p[column] + smooth(u) * q[column] +
+    span * k * ((1 - u) * s0 - u * s1);
+}
+// Sample the artist's sweep in screen coordinates and measure each leaflet's
+// own path. Travelling equal arc lengths per frame keeps the bends at full speed.
+const firstX = -72, lastX = 1128, step = 4;
+const envelope = Array.from({length:(lastX-firstX)/step+1}, (_,i) => {
+  const x = firstX + i*step;
+  const top = edge(x,1), bottom = edge(x,2);
+  return {x, center:(top+bottom)/2, radius:(bottom-top)/2};
+});
+function makePath(leaf) {
+  const ys = new Float32Array(envelope.length);
+  const lengths = new Float64Array(envelope.length);
+  for (let i=0; i<envelope.length; i++) {
+    const {x,center,radius} = envelope[i];
+    const sway = .16*Math.sin(x*.007*leaf.oscillation+leaf.phase)
+               + .065*Math.sin(x*.014+leaf.phase2);
+    ys[i] = center + radius*(.77*leaf.lane+sway);
+    if (i>0) lengths[i] = lengths[i-1] + Math.hypot(step,ys[i]-ys[i-1]);
+  }
+  return {ys,lengths};
+}
+const rng = random(641109);
+const leaves = [];
+const totalLeaves = 314;
+const flightSpeed = 2.20; // logical pixels per millisecond along the curve
+const contactBeat = 866, tailExit = 1884;
+for (let i = 0; i < totalLeaves; i++) {
+  const z = rng(), near = z > .62;
+  const s = (i + .7 * rng()) / totalLeaves;
+  // Gentle, irregular pockets of air, carried along with the leaves.
+  const train = .84*s + .16*s*s + .003*Math.sin(s*tau*4);
+  const lane = rng() * 2 - 1;
+  leaves.push({
+    train, speed: flightSpeed * (.94 + .095 * rng()),
+    lane, phase: tau * rng(), phase2: tau * rng(), oscillation: .73 + .78 * rng(),
+    twirl: .72 + rng() * 1.40, drift: .10 + .29 * rng(),
+    length: near ? 16 + rng() ** 1.3 * 31 : 8 + rng() ** 1.3 * 20,
+    width: .90 + .58 * rng(), z, front: near, paint: Math.floor(rng() * 24),
+    alpha: near ? .82 + rng() * .18 : .56 + rng() * .39,
+    wake: rng() < (near ? .34 : .19)
+  });
+}
+// The leading leaflet first reaches the left rim of the opponent in the demo.
+leaves[0] = {...leaves[0], train:0, speed:flightSpeed*1.065, lane:-.03, length:23,
+  front:true, paint:4, z:.85, alpha:.98};
+for (const leaf of leaves) leaf.path = makePath(leaf);
+const entryIndex = (0-firstX)/step, hitIndex = (708-firstX)/step, exitIndex = (1024-firstX)/step;
+const lead = leaves[0];
+const leadStart = contactBeat - lead.path.lengths[hitIndex]/lead.speed;
+const firstEntry = leadStart + lead.path.lengths[entryIndex]/lead.speed;
+for (const leaf of leaves) {
+  const lengths = leaf.path.lengths;
+  const earlyStart = firstEntry + 20 - lengths[entryIndex]/leaf.speed;
+  const lateStart = tailExit - lengths[exitIndex]/leaf.speed;
+  leaf.start = earlyStart + leaf.train*(lateStart-earlyStart);
+}
+lead.start = leadStart;
+const hit = Math.round(lead.start + lead.path.lengths[hitIndex]/lead.speed);
+// Widen around the original centerline. Measure the new inlet backwards from
+// its join so each leaf keeps its flight speed and its downstream arrival time.
+const fullWidthX = 160, joinX = 400;
+for (const {path} of leaves) {
+  for (let i=(joinX-firstX)/step-1; i>=0; i--) {
+    const {x,center} = envelope[i];
+    const spread = 1 + .30 * (1-smooth((x-fullWidthX)/(joinX-fullWidthX)));
+    path.ys[i] = center + (path.ys[i]-center)*spread;
+    path.lengths[i] = path.lengths[i+1] - Math.hypot(step,path.ys[i+1]-path.ys[i]);
+  }
+}
+const leaders = [...leaves].sort((a,b) => a.z-b.z);
+function at(leaf,t) {
+  const d = (t-leaf.start)*leaf.speed;
+  const {lengths,ys} = leaf.path;
+  let lo=0, hi=lengths.length-1;
+  if (d<=lengths[0]) return {x:firstX,y:ys[0]};
+  if (d>=lengths[hi]) return {x:lastX,y:ys[hi]};
+  while (hi-lo>1) {
+    const mid=(lo+hi)>>1;
+    if (lengths[mid]<=d) lo=mid; else hi=mid;
+  }
+  const u=(d-lengths[lo])/(lengths[hi]-lengths[lo]);
+  return {x:firstX+step*(lo+u), y:ys[lo]+(ys[hi]-ys[lo])*u};
+}
+const palettes = [
+  ['#33452d','#64834a','#acc776','#d5e092','#e5e8ad'],
+  ['#2e4c34','#5b8552','#92b875','#bdde94','#d2e7ad'],
+  ['#4b4427','#917740','#c4a85b','#e3c87a','#f1d990'],
+  ['#334d41','#5b8770','#93b898','#c3d7a7','#cee4bc'],
+  ['#4c422d','#8e8943','#c8bd6d','#eadb94','#f8e29b'],
+  ['#473d46','#76666b','#a19383','#c1b592','#cdbf9a']
+];
+let textures;
+function paintLeaf(index, reverse) {
+  const r = random(11173 + index * 487);
+  const variant = index % 8;
+  const color = palettes[[0,1,0,3,4,2,1,5][variant]];
+  const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(112, 64) : document.createElement('canvas');
+  canvas.width = 112; canvas.height = 64;
+  const c = canvas.getContext('2d'); c.translate(55,32);
+  const belly = 10 + 8 * r(), tip = -7 + 12*r(), bow = -5 + 8*r(), stem = -42;
+  const blade = new Path2D();
+  blade.moveTo(stem,1);
+  blade.bezierCurveTo(-26,-belly*1.32,1,-belly*1.25,17,-belly*.69);
+  blade.bezierCurveTo(28,-belly*.35,36,tip+2,49,tip);
+  blade.bezierCurveTo(32,tip+4,19,belly*.85,2,belly);
+  blade.bezierCurveTo(-16,belly*1.19,-33,belly*.40,stem,1); blade.closePath();
+  c.strokeStyle=color[0]; c.lineWidth=2.1; c.stroke(blade);
+  const wash=c.createLinearGradient(-4,-belly,6,belly);
+  wash.addColorStop(0,color[reverse?2:3]); wash.addColorStop(.4,color[reverse?1:2]);
+  wash.addColorStop(.59,color[reverse?2:1]); wash.addColorStop(1,color[reverse?1:0]);
+  c.fillStyle=wash; c.fill(blade);
+  c.save(); c.clip(blade);
+  for(let i=0;i<58;i++){
+    c.fillStyle= i%3===0 ? color[4] : color[0]; c.globalAlpha=.06+.12*r();
+    c.fillRect(-40+87*r(),-belly+belly*2*r(),.45+r()*1.9,.5+r()*1.15);
+  }
+  c.globalAlpha=.49; c.strokeStyle=color[4]; c.lineWidth=.95;
+  for(let i=0;i<5;i++){
+    const x=-32+i*12, mid=(1-(x+42)/91)*bow + (x+42)/91*tip;
+    for(const side of [-1,1]){
+      c.beginPath(); c.moveTo(x,mid); c.quadraticCurveTo(x+7,mid+side*3,x+13,mid+side*belly*.99); c.stroke();
+    }
+  }
+  c.restore();
+  c.beginPath(); c.moveTo(-52,4); c.quadraticCurveTo(-46,1,stem,1);
+  c.bezierCurveTo(-12,bow,18,bow,48,tip); c.lineWidth=1.45; c.strokeStyle=color[3]; c.stroke();
+  return canvas;
+}
+function plates() {
+  if (!textures) textures = Array.from({length:24},(_,i)=>[paintLeaf(i,false),paintLeaf(i,true)]);
+  return textures;
+}
+function drawOne(ctx, images, leaf, t, fade) {
+  const p = at(leaf,t);
+  if (p.x < -29 || p.x > 1056) return;
+  const prev = at(leaf,t-9), slope = Math.atan2(p.y-prev.y,p.x-prev.x);
+  const phase = leaf.phase + t * .0062 * leaf.twirl + p.x * .004;
+  const roll = Math.sin(phase), flutter = Math.sin(phase*.78+leaf.phase2);
+  const angle = slope + leaf.drift*flutter + .12*Math.sin(leaf.phase2+t*.0043);
+  const w = leaf.length*(.91+.085*Math.cos(phase));
+  if (leaf.wake && p.x-prev.x>4) {
+    const a=at(leaf,t-22), b=at(leaf,t-46);
+    ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.quadraticCurveTo(a.x,a.y,p.x,p.y);
+    ctx.globalAlpha=(.10+.15*leaf.z)*fade;ctx.lineWidth=.55+.48*leaf.z;
+    ctx.strokeStyle=leaf.paint%4===0?'#e5d07b':'#c1d9a0';ctx.stroke();
+  }
+  ctx.save(); ctx.translate(p.x,p.y);ctx.rotate(angle);
+  ctx.scale(1, (.23+.77*Math.abs(roll)**.75)*leaf.width*(roll>=0?1:-1));
+  ctx.globalAlpha=leaf.alpha*fade*(.80+.20*Math.abs(roll));
+  const h=w*64/112;
+  ctx.drawImage(images[leaf.paint][roll<0?1:0],-w/2,-h/2,w,h);
+  ctx.restore();
+}
+const splinters=Array.from({length:19},()=>({
+  start:rng()*140, size:1.1+rng()*2.2, dx:21+rng()*43,
+  dy:(rng()-.57)*48, lift:4+rng()*13, age:170+rng()*128, rotation:rng()*tau
+}));
+function contact(c, t) {
+  const age=t-hit;
+  if (age<0 || age>490) return;
+  c.save(); c.translate(719,321);
+  const intensity=1-smooth(age/120);
+  if (intensity>0) {
+    const g=c.createRadialGradient(0,0,.5,0,0,15);
+    g.addColorStop(0,'rgba(255,236,173,.68)');g.addColorStop(.4,'rgba(226,213,128,.27)');g.addColorStop(1,'rgba(195,212,118,0)');
+    c.globalAlpha=intensity; c.fillStyle=g;c.fillRect(-15,-15,30,30);
+  }
+  for(const part of splinters){
+    const u=(age-part.start)/part.age;if(u<0||u>=1)continue;
+    const k=1-(1-u)**2;
+    c.save();c.translate(3+part.dx*k,part.dy*k-part.lift*Math.sin(Math.PI*u));c.rotate(part.rotation+2*u);
+    c.globalAlpha=Math.sin(Math.PI*Math.min(1,u*2))*.25 + (1-smooth(u))*.58;
+    c.fillStyle=part.size>2.5?'#c6b26a':'#ede0ac';
+    c.beginPath();c.moveTo(-part.size,0);c.quadraticCurveTo(0,-part.size*.66,part.size*.9,0);c.lineTo(0,.4*part.size);c.closePath();c.fill();c.restore();
+  }
+  c.restore();
+}
+function draw(ctx, t, pass, {source = {x:270,y:379}, target = {x:755,y:310}, scale=1, landed=true} = {}) {
+  if (t<0 || t>=1940 || source.x===target.x) return;
+  const sx=(target.x-source.x)/485;
+  const verticalShear=(target.y-source.y+69*scale)/485;
+  ctx.save();
+  ctx.transform(sx,verticalShear,0,scale,source.x-270*sx,source.y-379*scale-270*verticalShear);
+  const fade=1-smooth((t-1845)/95);
+  const imgs=plates();
+  for(const leaf of leaders) if(leaf.front===(pass==='front')) drawOne(ctx,imgs,leaf,t,fade);
+  if(pass==='front' && landed) {ctx.globalAlpha=1;contact(ctx,t);}
+  ctx.restore();
+}
+return {draw, hit, duration:1940, centerY:x=>(edge(x,1)+edge(x,2))*.5};
+
+})();
+const HuaiCourt=(()=>{
+// Coordinates are in the original 688 × 544 action cell. Each control point
+// carries its displacement at maximum wrist lift, measured on the actor rig.
+const guides = [{"start":65,"span":510,"color":"#8dcf94","pts":[[300,253,0,-0.2],[319,243,0.1,-0.2],[342,225,0,-0.2],[350,208,0.1,-0.2],[354,204,0.1,-0.2],[356,202,0.1,-0.2],[359,198,0.1,-0.2]]},{"start":110,"span":495,"color":"#e2c682","pts":[[389,279,0,-0.1],[393,263,0.1,-0.1],[410,253,0.1,-0.2],[407,239,0.1,-0.2],[405,229,0.1,-0.2],[412,220,0.1,-0.2],[413,212,0.1,-0.2]]},{"start":154,"span":470,"color":"#a6dd8f","pts":[[357,198,0.1,-0.2],[368,195,0.1,-0.2],[381,200,0.1,-0.2],[391,204,0.1,-0.2],[400,206,0.1,-0.2],[406,207,0.1,-0.2],[413,212,0.1,-0.2]]},{"start":220,"span":485,"color":"#dbbe76","pts":[[382,186,0.1,-0.2],[396,190,0.1,-0.2],[401,201,0.1,-0.2],[413,212,0.1,-0.2]]},{"start":272,"span":520,"color":"#a4e19d","pts":[[432,218,0.1,-0.2],[442,223,0.1,-0.3],[456,240,0.2,-0.4],[464,243,0.3,-0.4],[478,235,-0.1,-1.1],[508,208,-1.5,-2.6],[531,202,-1.9,-3.7],[541,199,-1.9,-4.1],[548,193,-2.5,-4.9],[557,192,-2.7,-6.2]]},{"start":340,"span":510,"color":"#e4cd86","pts":[[448,239,0.2,-0.3],[457,246,0.3,-0.4],[462,249,0.3,-0.4],[468,246,0.4,-0.6],[484,236,-0.1,-1.4],[493,226,-0.6,-1.8],[501,222,-0.8,-2.2],[519,210,-1.4,-3.1],[530,203,-1.8,-3.6],[542,199,-1.8,-4.2]]},{"start":486,"span":405,"color":"#b4e89c","pts":[[529,204,-1.8,-3.6],[539,195,-2.2,-4],[550,195,-2.2,-5.3],[557,192,-2.7,-6.2],[565,189,-3.2,-7.3],[575,180,-4.5,-8.5],[580,176,-5.1,-9.2]]}];
+const pins = [[413,212,0.1,-0.2],[557,192,-2.7,-6.2]];
+const fingers = [[[553,190,-2.9,-5.6],[567,188,-3.3,-7.5],[575,179,-4.7,-8.5],[584,167,-6.4,-9.6],[597,162,-7.2,-11.4],[607,157,-8,-12.7],[619,167,-6.7,-14.4]],[[557,192,-2.7,-6.2],[572,190,-3.1,-8.2],[589,185,-4,-10.5],[600,179,-4.9,-11.9],[609,181,-4.7,-13.2],[626,183,-4.6,-15.5],[632,198,-2.6,-16.5]],[[559,193,-2.6,-6.5],[573,191,-3,-8.4],[584,191,-3.1,-9.9],[593,196,-2.5,-11.1],[603,204,-1.5,-12.6],[599,215,0,-12.1],[593,221,0.9,-11.4]]];
+const keyTimes = [0,150,300,440,590,740,900,1080,1260,1440,1610,1800,1940];
+const lift = [0,.06,.24,.49,.76,.94,1,.98,.80,.51,.21,.03,0];
+const clamp01 = n => Math.max(0, Math.min(1,n));
+function ease(n) { const u=clamp01(n); return u*u*(3-2*u); }
+function lifted(time) {
+  let i=0;
+  while (i<keyTimes.length-2 && keyTimes[i+1]<time) i++;
+  const u=clamp01((time-keyTimes[i])/(keyTimes[i+1]-keyTimes[i]));
+  return lift[i]+(lift[i+1]-lift[i])*u;
+}
+function point(p,a) { return [p[0]+a*p[2],p[1]+a*p[3]]; }
+function light(ctx,x,y,r,opacity,warm=false) {
+  if (opacity<.008) return;
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,warm?'#fff1b9':'#e8ffbf');
+  g.addColorStop(.20,warm?'#e6c97c':'#bde6a0');
+  g.addColorStop(.55,warm?'rgba(205,163,64,.37)':'rgba(100,205,140,.36)');
+  g.addColorStop(1,'rgba(65,130,98,0)');
+  ctx.globalAlpha=opacity;ctx.fillStyle=g;ctx.fillRect(x-r,y-r,2*r,2*r);
+}
+function trace(ctx, pts, strength, progress, color) {
+  if(progress<=0 || strength<.01)return;
+  const path=new Path2D();path.moveTo(...pts[0]);
+  for(let i=1;i<pts.length;i+=3)path.bezierCurveTo(...pts[i],...pts[i+1],...pts[i+2]);
+  // A short travelling band of light brings out the grain; the grain goes dark behind it.
+  const a=pts[0],b=pts[pts.length-1];
+  const gradient=ctx.createLinearGradient(...a,...b);
+  const head=progress*1.47-.03, tail=head-.46;
+  const stops=[[0,'transparent'],[clamp01(tail),'transparent'],[clamp01(head-.22),color],
+    [clamp01(head-.065),'#edffbf'],[clamp01(head),'transparent'],[1,'transparent']];
+  for(const [offset,v] of stops)gradient.addColorStop(offset,v);
+  ctx.strokeStyle=gradient;ctx.globalAlpha=.22*strength;ctx.lineWidth=6;ctx.stroke(path);
+  ctx.globalAlpha=.92*strength;ctx.lineWidth=2.1;ctx.stroke(path);
+}
+// These masks follow the neutral cel's materials. Light is sampled from the current
+// painted pose, so the embroidery, bark grain and transparent gaps stay registered.
+const skinW=344, skinH=272, chargeEnd=1630;
+const skins=new WeakMap();
+let zones,workPlate,mantleRibs;
+function plate(){
+  const c=document.createElement('canvas');c.width=skinW;c.height=skinH;return c;
+}
+function zoneMap(){
+  const mask=document.createElement('canvas');mask.width=86;mask.height=68;
+  const g=mask.getContext('2d');
+  g.scale(.125,.125);
+  const fill=(color,d)=>{g.fillStyle=color;g.fill(new Path2D(d));};
+  // Blue: trunk and root legs; red: layered leaf mantle; green: crown and seed tassels.
+  fill('#0000ff','M342 157 Q399 169 437 203 L446 275 L473 390 L483 482 L487 527 L385 527 L340 457 L344 381 L292 521 L241 521 L281 442 L301 327 L284 271Z');
+  fill('#ff0000','M47 170 L299 157 Q344 155 373 178 L367 205 Q354 230 351 258 L298 290 Q276 315 294 359 L333 375 L310 421 L252 497 L93 518 L54 430Z');
+  fill('#ff0000','M349 266 Q380 258 399 251 L409 278 L387 315 L360 344 L341 349 L322 366 L320 334Z');
+  fill('#00ff00','M162 76 L377 65 L468 81 L515 116 L500 164 L469 197 L428 184 L417 151 L404 141 L380 134 L354 157 L297 164 L214 179 L169 157Z');
+  const c=plate(),out=c.getContext('2d',{willReadFrequently:true});
+  out.drawImage(mask,0,0,skinW,skinH);
+  return out.getImageData(0,0,skinW,skinH).data;
+}
+const palette=[
+  [[16,36,42],[71,151,103],[210,231,160]],  // spring foliage
+  [[32,46,43],[115,153,82],[225,230,156]], // crown
+  [[30,17,43],[143,112,132],[244,220,185]], // violet bark shadows and warm ridges
+  [[58,53,32],[190,147,58],[255,233,151]]   // existing gilt threads
+];
+function bodySkin(sprite){
+  if(!sprite)return null;
+  let cells=skins.get(sprite.image);
+  if(!cells){cells=new Map();skins.set(sprite.image,cells);}
+  const key=sprite.y*sprite.image.width+sprite.x;
+  if(cells.has(key))return cells.get(key);
+  if(!zones)zones=zoneMap();
+  const c=plate(),g=c.getContext('2d',{willReadFrequently:true});
+  g.drawImage(sprite.image,sprite.x,sprite.y,sprite.width,sprite.height,0,0,skinW,skinH);
+  const bitmap=g.getImageData(0,0,skinW,skinH),pix=bitmap.data;
+  for(let i=0;i<pix.length;i+=4){
+    const coverage=zones[i+3];
+    if(!coverage||!pix[i+3]){pix[i+3]=0;continue;}
+    const r=pix[i],green=pix[i+1],b=pix[i+2];
+    const dominant=Math.max(zones[i],zones[i+1],zones[i+2]);
+    let zone=zones[i]===dominant?0:zones[i+1]===dominant?1:2;
+    if(zone===1 && (green<r*1.035 || b>green*1.02))zone=2;
+    if(zone!==2 && r>green*1.015 && green>b*1.2 && green>70)zone=3;
+    const value=(.25*r+.59*green+.16*b)/255, ramp=palette[zone];
+    const k=value<.49?0:1,u=clamp01(k===0?value/.49:(value-.49)/.51);
+    for(let ch=0;ch<3;ch++)pix[i+ch]=ramp[k][ch]+(ramp[k+1][ch]-ramp[k][ch])*u;
+    const purpleEdge=zone===0?clamp01((b-green)/26):0;
+    const opacity=zone===2?.70:zone===1?.77:.95-.55*purpleEdge;
+    pix[i+3]*=coverage/255*(dominant/255)**2*opacity;
+  }
+  g.putImageData(bitmap,0,0);cells.set(key,c);return c;
+}
+const ribPaths=[
+  'M351 201 Q328 232 291 236 Q255 259 209 268 Q154 260 122 280',
+  'M338 222 Q285 256 263 280 Q240 304 199 309 Q153 323 121 340',
+  'M304 278 Q276 300 251 331 Q235 354 216 376 Q201 409 172 427',
+  'M257 331 Q238 352 225 377 Q213 412 192 440 Q154 467 120 481',
+  'M368 265 Q351 285 339 309 Q326 336 313 349',
+  'M392 259 Q390 292 379 335 Q373 361 355 381',
+  'M406 334 Q397 369 396 399 Q389 423 408 449 Q421 463 417 480',
+  'M391 333 Q389 369 364 388 Q333 403 319 435 Q306 459 295 492'
+];
+function mantle(ctx,time,sprite){
+  const strength=ease((time-110)/250)*(1-ease((time-955)/625));
+  if(strength<.004)return;
+  const skin=bodySkin(sprite);
+  if(!skin)return;
+  if(!mantleRibs)mantleRibs=ribPaths.map(d=>new Path2D(d));
+  if(!workPlate)workPlate=plate();
+  const g=workPlate.getContext('2d');
+  g.save();g.clearRect(0,0,skinW,skinH);g.scale(.5,.5);
+  g.drawImage(skin,0,0,688,544);
+  g.globalCompositeOperation='source-atop';g.lineCap='round';
+  // The visible veins follow separate leaves and root ridges.
+  for(let i=0;i<mantleRibs.length;i++){
+    const v=ease((time-175-43*i)/305);
+    g.strokeStyle=i<5?'#dcdd85':'#d3b096';g.globalAlpha=v*(i<5?.65:.56);
+    g.lineWidth=i<5?2.15:1.8;g.stroke(mantleRibs[i]);
+  }
+  g.save();
+  const sap=ease((time-330)/270)*(1-ease((time-980)/365));
+  if(sap>0){
+    const advance=ease((time-335)/690);
+    for(let i=5;i<mantleRibs.length;i++){
+      g.setLineDash([16,220]);g.lineDashOffset=-advance*162+(i-5)*5;
+      g.lineWidth=5;g.globalAlpha=.27*sap;g.strokeStyle='#c3a2f4';g.stroke(mantleRibs[i]);
+      g.lineWidth=1.8;g.globalAlpha=.88*sap;g.strokeStyle='#f5e9c9';g.stroke(mantleRibs[i]);
+    }
+  }
+  g.restore();
+  const r=4+ease((time-110)/620)*525, center=[357,201];
+  const rim=g.createRadialGradient(...center,0,...center,r);
+  rim.addColorStop(0,'transparent');rim.addColorStop(.70,'transparent');
+  rim.addColorStop(.86,'rgba(225,247,159,.48)');rim.addColorStop(1,'transparent');
+  g.fillStyle=rim;g.globalAlpha=1;g.fillRect(0,0,688,544);
+  const reveal=g.createRadialGradient(...center,Math.max(0,r-67),...center,r);
+  reveal.addColorStop(0,'#fff');reveal.addColorStop(1,'transparent');
+  g.globalCompositeOperation='destination-in';g.fillStyle=reveal;g.fillRect(0,0,688,544);
+  g.restore();
+  ctx.save();ctx.globalAlpha=strength;ctx.drawImage(workPlate,0,0,688,544);ctx.restore();
+}
+function leaflet(g,x,y,angle,length,breadth,lightSide){
+  g.save();g.translate(x,y);g.rotate(angle);g.scale(length,breadth);
+  const wash=g.createLinearGradient(0,-.55,.14,.60);
+  wash.addColorStop(0,lightSide?'#f5e69b':'#c4ed9c');wash.addColorStop(.46,'#90ba77');
+  wash.addColorStop(.52,'#538564');wash.addColorStop(1,'#244b4a');
+  g.beginPath();g.moveTo(0,0);g.bezierCurveTo(.22,-.59,.68,-.64,1,-.21);
+  g.bezierCurveTo(.73,.10,.40,.62,0,0);g.fillStyle=wash;g.fill();
+  g.beginPath();g.moveTo(.06,0);g.quadraticCurveTo(.50,-.035,.91,-.18);
+  g.strokeStyle='rgba(244,238,170,.78)';g.lineWidth=.055;g.stroke();g.restore();
+}
+// Each new spray grows from a sampled opaque point on an existing crown branch.
+const sprigs=[
+  [236,103,-2.50,36,234],[211,125,-2.81,30,306],[278,94,-2.34,21,264],
+  [253,144,2.87,33,337],[306,90,-2.9,25,402],[462,119,-.68,25,356]
+];
+function growCrown(ctx,time){
+  const fade=1-ease((time-964)/484);
+  if(fade<=0)return;
+  for(const [x,y,angle,len,start] of sprigs){
+    const amount=ease((time-start)/300);if(amount<.01)continue;
+    ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.globalAlpha=amount*fade;
+    const reach=len*amount;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(reach*.47,-3.1*amount,reach,0);
+    ctx.lineWidth=1.65;ctx.strokeStyle='#b4ae74';ctx.stroke();
+    for(let i=0;i<3;i++){
+      const f=.25+.245*i;
+      const unfolded=ease((time-start-45*i)/225),size=(12.5-1.85*i)*unfolded;
+      for(const side of [-1,1]){
+        const offset=side===1?.06:0;
+        leaflet(ctx,reach*(f+offset),-1.3*amount,side*(.19+(.63+.08*i)*unfolded),size*(side===1?.87:1),size*.53,side<0);
+      }
+    }
+    leaflet(ctx,reach-2,0,-.08,9.5*amount,4.7*amount,true);ctx.restore();
+  }
+}
+const wisps=Array.from({length:19},(_,i)=>{
+  const q=n=>{const v=Math.sin((i+1)*61.07+n*179.3)*4171.7;return v-Math.floor(v);};
+  return {start:195+i*29+q(1)*81,span:390+q(2)*290,x:113+q(3)*254,y:206+q(4)*213,
+    dx:(q(5)-.52)*58,dy:30+q(6)*65,phase:q(7)*Math.PI*2,len:5+q(8)*7};
+});
+function castWisps(ctx,time){
+  for(const s of wisps){
+    const u=(time-s.start)/s.span;if(u<=0||u>=1)continue;
+    const x=s.x+s.dx*u+7*Math.sin(u*4+s.phase)*u, y=s.y-s.dy*u;
+    const shine=Math.sin(Math.PI*u);
+    ctx.save();ctx.globalAlpha=.8*shine;ctx.translate(x,y);
+    leaflet(ctx,0,0,s.phase+u*1.85,s.len,.44*s.len*(.35+.65*Math.abs(Math.cos(s.phase+u*4))),true);
+    ctx.restore();
+  }
+}
+
+function drawCastingHand(ctx,time,liftAmount,wrist){
+  const strength=ease((time-225)/265)*(1-ease((time-868)/360));
+  if(strength<.005)return;
+  ctx.save();
+  const release=ease((time-675)/142)*(1-ease((time-880)/205));
+  light(ctx,...wrist,41,.68*strength);
+  light(ctx,...wrist,9,(.74+.18*release)*strength,true);
+
+  // A few leaves spiral into the knuckle. Only the nearest leaves leave a fine wake.
+  const open=1-ease((time-685)/314);
+  const orbit=strength*open;
+  if(orbit>.01){
+    ctx.save();ctx.translate(wrist[0]+6,wrist[1]-1);ctx.rotate(-.44);
+    const rx=24+13*open,ry=10+9*open;
+    for(let i=0;i<4;i++){
+      const theta=time*.0045+i*Math.PI/2+.09*Math.sin(i*2),front=(1+Math.sin(theta))*.5;
+      if(i%2===0){
+        ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,theta-.72,theta-.12);
+        ctx.lineWidth=1.4;ctx.strokeStyle='#a7de8e';ctx.globalAlpha=orbit*.47;ctx.stroke();
+      }
+      const len=6+4.5*front;
+      ctx.globalAlpha=orbit*(.50+.48*front);
+      leaflet(ctx,rx*Math.cos(theta),ry*Math.sin(theta),Math.atan2(ry*Math.cos(theta),-rx*Math.sin(theta)),len,len*.51,i%2===0);
+    }
+    ctx.restore();
+  }
+  // Sap follows the existing fingers. The tips kindle a little apart, then fade together.
+  fingers.forEach((finger,i)=>{
+    const start=340+i*48, growth=ease((time-start)/297);
+    if(!growth)return;
+    const pts=finger.map(p=>point(p,liftAmount)),path=new Path2D();
+    path.moveTo(...pts[0]);path.bezierCurveTo(...pts[1],...pts[2],...pts[3]);
+    path.bezierCurveTo(...pts[4],...pts[5],...pts[6]);
+    const end=pts[6],span=[81,85,63][i];
+    ctx.save();ctx.setLineDash([span*growth,200]);
+    ctx.strokeStyle=i===1?'#e7bd5c':'#8add9b';
+    ctx.globalAlpha=strength*(.21+.12*release);ctx.lineWidth=7.5;ctx.stroke(path);
+    const glint=ctx.createLinearGradient(...pts[0],...end);
+    glint.addColorStop(0,'rgba(160,213,136,.30)');
+    glint.addColorStop(.42,i===1?'#e9cd87':'#c5e7a6');
+    glint.addColorStop(.69,i===1?'rgba(240,203,133,.59)':'rgba(166,215,149,.59)');
+    glint.addColorStop(1,'#fff3b8');
+    ctx.strokeStyle=glint;ctx.globalAlpha=strength*.95;ctx.lineWidth=2.7;ctx.stroke(path);
+    ctx.restore();
+    const tip=strength*ease((time-start-220)/148);
+    light(ctx,...end,10+4*release,tip*(.54+.25*release),i===1);
+    light(ctx,...end,3.8,tip*.93,true);
+  });
+  ctx.restore();
+}
+function drawCharge(ctx,time,{x=0,y=0,width=688,height=544,poseTime=time,sprite}={}) {
+  if(time<=45||time>=chargeEnd)return;
+  const a=lifted(poseTime), fade=ease((time-45)/210)*(1-ease((time-720)/320));
+  ctx.save();ctx.translate(x,y);ctx.scale(width/688,height/544);
+  mantle(ctx,time,sprite);
+  growCrown(ctx,time);
+  castWisps(ctx,time);
+  ctx.globalCompositeOperation='screen';ctx.lineCap='round';ctx.lineJoin='round';
+  const core=point(pins[0],a), wrist=point(pins[1],a);
+  drawCastingHand(ctx,time,a,wrist);
+  if (!fade) { ctx.restore(); return; }
+  light(ctx,...core,32,.71*fade*(1-.68*ease((time-480)/230)),true);
+  for(const g of guides){
+    const p=clamp01((time-g.start)/g.span);
+    trace(ctx,g.pts.map(n=>point(n,a)),fade,p,g.color);
+  }
+  // Tiny glints leave the bracelets and mantle at staggered times.
+  const motes=[[0,110,375,-12,-24,2.4],[0,208,370,13,-20,1.65],[0,323,310,-6,-26,2],
+    [1,423,350,13,-18,2.8],[1,502,360,21,-12,2.3],[1,557,390,-4,-22,1.9],[1,620,350,18,-24,1.5]];
+  for(const [id,start,span,dx,dy,size] of motes) {
+    const u=(time-start)/span;if(u<=0||u>=1)continue;
+    const origin=id?wrist:core, ox=origin[0]+dx*u+3*Math.sin(Math.PI*u),oy=origin[1]+dy*u;
+    ctx.save();ctx.translate(ox,oy);ctx.rotate(-.65+u*.9);
+    ctx.globalAlpha=Math.sin(Math.PI*u)*.82;ctx.fillStyle=id?'#d4fab6':'#e6cd8b';
+    ctx.beginPath();ctx.moveTo(0,-size*1.4);ctx.quadraticCurveTo(size,.1*size,0,size*1.4);ctx.quadraticCurveTo(-size,.2*size,0,-size*1.4);ctx.fill();ctx.restore();
+  }
+  ctx.restore();
+}
+function realmOpacity(age,duration=1940) {
+  return ease((age-35)/570)*(1-ease((age-(duration-600))/555));
+}
+// Keep the full painting. Extra height or width is distributed toward the
+// peripheral woodwork, leaving the central tree rings close to their painted proportions.
+function fitRealm(ctx,image,w,h) {
+  const iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height;
+  const vertical=w/h<iw/ih, extent=vertical?h:w;
+  const fitted=(vertical?ih:iw)*Math.min(w/iw,h/ih);
+  const bands=80;
+  let prev=0;
+  for(let i=0;i<bands;i++){
+    const p=(i+1)/bands;
+    const weight=.16*p+.84*(.5+4*(p-.5)**3);
+    const next=Math.round(fitted*p+(extent-fitted)*weight);
+    if(next>prev){
+      if(vertical)ctx.drawImage(image,0,ih*i/bands,iw,ih/bands,0,prev,w,next-prev);
+      else ctx.drawImage(image,iw*i/bands,0,iw/bands,ih,prev,0,next-prev,h);
+    }
+    prev=next;
+  }
+  const shade=ctx.createLinearGradient(0,0,0,h);
+  shade.addColorStop(0,'rgba(10,17,23,.28)');shade.addColorStop(.40,'rgba(13,24,27,.20)');shade.addColorStop(1,'rgba(10,18,23,.39)');
+  ctx.fillStyle=shade;ctx.fillRect(0,0,w,h);
+}
+return {drawCharge,realmOpacity,fitRealm,chargeEnd};
+
+})();
+const species = PETS.find(p => p.id === 'kuirong');
+if (!species) return;
+species.art = species.id;
+PET_ART[species.id] = {idle:sources.portrait, battleIdle:sources.idle, attack:sources.idle, leap:sources.idle};
+
+const casts = new WeakMap(), running = new Map();
+let sheets;
+const courtImage = new Image();
+courtImage.src = sources.court;
+const courtReady = courtImage.decode().then(()=>true,()=>false);
+const ready = Promise.all(sources.attack.map(async src => {
+  const image = new Image();
+  image.src = src;
+  await image.decode();
+  return image;
+})).then(images => { sheets = images; return true; }, () => false);
+
+const baseSkill = window.doSkill;
+function markRow(side) {
+  return document.querySelector('.hpside.'+side+' .bbrand[title*="蔓生烙印"]')?.closest('.waxrow');
+}
+window.doSkill = function(from, side, other, index) {
+  const actor = active(side), move = actor?.moves?.[index];
+  if (actor?.def?.id !== species.id || !move || move.cat === '变化') return baseSkill.apply(this,arguments);
+  const owner = S, to = other === owner.foe ? 'foe' : 'me', start = owner.fx.length;
+  const cast = {owner, from, to, actor, target:active(other), logStart:owner.log.length, mark:markRow(to)?.cloneNode(true),
+    sourceHud:BattleSpriteGeometry.snapshotHud(from), targetHud:BattleSpriteGeometry.snapshotHud(to)};
+  const result = baseSkill.apply(this,arguments);
+  cast.frames = owner.fx.slice(start);
+  cast.launch = cast.frames.find(f => f.lunge === from || (f.atkfx && f.from === from));
+  if (cast.launch) {
+    const landed = cast.frames.find(f => f.on === to && f.landed === true);
+    cast.delay = landed?.delay || 0;
+    cast.landed = !!landed;
+    casts.set(cast.launch,cast);
+  }
+  return result;
+};
+
+function queued(frames) {
+  if (!sheets || !frames?.length || frames.some(f => f.captainApproach || f.captainReply)) return;
+  for (const frame of frames) {
+    const cast = casts.get(frame);
+    if (cast && cast.owner === S) return cast;
+  }
+}
+function canvasLayer(name) {
+  const canvas = document.createElement('canvas');
+  canvas.className = name;
+  canvas.setAttribute('aria-hidden','true');
+  return canvas;
+}
+function drawPose(ctx, canvas, age) {
+  const [w,h] = timing.cell, [x,y,width,height] = timing.cropInCell;
+  const i = Math.max(0,timing.samples.findLastIndex(ms => ms <= age)), tile = i%12;
+  const scale = Math.min(2,window.devicePixelRatio || 1);
+  const pw = Math.max(1,Math.round(canvas.clientWidth*scale));
+  const ph = Math.max(1,Math.round(canvas.clientHeight*scale));
+  if (canvas.width !== pw || canvas.height !== ph) { canvas.width=pw; canvas.height=ph; }
+  ctx.clearRect(0,0,pw,ph);
+  ctx.drawImage(sheets[Math.floor(i/12)],tile%4*w+x,Math.floor(tile/4)*h+y,width,height,0,0,pw,ph);
+  canvas.dataset.pose = String(timing.keys.findLastIndex(ms => ms<=age)+1);
+  return i;
+}
+function animate(cast) {
+  const {owner,from,to,actor,target} = cast;
+  const figure = key => document.getElementById('fig_'+key);
+  if (!figure(from)?.querySelector('.artimg') || !figure(to)?.querySelector('.art')) return false;
+  const body = canvasLayer('kuirong-pose'), bodyCtx=body.getContext('2d');
+  const effects = localStorage.getItem('lingchong_fxpro_mode') !== 'off';
+  const charge = effects ? canvasLayer('kuirong-charge') : null, chargeCtx=charge?.getContext('2d');
+  const realm = effects ? canvasLayer('kuirong-realm') : null, realmCtx=realm?.getContext('2d');
+  const passes = effects ? ['back','front'].map(name => {
+    const canvas=canvasLayer('kuirong-leaf-pass kuirong-'+name);
+    return {name,canvas,ctx:canvas.getContext('2d')};
+  }) : [];
+  if (!bodyCtx || passes.some(p=>!p.ctx)) return false;
+  running.get(from)?.();
+  if (realmCtx) {
+    realm.width=realm.height=0;
+    // The weather host owns itself beneath this canvas; the HUD stays above both.
+    document.body.appendChild(realm);
+  }
+  const started=performance.now();
+  let raf, stopped=false, im, originalVisibility, paintedHit=false, targetPoint;
+  function stop() {
+    if (stopped) return;
+    stopped=true;
+    cancelAnimationFrame(raf);
+    if (im) im.style.visibility=originalVisibility;
+    body.remove();
+    charge?.remove(); realm?.remove();
+    for (const {canvas} of passes) canvas.remove();
+    running.delete(from);
+  }
+  function paint(age) {
+    if (stopped) return false;
+    const stage=document.getElementById('stage'), victim=figure(to), next=figure(from)?.querySelector('.artimg');
+    if (owner!==S || owner.cancelled || active(owner[from])!==actor || active(owner[to])!==target ||
+        !stage || !next || !victim || age>=leafEffect.duration+cast.delay) { stop(); return false; }
+    if (next!==im) {
+      if (im) im.style.visibility=originalVisibility;
+      im=next; originalVisibility=im.style.visibility;
+      im.after(body);
+      if (chargeCtx && age<HuaiCourt.chargeEnd) body.after(charge);
+    }
+    if (paintedHit) age=Math.max(age,leafEffect.hit+cast.delay);
+    if (!im.clientWidth || !im.clientHeight) return true;
+    const sample=drawPose(bodyCtx,body,age);
+    im.style.visibility='hidden';
+    paintedHit=age>=leafEffect.hit+cast.delay;
+    if (!effects) return true;
+    if (realmCtx && courtImage.complete && courtImage.naturalWidth) {
+      const ratio=Math.min(1.5,window.devicePixelRatio||1);
+      const w=Math.max(1,Math.round(realm.clientWidth*ratio)), h=Math.max(1,Math.round(realm.clientHeight*ratio));
+      if (realm.width!==w || realm.height!==h) {
+        realm.width=w;realm.height=h;
+        HuaiCourt.fitRealm(realmCtx,courtImage,w,h);
+      }
+      realm.style.opacity=HuaiCourt.realmOpacity(age,leafEffect.duration+cast.delay);
+    }
+    if (chargeCtx && charge.isConnected) {
+      if (age>=HuaiCourt.chargeEnd) charge.remove();
+      else {
+        if (charge.width!==body.width || charge.height!==body.height) {charge.width=body.width;charge.height=body.height;}
+        chargeCtx.clearRect(0,0,charge.width,charge.height);
+        const sx=charge.width/timing.actorCrop[2],sy=charge.height/timing.actorCrop[3];
+        const [cw,ch]=timing.cell;
+        HuaiCourt.drawCharge(chargeCtx,age,{x:-timing.actorCrop[0]*sx,y:-timing.actorCrop[1]*sy,
+          width:688*sx,height:544*sy,poseTime:timing.samples[sample],
+          sprite:{image:sheets[Math.floor(sample/12)],x:(sample%4)*cw,y:Math.floor(sample%12/4)*ch,width:cw,height:ch}});
+      }
+    }
+    if (passes[0].canvas.parentElement!==stage) {
+      stage.prepend(passes[0].canvas);
+      stage.append(passes[1].canvas);
+    }
+    const r=passes[0].canvas.getBoundingClientRect(), home=BattleSpriteGeometry.contain(im);
+    if (!r.width || !r.height || !home.height) return true;
+    const art=victim.querySelector('.art');
+    if (art && (art.childNodes.length || !targetPoint)) targetPoint=BattleSpriteGeometry.targetPoint(victim);
+    if (!targetPoint) return true;
+    // Put the first contact on opaque torso pixels, including emoji opponents.
+    // Fit the broad inlet to the caster-side edge even on very wide stages.
+    const dir=from==='me'?1:-1, entry=dir===1?0:r.width, tx=targetPoint.x-r.left, ty=targetPoint.y-r.top;
+    const sx=(tx-entry)/719;
+    if (Math.abs(sx)<.001) return true;
+    const sy=Math.min(r.width/820,r.height/330,home.height/230);
+    const footX=home.left-r.left+home.width*(dir===1?timing.footX:1-timing.footX);
+    const casterX=(footX-entry)/sx;
+    const casterY=home.top-r.top+home.height*.56;
+    const center=leafEffect.centerY(casterX);
+    const shear=Math.abs(casterX-719)>1 ? (casterY-ty-(center-321)*sy)/(casterX-719) : 0;
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    const w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));
+    for (const {name,canvas,ctx} of passes) {
+      if (canvas.width!==w || canvas.height!==h) { canvas.width=w; canvas.height=h; }
+      ctx.setTransform(w/r.width,0,0,h/r.height,0,0);
+      ctx.clearRect(0,0,r.width,r.height);
+      ctx.transform(sx,shear,0,sy,entry,ty-321*sy-719*shear);
+      leafEffect.draw(ctx,age-cast.delay,name,{landed:cast.landed});
+    }
+    return true;
+  }
+  function tick(now) { if (paint(Math.max(0,now-started))) raf=requestAnimationFrame(tick); }
+  running.set(from,stop);
+  if (!paint(0)) return false;
+  raf=requestAnimationFrame(tick);
+  battleLater(()=>{if (!paintedHit) paint(leafEffect.hit+cast.delay);},leafEffect.hit+cast.delay);
+  return true;
+}
+const basePlay=window.playFx;
+window.playFx=function() {
+  const cast=queued(S?.fx);
+  if (cast && animate(cast)) {
+    cast.launch.customLaunch=true;
+    for (const f of cast.frames) {
+      if (f.captainAt==null) f.huaiImpactAt=leafEffect.hit+(f.delay||0);
+      if (f.on===cast.to && f.landed!=null) f.customImpact=true;
+    }
+    const log=document.getElementById('log'), ms=leafEffect.hit+cast.delay;
+    const newMark=markRow(cast.to);
+    if (newMark?.outerHTML!==cast.mark?.outerHTML) {
+      const bar=document.querySelector('.hpside.'+cast.to);
+      newMark?.remove();
+      if (cast.mark) bar?.querySelector('.strow')?.before(cast.mark);
+      battleLater(()=>{
+        if (!bar?.isConnected || active(cast.owner[cast.to])!==cast.target) return;
+        cast.mark?.remove();
+        if (newMark) bar.querySelector('.strow')?.before(newMark);
+      },ms);
+    }
+    if (log && cast.owner.log.length>cast.logStart) {
+      log.innerHTML=cast.owner.log.slice(0,cast.logStart).join('<br>');
+      log.scrollTop=log.scrollHeight;
+      battleLater(()=>{if (log.isConnected) flushLog();},ms);
+    }
+    BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.from,target:cast.actor,previousHUD:cast.sourceHud},ms);
+    BattleSpriteGeometry.delayHud({owner:cast.owner,to:cast.to,target:cast.target,previousHUD:cast.targetHud},ms);
+  }
+  return basePlay.apply(this,arguments);
+};
+window.KuirongMotion = {
+  ready:Promise.all([ready,courtReady]).then(results=>results.every(Boolean)),
+  clear() { for (const stop of running.values()) stop(); },
+  queueEnd(frames) {
+    const cast=queued(frames);
+    return cast ? Math.max(leafEffect.duration+cast.delay,leafEffect.hit+Math.max(0,...cast.frames.map(f=>f.delay||0))+240) : 0;
+  }
+};
+
+})();
+</script>
 
