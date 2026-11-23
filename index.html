@@ -1375,6 +1375,7 @@ function cancelBattle(){
   window.LuefengMotion?.clear();
   window.ShuangjiMotion?.clear();
   window.KuirongMotion?.clear();
+  window.ShenyingMotion?.clear();
   window.BattleWeatherLandscape?.sync();
   if(window.ElementFX)ElementFX.clear();
   if(typeof WeatherStoatMotion!=='undefined')WeatherStoatMotion.clear();
@@ -2074,7 +2075,7 @@ function stepTurn(){
     clearCd();
     CaptainSeal.execute(st);
     const lastImpact=S.fx.reduce((last,f)=>Math.max(last,f.captainAt||0),0);
-    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0,window.MilafengMotion?.queueEnd(S.fx)||0,window.ChiyinMotion?.queueEnd(S.fx)||0,window.LuefengMotion?.queueEnd(S.fx)||0,window.ShuangjiMotion?.queueEnd(S.fx)||0,window.KuirongMotion?.queueEnd(S.fx)||0);
+    const sealVisualEnd=Math.max(SealFrameMotion.queueEnd(S.fx),RiftDragonMotion.queueEnd(S.fx),window.TianyanMotion?.queueEnd(S.fx)||0,window.ChenzhouMotion?.queueEnd(S.fx)||0,window.XianjianMotion?.queueEnd(S.fx)||0,window.JinyuxiaoMotion?.queueEnd(S.fx)||0,window.CandleMotion?.queueEnd(S.fx)||0,window.MilafengMotion?.queueEnd(S.fx)||0,window.ChiyinMotion?.queueEnd(S.fx)||0,window.LuefengMotion?.queueEnd(S.fx)||0,window.ShuangjiMotion?.queueEnd(S.fx)||0,window.KuirongMotion?.queueEnd(S.fx)||0,window.ShenyingMotion?.queueEnd(S.fx)||0);
     const next=S.queue[S.qi];
     const gateApproach=S.fx.find(f=>f.captainApproach?.kind==='gate')?.captainApproach;
     const nextIsGate=next?.a.kind==='skill' && active(next.side).moves[next.a.i]?.captainGate &&
@@ -2969,7 +2970,7 @@ function barsHTML(sideKey,side,label){
 function artOf(pet){ return pet&&pet.art?PET_ART[pet.art]:null; }
 function playHurt(sideKey){
   const side=(sideKey==='me')?S.me:S.foe; if(!side) return;
-  const a=artOf(active(side).def); if(!a||!a.hurt) return;
+  const a=artOf((window.ShenyingMotion?.hurtPet(sideKey)||active(side)).def); if(!a||!a.hurt) return;
   const img=document.querySelector('#fig_'+sideKey+' .artimg'); if(!img) return;
   img.src=a.hurt; setTimeout(()=>{ const im2=document.querySelector('#fig_'+sideKey+' .artimg'); if(im2===img) im2.src=a.battleIdle||a.idle; }, 270);
 }
@@ -3403,6 +3404,7 @@ function fxLayer(id,z){
 }
 function impactDelay(frame,frames){
   if(frame.captainAt!=null) return frame.captainAt;
+  if(frame.syAt!=null) return frame.syAt;
   if(frame.huaiImpactAt!=null) return frame.huaiImpactAt;
   if(frame.frostImpactAt!=null) return frame.frostImpactAt;
   if(frame.falconImpactAt!=null) return frame.falconImpactAt;
@@ -3437,10 +3439,10 @@ function playFx(){
     if(f.bside){
       const recipient=active(S[f.bside]);
       const show=()=>{if(active(S[f.bside])===recipient){spawnBuffFx(f.bside,f.k,f.lv,f.dir);SFX[f.dir==='down'?'debuff':'buff']()}};
-      if(f.falconImpactAt!=null||f.frostImpactAt!=null||f.huaiImpactAt!=null)battleLater(show,delay);else show();
+      if(f.falconImpactAt!=null||f.frostImpactAt!=null||f.huaiImpactAt!=null||f.syAt!=null)battleLater(show,delay);else show();
     }
     // 受击反馈：抖动 + 变红（命中瞬间）
-    if(f.on&&f.shake && parseFloat(f.txt)!==0){ const recipient=(f.beeImpactAt!=null||f.clawImpactAt!=null||f.falconImpactAt!=null||f.frostImpactAt!=null||f.huaiImpactAt!=null)?active(S[f.on]):null;
+    if(f.on&&f.shake && parseFloat(f.txt)!==0){ const recipient=(f.beeImpactAt!=null||f.clawImpactAt!=null||f.falconImpactAt!=null||f.frostImpactAt!=null||f.huaiImpactAt!=null||f.syAt!=null)?active(S[f.on]):null;
       battleLater(()=>{ if(recipient && active(S[f.on])!==recipient)return;
       const el=$('#fig_'+f.on); if(!el)return;
       const image=el.querySelector('.artimg')||el.querySelector('.art');
@@ -26013,6 +26015,765 @@ window.KuirongMotion = {
     const cast=queued(frames);
     return cast ? Math.max(leafEffect.duration+cast.delay,leafEffect.hit+Math.max(0,...cast.frames.map(f=>f.delay||0))+240) : 0;
   }
+};
+
+})();
+</script>
+
+
+
+<script id="shenying-src">
+/* ===== 神鹰练习鸡层（shenying · 萌/风）=====
+   新宠【神鹰练习鸡】（萌／风，种族值合计 500｜体力100 攻击100 防御88 魔攻32 魔抗80 速度100）
+     定位：连招型物理输出／强制换人／整活吉祥物
+     ① 被动【练习时长两年半】
+        · 每次「成功使用」主动技能 → 与自身上一招相同则 +0.5 点，不同则 +1 点（首次使用 +1）
+        · 累计每满 2.5 点 → 立即自动释放隐藏技能【飞起来！】，并把练习时长清零（溢出部分不保留）
+        · 练习时长与「上一招」记录都存在宠物身上，换下场也不清零、不重置
+        · 隐藏技能本身不产生练习时长、不刷新「上一招」记录，也不会再次触发被动（不递归）
+     ② 主动技能：背带运球 / 铁山靠 / 你干嘛哎哟 / 敢不敢比划
+     ③ 隐藏技能【飞起来！】风系物理 100 威力 —— 不占技能栏、不能主动选择、不消耗 PP；
+        命中后把对手场上宠物强制踹下场，随机换上一只存活的替补（无视锁足/禁止换人）；
+        对手没有替补、或被闪开、或这一脚直接把目标打倒 → 只按正常规则结算。
+   公开接口：window.__SHENYING
+*/
+(function () {
+  'use strict';
+  if (window.__SHENYING_LAYER__) return;
+  window.__SHENYING_LAYER__ = 1;
+
+  var PID = 'shenying';
+  var CAP = 2.5;          // 练习时长上限（满即出道）
+  var GAIN_NEW = 1;       // 换了一招 → +1
+  var GAIN_SAME = 0.5;    // 和上一招重复 → +0.5
+  var BOOST = 80;         // 铁山靠连招加成
+  var AUTO_DELAY = 420;   // 【飞起来！】那一下比主招晚一点点出数字，读起来更像两件事
+  var TAG = '🐔';
+
+  /* ---------------- ① 专属技能数据 ---------------- */
+  var SK_DRIB = {
+    name: '背带运球', star: 1, cat: '物理', type: '萌',
+    power: 40, powers: [40, 40], multi: [2, 2], pp: 8, spd: 9, sySpeDown: 1,
+    desc: '专属 · 先手+1 · 40 威力萌系物理，连续 2 次；命中后令目标速度 −1 级（整招最多降 1 级）'
+  };
+  var SK_SHOULDER = {
+    name: '铁山靠', star: 1, cat: '物理', type: '武',
+    power: 110, pp: 5, spd: 8, syBoostFrom: '背带运球', syBoostAdd: BOOST,
+    desc: '专属 · 110 威力武系物理；若自身上一招是「背带运球」，本招威力 +80（变成 190）'
+  };
+  var SK_TAUNT = {
+    name: '你干嘛哎哟', star: 1, cat: '变化', type: '萌',
+    power: 0, pp: 5, spd: 11, heal: 0.25,
+    debuffs: [{ k: 'atk', lv: -1 }, { k: 'spa', lv: -1 }],
+    desc: '专属 · 先手+3 · 回复自身 25% 最大生命；令对手攻击、魔攻各 −1 级'
+  };
+  var SK_DUEL = {
+    name: '敢不敢比划', star: 1, cat: '变化', type: '风',
+    power: 0, pp: 4, spd: 10, dodge: 1, buffs: [{ k: 'atk', lv: 1 }],
+    syIfFoeActed: { k: 'def', lv: -1 },
+    desc: '专属 · 先手+2 · 自身获得 1 次闪避、攻击 +1 级；若对手本回合已经完成行动，额外令对手防御 −1 级'
+  };
+  var SK_AUTO = {
+    name: '飞起来！', star: 1, cat: '物理', type: '风',
+    power: 100, pp: 1, ppMax: 1, syHidden: 1,
+    desc: '隐藏技能 · 风系物理 100 威力（不占技能栏、不能主动选择、不消耗 PP）'
+  };
+
+  try {
+    if (typeof PETS !== 'undefined' && Array.isArray(PETS) && !PETS.some(function (x) { return x && x.id === PID; })) {
+      PETS.push({
+        id: PID, name: '神鹰练习鸡', type: ['萌', '风'], emoji: '🐔',
+        passive: { shenying: 1 },
+        base: { hp: 100, atk: 100, def: 88, spa: 32, spd: 80, spe: 100 },   // 合计 500
+        own: [SK_DRIB, SK_SHOULDER, SK_TAUNT, SK_DUEL]
+      });
+    }
+  } catch (e) { try { console.error('[神鹰] 数据注入失败', e); } catch (_) {} }
+
+  /* ---------------- ② 小工具 ---------------- */
+  function ok() { return typeof S !== 'undefined' && S && S.me && S.foe; }
+  function live() { return !!ok() && !S.over; }
+  function act(sd) { return (sd && sd.team) ? sd.team[sd.active] : null; }
+  function sideKeyOf(sd) { return (sd === S.foe) ? 'foe' : 'me'; }
+  function say(t) { try { if (typeof logLine === 'function') logLine(t); } catch (e) {} }
+  function render() { try { if (typeof renderBattle === 'function') renderBattle(); } catch (e) {} }
+  function sname(k) { try { return (typeof SNAME !== 'undefined' && SNAME[k]) || k; } catch (e) { return k; } }
+  function fmt(n) { return String(Math.round((n || 0) * 10) / 10); }
+  function round1(n) { return Math.round((n || 0) * 10) / 10; }
+  function isSy(p) { return !!(p && p.def && p.def.passive && p.def.passive.shenying); }
+
+  /* 命中判定：从 fx0 之后找「打在这一侧且不是被闪开」的伤害帧 */
+  function landedOn(fx0, key) {
+    if (!(fx0 >= 0) || !S || !Array.isArray(S.fx)) return false;
+    var win = S.fx.slice(fx0);
+    for (var i = 0; i < win.length; i++) {
+      var f = win[i];
+      if (f && f.on === key && f.landed === true) return true;
+    }
+    return false;
+  }
+
+  /* 可接替的替补：strict=true 时只收还能出招的 */
+  function benchIdx(sd, strict) {
+    var out = [];
+    if (!sd || !sd.team) return out;
+    for (var i = 0; i < sd.team.length; i++) {
+      var t = sd.team[i];
+      if (!t || i === sd.active || t.fainted || !(t.hp > 0)) continue;
+      if (strict) {
+        var hm = false;
+        try { hm = (typeof hasMoves === 'function') ? !!hasMoves(t) : (t.moves || []).some(function (m) { return m.pp > 0; }); } catch (e) { hm = false; }
+        if (!hm) continue;
+      }
+      out.push(i);
+    }
+    return out;
+  }
+
+  /* 对手本回合是否已经完成过行动（含换人） */
+  function foeDidAct(other, sideKey) {
+    var k = sideKeyOf(other);
+    try { if (S.acted && S.acted[k]) return true; } catch (e) {}
+    try {
+      if (Array.isArray(S.queue) && typeof S.qi === 'number') {
+        for (var i = 0; i < Math.min(S.qi, S.queue.length); i++) {
+          var st = S.queue[i];
+          if (!st || st.side !== other || !st.a) continue;
+          if (st.a.kind === 'switch' || st.a.kind === 'swap') return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  /* ---------------- ③ 隐藏技能【飞起来！】 ---------------- */
+  /* 把对手场上宠物强制踹下场，换一只存活替补（直接改 active，绕开锁足/禁止换人） */
+  function kickOut(sd, D) {
+    if (!live() || !sd || !D) return 0;
+    var cand = benchIdx(sd, true);
+    if (!cand.length) cand = benchIdx(sd, false);
+    var who = (sd === S.foe) ? '对手' : '你';
+    if (!cand.length) {
+      say('　↳ 🦅 <b>飞起来！</b>：' + D.name + ' 被踹得踉跄，但' + who + '场下已经没有能接替的宠物了。');
+      return 0;
+    }
+    var pick = cand[Math.floor(Math.random() * cand.length)];
+    var np = sd.team[pick];
+    if (!np || np.fainted) return 0;
+    sd.lastOut = D;
+    sd.active = pick;
+    say('　↳ 🦅 <b>飞起来！</b>：' + D.name + ' 被一脚踹下场 —— ' + who + '被迫换上 <b>' + np.name + '</b>！');
+    try { if (typeof onEnter === 'function') onEnter(np, true); } catch (e) {}
+    try { if (typeof SFX !== 'undefined' && SFX && typeof SFX.sw === 'function') SFX.sw(); } catch (e) {}
+    return 1;
+  }
+
+  /* 被动攒满后自动释放一次【飞起来！】 */
+  function fireAuto(side, other, A) {
+    if (!live() || !A || A.fainted) return 0;
+    var D = act(other);
+    if (!D || D.fainted) {
+      say('　↳ ' + TAG + ' <b>C位出道</b>：练习时长已满 ' + fmt(CAP) + '，但对手场上没有可以踹的目标。');
+      return 0;
+    }
+    say('　↳ ' + TAG + ' <b>C位出道</b>：练习时长攒满 ' + fmt(CAP) + ' —— <b>' + A.name +
+        '</b> 自动释放「<b>飞起来！</b>」！');
+
+    var mv = {};
+    for (var kk in SK_AUTO) { if (Object.prototype.hasOwnProperty.call(SK_AUTO, kk)) mv[kk] = SK_AUTO[kk]; }
+    var foeKey = sideKeyOf(other);
+    var fx0 = (S && Array.isArray(S.fx)) ? S.fx.length : -1;
+    var mi2 = A.moves.length;
+    var savedLast = A._syLast;
+    var savedPpSpent = side.ppSpent;
+    var savedSideLast = side.lastSkill;
+    var savedCopy = S._copying;
+
+    S.__syAuto = (S.__syAuto | 0) + 1;
+    try {
+      A.moves.push(mv);
+      _do(sideKeyOf(side), side, other, mi2, (side === S.me ? '你' : '对手'));
+    } catch (e) {
+      try { console.error('[神鹰] 飞起来！释放失败', e); } catch (_) {}
+    } finally {
+      S.__syAuto = Math.max(0, (S.__syAuto | 0) - 1);
+      try { var ix = A.moves.indexOf(mv); if (ix >= 0) A.moves.splice(ix, 1); } catch (e) {}
+      try { A._syLast = savedLast; } catch (e) {}          // 隐藏技能不刷新「上一招」
+      try { side.ppSpent = savedPpSpent; } catch (e) {}
+      try { side.lastSkill = savedSideLast; } catch (e) {}
+      try { S._copying = savedCopy; } catch (e) {}
+    }
+
+    /* 这一下单独晚半拍出数字，读起来是「主招结算完 → 飞起来」两件事 */
+    try {
+      if (fx0 >= 0) {
+        var win = S.fx.slice(fx0);
+        for (var i = 0; i < win.length; i++) {
+          var f = win[i];
+          if (f && f.on === foeKey && f.txt != null && f.delay == null) f.delay = AUTO_DELAY;
+        }
+      }
+    } catch (e) {}
+
+    var hit = landedOn(fx0, foeKey);
+    var D2 = act(other);
+    if (!hit) {
+      say('　↳ 🦅 <b>飞起来！</b>：' + (D2 ? D2.name : '对手') + ' 闪了过去，这一脚没能把人踹下场。');
+      return 0;
+    }
+    if (!D2 || D2.fainted) return 0;      // 直接把目标打倒 → 走正常倒下流程，不额外踢人
+    return kickOut(other, D2);
+  }
+
+  /* ---------------- ④ 被动：练习时长两年半 ---------------- */
+  function practice(A, sk, pp0, side, other) {
+    if (!live() || !A || !sk) return 0;
+    if (sk.syHidden) return 0;
+    if ((S.__syAuto | 0) > 0) return 0;              // 自动释放不产生练习时长
+    if (!isSy(A)) return 0;
+    if (!(typeof pp0 === 'number' && typeof sk.pp === 'number' && sk.pp < pp0)) {
+      return 0;                                       // 没真的放出去（PP 已尽等）→ 不计数
+    }
+    var first = (A._syLast == null);
+    var same = (A._syLast != null && A._syLast === sk.name);
+    var gain = same ? GAIN_SAME : GAIN_NEW;
+    A._syLast = sk.name;
+    A._syProg = round1((A._syProg || 0) + gain);
+
+    var full = A._syProg >= CAP - 1e-9;
+    var over = full ? round1(A._syProg - CAP) : 0;
+    say('　↳ ' + TAG + ' <b>练习时长两年半</b>：' + sk.name + ' 练习 +' + fmt(gain) +
+        (same ? '（与上一招重复）' : (first ? '（首次练习）' : '（换招）')) +
+        ' → ' + fmt(Math.min(A._syProg, CAP)) + ' / ' + fmt(CAP) +
+        (over > 0 ? '（溢出 ' + fmt(over) + ' 直接清空）' : ''));
+
+    var fired = 0;
+    if (full) {
+      A._syProg = 0;                                  // 溢出部分直接清掉，不攒到下一次
+      fired += fireAuto(side, other, A);
+    }
+    return fired;
+  }
+
+  /* ---------------- ⑤ 出招包装 ---------------- */
+  var _do = window.doSkill;
+  if (typeof _do === 'function') {
+    window.doSkill = function (sideKey, side, other, mi, who) {
+      var A = null, D0 = null, sk = null, tgtKey = 'foe', fx0 = -1, pp0 = null;
+      try {
+        A = act(side); D0 = act(other);
+        sk = (A && A.moves && mi != null) ? A.moves[mi] : null;
+        if (ok()) { tgtKey = sideKeyOf(other); fx0 = S.fx.length; }
+        if (sk) pp0 = sk.pp;
+      } catch (e) { sk = null; }
+
+      /* 【铁山靠】连招判定：读的是「出招前」的记录，读完才允许被动刷新记录 */
+      var boosted = false, pw0 = null;
+      if (sk && sk.syBoostFrom && A && A._syLast === sk.syBoostFrom) {
+        try {
+          pw0 = sk.power;
+          sk.power = (sk.power || 0) + (sk.syBoostAdd || BOOST);
+          boosted = true;
+        } catch (e) { boosted = false; pw0 = null; }
+      }
+      if (boosted) {
+        say('　↳ ' + TAG + ' <b>铁山靠</b>：接上一招「' + sk.syBoostFrom + '」的惯性 —— 威力 +' +
+            (sk.syBoostAdd || BOOST) + '（现 ' + sk.power + '）！');
+      }
+
+      var res, err = null;
+      try { res = _do.apply(this, arguments); }
+      catch (e) { err = e; }
+
+      try { if (boosted && pw0 != null) sk.power = pw0; } catch (e) {}
+
+      try {
+        if (live() && sk) {
+          var D = act(other) || D0;
+          var hit = landedOn(fx0, tgtKey);
+
+          /* 背带运球：命中后速度 −1，整招只降 1 级（不按段数） */
+          if (sk.sySpeDown && hit && D && !D.fainted) {
+            var lv = -Math.abs(sk.sySpeDown || 1);
+            try { if (typeof applyStat === 'function') applyStat(D, 'spe', lv); } catch (e) {}
+            say('　↳ 🐔 <b>' + sk.name + '</b>：' + D.name + ' 的' + sname('spe') + ' −1 级（整招只降 1 级）。');
+            try { S.fx.push({ bside: tgtKey, k: 'spe', lv: lv, dir: 'down' }); } catch (e) {}
+          }
+
+          /* 敢不敢比划：对手本回合已经完成行动 → 额外防御 −1 */
+          if (sk.syIfFoeActed && D && !D.fainted) {
+            if (foeDidAct(other, sideKey)) {
+              var ck = sk.syIfFoeActed.k, cl = sk.syIfFoeActed.lv;
+              try { if (typeof applyStat === 'function') applyStat(D, ck, cl); } catch (e) {}
+              say('　↳ 🌪 <b>' + sk.name + '</b>：' + D.name + ' 本回合已经出过手 —— ' +
+                  sname(ck) + ' ' + (cl > 0 ? '+' : '') + cl + ' 级。');
+              try { S.fx.push({ bside: tgtKey, k: ck, lv: cl, dir: cl > 0 ? 'up' : 'down' }); } catch (e) {}
+            } else {
+              say('　↳ 🌪 <b>' + sk.name + '</b>：' + D.name + ' 本回合还没动 —— 没能追加削弱。');
+            }
+          }
+
+          practice(A, sk, pp0, side, other);
+        }
+      } catch (e) { try { console.error('[神鹰] 出招结算失败', e); } catch (_) {} }
+
+      if (err) throw err;
+      return res;
+    };
+  }
+
+  /* ---------------- ⑥ 技能条实时威力（铁山靠 190） ---------------- */
+  var _lpv = window.livePowerVals;
+  if (typeof _lpv === 'function') {
+    window.livePowerVals = function (side, p, sk) {
+      var v = _lpv.apply(this, arguments);
+      try {
+        if (sk && sk.syBoostFrom && p && p._syLast === sk.syBoostFrom && Array.isArray(v)) {
+          var add = sk.syBoostAdd || BOOST;
+          return v.map(function (x) { return (typeof x === 'number' ? x : 0) + add; });
+        }
+      } catch (e) {}
+      return v;
+    };
+  }
+
+  /* ---------------- ⑥B 技能条数字：铁山靠 190 ----------------
+     本机 pwdisp 层会用自己重算的数字覆盖技能条（不走 livePowerVals），
+     所以这里在 renderBattle 之后再纠正那一格：数字换成含 +80 的实时威力，
+     并补一个「惯性+80」小标签。只有 pwdisp 生成的 #pwtg 才处理，避免重复加算。 */
+  function cardBoost(A, sk) {
+    try {
+      if (!A || !sk || !sk.syBoostFrom) return null;
+      if (A._syLast !== sk.syBoostFrom) return null;
+      var base = (sk.powers && sk.powers[0]) || sk.power || 0;
+      var add = sk.syBoostAdd || BOOST;
+      return { base: base, pw: base + add, add: add, tag: '惯性+' + add };
+    } catch (e) {}
+    return null;
+  }
+  function patchBoostCard() {
+    try {
+      if (!live() || !S.me || !S.foe) return;
+      var btns = document.querySelectorAll('button.skill[data-skill]');
+      if (!btns || !btns.length) return;
+      var A = act(S.me), D = act(S.foe);
+      if (!A || !D || !A.moves) return;
+      for (var i = 0; i < btns.length; i++) {
+        var b = btns[i], idx = +b.getAttribute('data-skill');
+        var sk = A.moves[idx];
+        var el = b.querySelector && b.querySelector('#pwtg');
+        if (!sk || !el) continue;
+        var info = cardBoost(A, sk);
+        if (!info) continue;
+        var e = 1;
+        try {
+          var c = (typeof window.PWD_CALC === 'function') ? window.PWD_CALC(A, D, sk) : null;
+          if (c && typeof c.e === 'number' && c.e > 0) e = c.e;
+        } catch (err) {}
+        el.innerHTML = '威力 ' + Math.round(info.pw * e);
+        try {
+          if (!b.querySelector('.pwtag.syboost')) {
+            el.insertAdjacentHTML('afterend', ' <span class="pwtag k syboost">' + info.tag + '</span>');
+          }
+        } catch (err2) {}
+      }
+    } catch (e) {}
+  }
+  if (typeof window.renderBattle === 'function' && !window.__SY_RB) {
+    window.__SY_RB = true;
+    var _rb2 = window.renderBattle;
+    window.renderBattle = function () {
+      var r = _rb2.apply(this, arguments);
+      try { patchBoostCard(); } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------------- ⑦ 状态条：练习时长 ---------------- */
+  var _bars = window.barsHTML;
+  if (typeof _bars === 'function') {
+    window.barsHTML = function (sideKey, side, label) {
+      var out = _bars.apply(this, arguments);
+      try {
+        var p = act(side);
+        if (isSy(p)) {
+          var prog = round1(p._syProg || 0);
+          var chips = window.__BB ? window.__BB.chip({
+            name: '练习 ' + fmt(prog) + '/' + fmt(CAP), cat: 'attr',
+            bg: 'linear-gradient(135deg,#fff4c9,#ffcf5c)', fg: '#3d2a00', bd: '#fff8dc',
+            title: '练习时长两年半：与上一招重复 +0.5，换招 +1；满 2.5 自动释放「飞起来！」并清零' +
+              (p._syLast ? '（上一招：' + p._syLast + '）' : '（还没出过招）')
+          }) : '';
+          if (chips) {
+            out = String(out);
+            if (out.indexOf('<div class="strow">') >= 0) {
+              out = out.replace('<div class="strow">', '<div class="waxrow" style="margin:3px 0 1px">' + chips + '</div><div class="strow">');
+            } else {
+              out = '<div class="waxrow" style="margin:3px 0 1px">' + chips + '</div>' + out;
+            }
+          }
+        }
+      } catch (e) {}
+      return out;
+    };
+  }
+
+  /* ---------------- ⑧ 被动名 / 说明 ---------------- */
+  try {
+    if (typeof window.passiveName === 'function' && !window.__SY_PN) {
+      window.__SY_PN = true;
+      var _pn = window.passiveName;
+      window.passiveName = function (pet) {
+        try { if (pet && pet.passive && pet.passive.shenying) return '练习时长两年半'; } catch (e) {}
+        return _pn.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+  try {
+    if (typeof window.passiveDesc === 'function' && !window.__SY_PD) {
+      window.__SY_PD = true;
+      var _pd = window.passiveDesc;
+      window.passiveDesc = function (pet) {
+        try {
+          if (pet && pet.passive && pet.passive.shenying) {
+            return '【练习时长两年半】每次成功使用主动技能 → 与自身上一招相同则练习时长 +0.5 点，' +
+              '换了一招则 +1 点（首次使用 +1）。累计每满 2.5 点就立即自动对敌方场上宠物' +
+              '释放隐藏技能【飞起来！】（风系物理 100 威力：命中后把对手强制踹下场、随机换上一只存活替补，' +
+              '无视锁足与禁止换人；对手没有替补、被闪开、或这一脚直接把目标打倒时只按正常规则结算），' +
+              '同时把练习时长清零 —— 溢出的部分不保留、不攒到下一次。练习时长与「上一招」记录都存在宠物身上，换下场也不清零。' +
+              '隐藏技能本身不产生练习时长、不刷新「上一招」记录，也不会再次触发被动。' +
+              '　配招要点：「背带运球」（先手+1 · 40×2 并降速）→「铁山靠」按蓄力前的记录判定，接得上就 110→190。';
+          }
+        } catch (e) {}
+        return _pd.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+
+  /* ---------------- ⑨ 自检接口 ---------------- */
+  window.__SHENYING = {
+    pet: function () {
+      var p = (typeof PETS !== 'undefined') ? PETS.filter(function (x) { return x && x.id === PID; })[0] : null;
+      return p ? {
+        name: p.name, type: p.type, base: p.base, passive: p.passive,
+        total: Object.keys(p.base).reduce(function (a, k) { return a + p.base[k]; }, 0),
+        skills: (p.own || []).map(function (s) {
+          return { name: s.name, cat: s.cat, type: s.type, power: s.power, pp: s.pp, spd: s.spd };
+        }),
+        hidden: { name: SK_AUTO.name, cat: SK_AUTO.cat, type: SK_AUTO.type, power: SK_AUTO.power, inBar: false }
+      } : 'MISSING';
+    },
+    side: function (k) {
+      var sd = (k === 'foe') ? S.foe : S.me;
+      var p = act(sd);
+      if (!p) return null;
+      if (!isSy(p)) return { isShenying: false, name: p.name };
+      return { isShenying: true, name: p.name, prog: round1(p._syProg || 0), last: p._syLast || null, cap: CAP };
+    },
+    setProg: function (k, n) {
+      if (!live()) return 'NO BATTLE';
+      var p = act((k === 'foe') ? S.foe : S.me);
+      if (!isSy(p)) return 'NOT SHENYING';
+      p._syProg = round1(n || 0);
+      return p._syProg;
+    },
+    setLast: function (k, name) {
+      if (!live()) return 'NO BATTLE';
+      var p = act((k === 'foe') ? S.foe : S.me);
+      if (!isSy(p)) return 'NOT SHENYING';
+      p._syLast = name || null;
+      return p._syLast;
+    },
+    /* 手动触发一次自动技，方便空场测试 */
+    auto: function (k) {
+      if (!live()) return 'NO BATTLE';
+      var sd = (k === 'foe') ? S.foe : S.me;
+      var od = (sd === S.foe) ? S.me : S.foe;
+      return fireAuto(sd, od, act(sd));
+    },
+    kick: function (k) {
+      if (!live()) return 'NO BATTLE';
+      var sd = (k === 'foe') ? S.foe : S.me;
+      return kickOut(sd, act(sd));
+    },
+    bench: function (k) {
+      if (!live()) return [];
+      var sd = (k === 'foe') ? S.foe : S.me;
+      return { strict: benchIdx(sd, true), loose: benchIdx(sd, false) };
+    },
+    cardBoost: function (k) {
+      if (!live()) return 'NO BATTLE';
+      var p = act((k === 'foe') ? S.foe : S.me);
+      var out = {};
+      (p.moves || []).forEach(function (s) { out[s.name] = cardBoost(p, s); });
+      return out;
+    }
+  };
+})();
+</script>
+<style id="shenying-basketball-style">
+.pet[data-artkey="shenying"] .art{position:relative}
+.pet[data-artkey="shenying"] .artimg{display:block}
+.sy-pose,.sy-court,.sy-drop-layer{pointer-events:none;position:absolute;inset:0;width:100%;height:100%}
+.sy-court{position:fixed;z-index:0;overflow:hidden;opacity:0;background-color:#abb1c2}
+.sy-drop-layer{z-index:3;overflow:hidden}
+.sy-drop-ball,.sy-bang,.sy-glyph{position:absolute;pointer-events:none;display:block;will-change:transform,opacity}
+.sy-drop-ball{left:0;top:0}
+.sy-bang{border:3px solid #fff2ac;box-shadow:0 0 0 2px #e58738,inset 0 0 8px #ffb63d;border-radius:50%}
+.sy-glyph{font:1000 64px/1 "Kaiti SC","STKaiti","PingFang SC","Microsoft YaHei",sans-serif;color:#fff0a6;-webkit-text-stroke:4px #482316;paint-order:stroke fill;text-shadow:2px 3px 0 #ca5218,3px 5px 0 #81351c;white-space:nowrap;width:2em;opacity:0;will-change:opacity}
+
+</style>
+<script id="shenying-basketball">
+(()=>{
+const images={"portrait":"media/935ba74aac50c0e13771d30c.webp","idle":"media/3e79fc25b0559e75b07fbad3.webp","studio":"media/a0c4cb97c6d265d858bfb79d.webp","ball":"media/7b880332c2cb9e8a42c07cf2.webp","pages":["media/5e8601c33955b58af32c8acb.webp","media/43ae8dc3345e15493bf9d452.webp","media/be2def22f88c578c86ee3764.webp","media/a292895f21580af80b7130d4.webp","media/0209b2320b71f7b28fd0c13f.webp","media/91d6eed91a31b484199ab4ca.webp"]};
+const timing={"samples":[0,33,67,100,133,167,185,200,233,267,300,333,367,380,400,433,467,500,533,535,567,600,633,667,680,700,733,767,800,833,850,867,900,933,967,1000,1010,1033,1067,1100,1133,1160,1167,1200,1233,1267,1300,1333,1367,1400,1433,1467,1500,1505,1533,1567,1600,1633,1667,1700,1730,1733,1767,1800,1833,1867,1900,1933,1967,2000],"keys":[0,185,380,535,680,850,1010,1160,1300,1505,1730,2000],"cell":[394,400],"drop":1050,"hit":1400,"duration":2110};
+const pet=PETS.find(p=>p.id==='shenying');
+if (!pet) return;
+pet.art=pet.id;
+PET_ART[pet.id]={idle:images.portrait,battleIdle:images.idle,attack:images.idle,leap:images.idle};
+const casts=new WeakMap(), running=new Map(), held=new Map(), playing=new Map();
+const load=async src=>{const im=new Image();im.src=src;await im.decode();return im;};
+let sheets,studio;
+const ready=Promise.all([Promise.all(images.pages.map(load)),load(images.ball),load(images.studio)])
+  .then(([pages,,background])=>{sheets=pages;studio=background;return true;},()=>false);
+const glyphIn=150,glyphHold=220,glyphOut=260;
+const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+const figure=key=>document.getElementById('fig_'+key);
+function make(tag,name){const el=document.createElement(tag);el.className=name;el.setAttribute('aria-hidden','true');return el;}
+function findCast(frames){return frames?.map(f=>casts.get(f)).find(c=>c?.owner===S);}
+function isLaunch(frame,from){return frame.lunge===from || (frame.atkfx && frame.from===from);}
+
+const baseSkill=window.doSkill;
+window.doSkill=function(from,side,other,index){
+  const actor=active(side);
+  if (!sheets || actor?.def.id!==pet.id) return baseSkill.apply(this,arguments);
+  const owner=S, to=other===owner.foe?'foe':'me', start=owner.fx.length, target=active(other);
+  const cast={owner,actor,target,from,to,oldIndex:other.active,logStart:owner.log.length,
+    sourceHud:BattleSpriteGeometry.snapshotHud(from),targetHud:BattleSpriteGeometry.snapshotHud(to),oldHP:target.hp};
+  const result=baseSkill.apply(this,arguments);
+  const frames=owner.fx.slice(start),first=frames.findIndex(f=>isLaunch(f,from));
+  if (first<0 || frames.some(f=>f.captainApproach||f.captainReply)) return result;
+  cast.frames=frames.slice(first);
+  let beat=timing.hit,last=beat,latestTargetHit=beat;
+  // A passive follow-up can accompany an attack or be the only attack after a support move.
+  for (const [i,f] of cast.frames.entries()){
+    if (i && isLaunch(f,from)) beat=last+270;
+    const at=beat+(f.delay||0);
+    f.syAt=f.die?Math.max(at,latestTargetHit):at;
+    if (f.on===to && f.landed!=null){
+      latestTargetHit=f.syAt;
+      if(f.landed && cast.contact==null) cast.contact=f.syAt;
+    }
+    last=Math.max(last,f.syAt);
+  }
+  cast.end=Math.max(timing.duration,cast.contact==null?0:cast.contact+glyphIn+glyphHold+glyphOut,last+310);
+  cast.after=active(other);
+  if(cast.after!==target) held.set(to,cast);
+  casts.set(cast.frames[0],cast);
+  return result;
+};
+
+// The passive has already switched the combatant in the model. Show its original
+// recipient until contact and recovery have played, then reveal the substitute.
+function visibleSide(key,side){
+  const c=held.get(key);
+  if(!c || S!==c.owner || S.cancelled || active(side)!==c.after) return side;
+  return {...side,active:c.oldIndex};
+}
+const basePet=window.petHTML,baseBar=window.barsHTML;
+window.petHTML=function(key,side){return basePet.call(this,key,visibleSide(key,side));};
+window.barsHTML=function(key,side,label){return baseBar.call(this,key,visibleSide(key,side),label);};
+
+// Fit the complete glass plate. Extend only its edge colours into letterbox margins.
+function fitStudio(canvas){
+  const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);
+  if(canvas.width===w && canvas.height===h)return;
+  canvas.width=w;canvas.height=h;
+  const g=canvas.getContext('2d'),iw=studio.naturalWidth,ih=studio.naturalHeight;
+  const fit=Math.min(w/iw,h/ih),dw=Math.round(iw*fit),dh=Math.round(ih*fit);
+  const x=Math.floor((w-dw)/2),y=Math.floor((h-dh)/2);
+  const strip=document.createElement('canvas'),vertical=dh<h;
+  strip.width=vertical?8:1;strip.height=vertical?1:8;
+  const sg=strip.getContext('2d');
+  for(const far of [false,true]){
+    if(vertical){
+      sg.drawImage(studio,0,far?ih-2:0,iw,2,0,0,8,1);
+      g.drawImage(strip,0,far?y+dh:0,w,far?h-y-dh:y);
+    }else if(dw<w){
+      sg.drawImage(studio,far?iw-2:0,0,2,ih,0,0,1,8);
+      g.drawImage(strip,far?x+dw:0,0,far?w-x-dw:x,h);
+    }
+  }
+  g.drawImage(studio,x,y,dw,dh);
+}
+
+function placeGlyph(glyph,layer,bounds){
+  const width=layer.clientWidth,height=layer.clientHeight;
+  const left=bounds.left*width,top=bounds.top*height,victimWidth=bounds.width*width;
+  const pad=7,gap=Math.max(12,Math.min(30,victimWidth*.17));
+  const laneStart=Math.max(pad,bounds.obstacle*width+pad);
+  const room=left-gap-laneStart;
+  let size=Math.min(70,Math.max(27,width*.085),room/2);
+  let x=left-gap-2*size;
+  let y=bounds.centerY*height-size*.5;
+  if(size<24){
+    // At the left rail there is no horizontal lane. Use the pocket above the outer shoulder.
+    size=Math.max(14,Math.min(42,top-2*pad,(left+victimWidth*.55-pad)/2));
+    x=Math.max(pad,left+victimWidth*.50-2*size);
+    y=top-size-2*pad;
+  }
+  glyph.style.fontSize=size+'px';
+  glyph.style.left=x+'px';
+  glyph.style.top=Math.max(pad,Math.min(height-size-pad,y))+'px';
+}
+
+function play(c){
+  const {from,to,owner}=c;
+  if(!figure(from)?.querySelector('.artimg') || !figure(to)?.querySelector('.art')) return false;
+  running.get(from)?.();
+  const extras=localStorage.getItem('lingchong_fxpro_mode')!=='off';
+  const pose=make('canvas','sy-pose'),ctx=pose.getContext('2d');
+  if(!ctx)return false;
+  const layer=make('div','sy-drop-layer'),ball=make('img','sy-drop-ball');
+  ball.src=images.ball;ball.alt='';ball.style.opacity='0';layer.append(ball);
+  const ring=make('i','sy-bang'),glyph=make('span','sy-glyph');
+  glyph.textContent='鸡！';
+  const court=extras?make('canvas','sy-court'):null;
+  if(court){court.width=court.height=0;document.body.append(court);}
+  const [w,h]=timing.cell;
+  pose.width=w;pose.height=h;
+  const start=performance.now(),hit=c.contact??timing.hit,drop=hit-(timing.hit-timing.drop);
+  let frame=-1,raf=0,im,oldVisibility='',done=false,anchor,hitAnchor,glyphBounds,layoutWidth,layoutHeight,shown=false;
+  function stop(finished=false){
+    if(done)return;
+    done=true;cancelAnimationFrame(raf);
+    if(im)im.style.visibility=oldVisibility;
+    pose.remove();layer.remove();court?.remove();running.delete(from);playing.delete(from);
+    if(held.get(to)===c){
+      held.delete(to);
+      if(finished && owner===S && !owner.cancelled && document.getElementById('stage'))renderBattle();
+    }
+  }
+  function paint(age){
+    const stage=document.getElementById('stage'),next=figure(from)?.querySelector('.artimg'),vic=figure(to);
+    if(done)return false;
+    if(owner!==S || owner.cancelled || active(owner[from])!==c.actor || active(owner[to])!==c.after ||
+       !stage || !next || !vic){stop();return false;}
+    if(age>=c.end){stop(true);return false;}
+    if(next!==im){
+      if(im)im.style.visibility=oldVisibility;
+      im=next;oldVisibility=im.style.visibility;im.after(pose);
+    }
+    const i=timing.samples.findLastIndex(t=>t<=age);
+    if(i!==frame){
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(sheets[Math.floor(i/12)],(i%4)*w,Math.floor(i%12/4)*h,w,h,0,0,w,h);
+      frame=i;
+    }
+    im.style.visibility='hidden';
+    if(court){fitStudio(court);court.style.opacity=smooth(age/150)*(1-smooth((age-(c.end-380))/290));}
+    if(layer.parentElement!==stage)stage.append(layer);
+    if(age<drop)return true;
+    const rect=layer.getBoundingClientRect(),art=vic.querySelector('.art');
+    if(!rect.width||!rect.height)return true;
+    if(!hitAnchor && art?.childNodes.length){
+      const q=BattleSpriteGeometry.targetPoint(vic);
+      anchor={x:(q.x-rect.left)/rect.width,y:(q.y-rect.top)/rect.height};
+      const target=art.getBoundingClientRect(),caster=im.getBoundingClientRect();
+      glyphBounds={left:(target.left-rect.left)/rect.width,top:(target.top-rect.top)/rect.height,
+        width:target.width/rect.width,centerY:anchor.y,
+        obstacle:caster.right<=target.left?(caster.right-rect.left)/rect.width:0};
+    }
+    if(!anchor)return true;
+    if(age>=hit)hitAnchor??=anchor;
+    const p=hitAnchor||anchor,dir=to==='foe'?-1:1;
+    const radius=Math.min(40,Math.max(16,Math.min(rect.width*.046,rect.height*.128)));
+    const tx=p.x*rect.width,ty=p.y*rect.height;
+    const u=Math.min(1,(age-drop)/(hit-drop)),after=Math.max(0,age-hit);
+    const x=tx+(c.contact==null?dir*(vic.clientWidth*.52+radius):0);
+    // Enter vertically through the top edge. At impact the bottom of the ball touches opaque art.
+    const y0=-radius*1.25,endY=ty-radius*.85;
+    let y=y0+(endY-y0)*(.21*u+.79*u*u);
+    if(c.contact==null)y+=after*.85;
+    else y-=Math.sin(Math.min(1,after/180)*Math.PI)*radius*.38;
+    const alpha=1-smooth(after/(c.contact==null?240:160));
+    ball.style.cssText='width:'+2*radius+'px;height:'+2*radius+'px;opacity:'+alpha+
+      ';transform:translate('+x+'px,'+y+'px) translate(-50%,-50%) rotate('+(u*220+after*.16)+'deg)';
+    if(!extras||c.contact==null||age<hit)return true;
+    if(!shown){layer.append(ring,glyph);shown=true;}
+    const r=radius*(.48+1.15*smooth(after/220));
+    ring.style.cssText='width:'+r*2+'px;height:'+r*1.14+'px;left:'+tx+'px;top:'+ty+
+      'px;transform:translate(-50%,-50%);opacity:'+(1-smooth(after/240));
+    if(layoutWidth!==rect.width || layoutHeight!==rect.height){
+      placeGlyph(glyph,layer,glyphBounds);
+      layoutWidth=rect.width;layoutHeight=rect.height;
+    }
+    glyph.style.opacity=smooth(after/glyphIn)*(1-smooth((after-glyphIn-glyphHold)/glyphOut));
+    return true;
+  }
+  function tick(t){if(paint(Math.max(0,t-start)))raf=requestAnimationFrame(tick);}
+  c.started=start;running.set(from,stop);playing.set(from,c);tick(start);
+  // The same battle clock also schedules the damage number; paint contact before that callback.
+  battleLater(()=>{if(!done && !shown)paint(Math.max(hit,performance.now()-start));},hit);
+  return !done;
+}
+
+function syncHud(c){
+  const stage=document.getElementById('stage');
+  if(!stage || c.lastStage===stage || active(c.owner[c.from])!==c.actor || active(c.owner[c.to])!==c.after)return;
+  c.lastStage=stage;
+  const hits=c.frames.filter(f=>f.on===c.to && f.hpTo!=null);
+  const age=performance.now()-c.started,first=hits[0]?.syAt??timing.hit,wait=Math.max(0,first-age);
+  if(wait){
+    for(const [to,target,hud] of [[c.from,c.actor,c.sourceHud],[c.to,c.after,c.targetHud]]){
+      const previousHUD=hud.map(({selector,before})=>({selector,before:before?.cloneNode(true)}));
+      BattleSpriteGeometry.delayHud({owner:c.owner,to,target,previousHUD},wait);
+    }
+    const log=document.getElementById('log');
+    if(log && c.owner.log.length>c.logStart){
+      log.innerHTML=c.owner.log.slice(0,c.logStart).join('<br>');log.scrollTop=log.scrollHeight;
+      battleLater(()=>{if(log.isConnected)flushLog();},wait);
+    }
+  }
+  const bar=document.querySelector('.hpside.'+c.to);
+  if(!hits.length || !bar)return;
+  let current=c.oldHP,percent=hits[0].hpFrom;
+  const fill=bar.querySelector('.hpfill');
+  const show=(v,pct)=>{
+    if(!stage.isConnected || active(c.owner[c.to])!==c.after)return;
+    const label=bar.querySelector('.hpn');
+    if(label)label.textContent='HP '+v+' / '+c.target.maxhp;
+    if(fill)fill.style.width=pct+'%';
+  };
+  let hp=c.oldHP;
+  for(const [i,f] of hits.entries()){
+    hp=i===hits.length-1?c.target.hp:Math.max(0,hp+(parseInt(f.txt,10)||0));
+    const value=hp;
+    if(f.syAt<=age){current=hp;percent=f.hpTo;}
+    else battleLater(()=>show(value,f.hpTo),f.syAt-age);
+  }
+  show(current,percent);
+}
+
+const basePlay=window.playFx;
+window.playFx=function(){
+  const c=findCast(S?.fx);
+  if(c && play(c)){
+    for(const f of c.frames){
+      if(isLaunch(f,c.from))f.customLaunch=true;
+      if(f.on===c.to && f.landed!=null)f.customImpact=true;
+    }
+  }else if(c){
+    held.delete(c.to);
+    for(const f of c.frames)delete f.syAt;
+  }
+  for(const cast of playing.values())syncHud(cast);
+  return basePlay.apply(this,arguments);
+};
+window.ShenyingMotion={
+  ready,queueEnd:frames=>findCast(frames)?.end||0,
+  clear(){for(const stop of running.values())stop();held.clear();},
+  hurtPet:key=>{const c=held.get(key);return c?.owner===S && active(S[key])===c.after?c.target:null;}
 };
 
 })();
